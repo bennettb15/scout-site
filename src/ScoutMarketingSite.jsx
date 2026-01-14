@@ -101,8 +101,13 @@ const Section = ({ id, eyebrow, title, subtitle, children }) => (
   </section>
 );
 
-const Pill = ({ icon: Icon, children }) => (
-  <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background/70 px-3 py-1 text-sm text-foreground/80 shadow-sm">
+const Pill = ({ icon: Icon, children, className = "" }) => (
+  <div
+    className={
+      "inline-flex items-center gap-2 rounded-full border border-border bg-background/70 px-3 py-1 text-sm text-foreground/80 shadow-sm " +
+      className
+    }
+  >
     <Icon className="h-4 w-4 text-[var(--brand)]" />
     <span>{children}</span>
   </div>
@@ -320,10 +325,16 @@ function scrollToSection(href) {
           >
             <div>
               <div className="mb-5 flex flex-wrap gap-2">
-                <Pill icon={Camera}>Time-stamped photo documentation</Pill>
-                <Pill icon={ClipboardList}>Report-ready deliverables</Pill>
-                <Pill icon={ShieldCheck}>Non-inspection scope</Pill>
-              </div>
+  <Pill icon={Camera} className="text-xs text-foreground/60 border-border/60 shadow-none">
+    Time-stamped photo documentation
+  </Pill>
+  <Pill icon={ClipboardList} className="text-xs text-foreground/60 border-border/60 shadow-none">
+    Report-ready deliverables
+  </Pill>
+  <Pill icon={ShieldCheck} className="text-xs text-foreground/60 border-border/60 shadow-none">
+    Non-inspection scope
+  </Pill>
+</div>
 
               <div className="mb-5">
                 <img
