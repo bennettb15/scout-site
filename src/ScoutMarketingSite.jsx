@@ -522,7 +522,6 @@ function scrollToSection(href) {
           </motion.div>
         </div>
       </header>
-      <div>
 
       <Section
         id="services"
