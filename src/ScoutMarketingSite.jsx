@@ -522,7 +522,7 @@ function scrollToSection(href) {
           </motion.div>
         </div>
       </header>
-<div className="bg-muted">
+
       <Section
         id="services"
         eyebrow="Services"
@@ -604,8 +604,8 @@ function scrollToSection(href) {
           </Card>
         </div>
       </Section>
-</div>
-<div className="bg-blue-50">
+
+
       <Section
         id="how"
         eyebrow="Process"
@@ -685,8 +685,8 @@ function scrollToSection(href) {
           </div>
         </div>
       </Section>
-</div>
-<div className="bg-muted">
+
+
       <Section
         id="pricing"
         eyebrow="Pricing"
@@ -809,7 +809,7 @@ function scrollToSection(href) {
           deliverables. SCOUT does not provide inspection services.
         </p>
       </Section>
-</div>
+
       <Section
         id="faq"
         eyebrow="FAQ"
