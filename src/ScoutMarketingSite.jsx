@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Camera,
@@ -172,6 +172,11 @@ export default function ScoutMarketingSite() {
 
 const [mobileOpen, setMobileOpen] = useState(false);
 
+useEffect(() => {
+    document.documentElement.style.setProperty("--brand", BRAND.brandNavy);
+    document.documentElement.style.setProperty("--brand-ink", "#23243A");
+  }, []);
+
 function scrollToSection(href) {
   const id = href?.replace("#", "");
   const el = document.getElementById(id);
@@ -268,7 +273,8 @@ function scrollToSection(href) {
 
         <div className="mt-4 grid gap-2">
           <Button
-            className="rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
+            className="w-full rounded-2xl bg-[var(--brand)] text-white hover:brightness-110"
+
             onClick={() => scrollToSection("#contact")}
           >
             {BRAND.ctaPrimary}
