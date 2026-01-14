@@ -226,7 +226,7 @@ function scrollToSection(href) {
     <img
       src={BRAND.logos.wordmarkOnly}
       alt="SCOUT"
-      className="h-6 w-auto object-contain"
+      className="h-8 w-auto object-contain"
       loading="eager"
     />
     <div className="text-xs text-foreground/60">{BRAND.tagline}</div>
