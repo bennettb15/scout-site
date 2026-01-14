@@ -215,12 +215,12 @@ function scrollToSection(href) {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 md:px-6">
           <a href="#top" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-background shadow-sm overflow-hidden">
-              <img
+             {/* <img
                 src={BRAND.logos.iconOnly}
                 alt="SCOUT icon"
                 className="h-6 w-6 object-contain"
                 loading="eager"
-              />
+              />*/}
             </div>
             <div className="leading-tight">
               <img
@@ -335,8 +335,8 @@ function scrollToSection(href) {
 
               <div className="mb-5">
                 <img
-                  src={BRAND.logos.lockupWithTagline}
-                  alt="SCOUT — Observe & Report"
+                  src={BRAND.logos.wordmarkOnly}
+                  alt="SCOUT"
                   className="h-12 w-auto object-contain md:h-14"
                   loading="eager"
                 />
@@ -1001,12 +1001,12 @@ function scrollToSection(href) {
             <div>
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-background shadow-sm overflow-hidden">
-                  <img
+                  {/*<img
                     src={BRAND.logos.iconOnly}
                     alt="SCOUT icon"
                     className="h-6 w-6 object-contain"
                     loading="lazy"
-                  />
+                  /> */}
                 </div>
                 <img
                   src={BRAND.logos.wordmarkOnly}
