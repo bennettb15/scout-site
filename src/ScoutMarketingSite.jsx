@@ -224,7 +224,7 @@ function scrollToSection(href) {
 <a href="#top" className="flex items-center gap-2">
   <div className="leading-tight">
     <img
-      src={BRAND.logos.wordmarkOnly}
+      src={BRAND.logos.lockupWithTagline}
       alt="SCOUT"
       className="h-8 w-auto object-contain"
       loading="eager"
