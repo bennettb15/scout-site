@@ -523,7 +523,7 @@ function scrollToSection(href) {
         </div>
       </header>
       <div>
-<div className="bg-[var(--brand)]/5">
+
       <Section
         id="services"
         eyebrow="Services"
