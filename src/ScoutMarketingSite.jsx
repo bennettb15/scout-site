@@ -522,7 +522,7 @@ function scrollToSection(href) {
           </motion.div>
         </div>
       </header>
-<div className="bg-[var(--brand)]/5"></div>
+<div className="bg-[var(--brand)]/5">
       <Section
         id="services"
         eyebrow="Services"
