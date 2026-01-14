@@ -226,10 +226,9 @@ function scrollToSection(href) {
     <img
       src={BRAND.logos.lockupWithTagline}
       alt="SCOUT"
-      className="h-8 w-auto object-contain"
+      className="h-10 w-auto object-contain md:h-11"
       loading="eager"
     />
-    <div className="text-xs text-foreground/60">{BRAND.tagline}</div>
   </div>
 </a>
 {/* Desktop nav */}
