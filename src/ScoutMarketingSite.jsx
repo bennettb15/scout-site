@@ -80,8 +80,8 @@ const Section = ({ id, eyebrow, title, subtitle, children }) => (
     <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
       <div className="mb-8 md:mb-10">
         {eyebrow ? (
-          <div className="mb-3 flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--brand)]" />
+          <div className="mb-3"> {/*flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--brand)]" />*/}
             <p className="text-sm font-medium tracking-wide text-foreground/70">
               {eyebrow}
             </p>
