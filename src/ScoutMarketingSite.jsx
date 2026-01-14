@@ -512,7 +512,7 @@ function scrollToSection(href) {
   <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
     <div className="flex items-center gap-2">
       <MapPin className="h-4 w-4 text-[var(--brand)]" />
-      <div className="text-sm font-semibold">Service area</div>
+      <div className="text-base font-medium text-foreground">Service area</div>
     </div>
     <div className="mt-1 text-sm text-foreground/70">
       {BRAND.serviceArea}
@@ -523,7 +523,7 @@ function scrollToSection(href) {
   <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
     <div className="flex items-center gap-2">
       <Clock className="h-4 w-4 text-[var(--brand)]" />
-      <div className="text-sm font-semibold">Scheduling</div>
+      <div className="text-base font-medium text-foreground">Scheduling</div>
     </div>
     <div className="mt-1 text-sm text-foreground/70">
       Weekdays + flexible windows
@@ -536,7 +536,7 @@ function scrollToSection(href) {
     <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
       <div className="flex items-center gap-2">
         <Zap className="h-4 w-4 text-[var(--brand)]" />
-        <div className="text-lg font-semibold tracking-tight">24–72 hrs</div>
+        <div className="text-base font-medium text-foreground">24–72 hrs</div>
       </div>
       <div className="mt-1 text-sm text-foreground/70">
         Typical turnaround
@@ -547,7 +547,7 @@ function scrollToSection(href) {
     <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
       <div className="flex items-center gap-2">
         <FileText className="h-4 w-4 text-[var(--brand)]" />
-        <div className="text-lg font-semibold tracking-tight">
+        <div className="text-base font-medium text-foreground">
           PDF + photo set
         </div>
       </div>
