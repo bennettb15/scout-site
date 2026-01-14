@@ -522,7 +522,7 @@ function scrollToSection(href) {
           </motion.div>
         </div>
       </header>
-<div className="bg-[var(--brand)]/5">
+<div className="bg-muted">
       <Section
         id="services"
         eyebrow="Services"
@@ -605,6 +605,7 @@ function scrollToSection(href) {
         </div>
       </Section>
 </div>
+<div className="bg-[var(--brand)]/5">
       <Section
         id="how"
         eyebrow="Process"
@@ -684,7 +685,8 @@ function scrollToSection(href) {
           </div>
         </div>
       </Section>
-
+</div>
+<div className="bg-muted">
       <Section
         id="pricing"
         eyebrow="Pricing"
@@ -807,7 +809,7 @@ function scrollToSection(href) {
           deliverables. SCOUT does not provide inspection services.
         </p>
       </Section>
-
+</div>
       <Section
         id="faq"
         eyebrow="FAQ"
@@ -841,7 +843,7 @@ function scrollToSection(href) {
           />
         </div>
       </Section>
-
+<div className="bg-[var(--brand)]/5">
       <Section
         id="contact"
         eyebrow="Contact"
@@ -1000,7 +1002,7 @@ function scrollToSection(href) {
           </div>
         </div>
       </Section>
-
+</div>
       <footer className="border-t border-border py-10">
         <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-center">
