@@ -75,8 +75,8 @@ const fadeUp = {
   show: { opacity: 1, y: 0 },
 };
 
-const Section = ({ id, eyebrow, title, subtitle, children }) => (
-  <section id={id} className="scroll-mt-24 py-14 md:py-18">
+const Section = ({ id, eyebrow, title, subtitle, children,className = "", }) => (
+  <section id={id} className="scroll-mt-24 py-8 md:py-10">
     <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
       <div className="mb-8 md:mb-10">
         {eyebrow ? (
@@ -317,7 +317,8 @@ function scrollToSection(href) {
           <div className="absolute -bottom-20 right-[-12rem] h-72 w-[42rem] rounded-full bg-[var(--brand)]/10 blur-3xl" />
         </div>
 
-        <div className="mx-auto w-full max-w-6xl px-4 py-14 md:px-6 md:py-20">
+        <div className="mx-auto w-full max-w-6xl px-4 pt-14 pb-8 md:px-6 md:pt-20 md:pb-10">
+
           <motion.div
             variants={fadeUp}
             initial="hidden"
@@ -342,7 +343,7 @@ function scrollToSection(href) {
                 <img
                   src={BRAND.logos.wordmarkOnly}
                   alt="SCOUT"
-                  className="h-12 w-auto object-contain md:h-14"
+                  className="h-10 w-auto object-contain md:h-12"
                   loading="eager"
                 />
               </div>
@@ -528,6 +529,7 @@ function scrollToSection(href) {
         eyebrow="Services"
         title="Visual documentation packages built for repeatability"
         subtitle="Choose a one-time visit or a recurring cadence. Every deliverable is organized, time-stamped, and easy to file, share, and compare over time."
+        className="py-10 md:py-14"
       >
         <div className="grid gap-4 md:grid-cols-3">
           <Feature
@@ -611,6 +613,7 @@ function scrollToSection(href) {
         eyebrow="Process"
         title="A simple workflow that produces consistent records"
         subtitle="We aim for clarity and repeatability: the same structure each visit, so differences over time are obvious."
+      className="py-10 md:py-14"
       >
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="rounded-3xl shadow-sm">
@@ -692,6 +695,7 @@ function scrollToSection(href) {
         eyebrow="Pricing"
         title="Straightforward pricing that scales with complexity"
         subtitle="Pricing depends on property size, number of buildings/elevations, access, and desired cadence. Use the ranges below as planning guidance; quotes are finalized after scoping."
+      className="py-10 md:py-14"
       >
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="rounded-3xl shadow-sm">
