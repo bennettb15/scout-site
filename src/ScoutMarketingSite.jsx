@@ -422,7 +422,7 @@ function scrollToSection(href) {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-start gap-3">
-                    <div className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
+<div className="mt-0.5 inline-flex h-9 w-9 min-w-[2.25rem] flex-shrink-0 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
                       <FileText className="h-4 w-4 text-[var(--brand)]" />
                     </div>
                     <div>
@@ -435,7 +435,7 @@ function scrollToSection(href) {
                   </div>
 
                   <div className="flex items-start gap-3">
-                    <div className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
+<div className="mt-0.5 inline-flex h-9 w-9 min-w-[2.25rem] flex-shrink-0 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
                       <Camera className="h-4 w-4 text-[var(--brand)]" />
                     </div>
                     <div>
@@ -448,9 +448,10 @@ function scrollToSection(href) {
                   </div>
 
                   <div className="flex items-start gap-3">
-                    <div className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
-                      <ShieldCheck className="h-4 w-4 text-[var(--brand)]" />
-                    </div>
+<div className="mt-0.5 inline-flex h-9 w-9 min-w-[2.25rem] flex-shrink-0 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
+  <ShieldCheck className="h-4 w-4 text-[var(--brand)]" />
+</div>
+
                     <div>
                       <div className="text-sm font-semibold">Clear boundaries</div>
                       <div className="text-sm text-foreground/70">
