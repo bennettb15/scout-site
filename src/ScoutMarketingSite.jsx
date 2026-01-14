@@ -18,6 +18,7 @@ import {
   Download,
   Sparkles,
   Menu,
+  Zap,
 } from "lucide-react";
 
 // If your project has shadcn/ui, these imports will work.
@@ -58,6 +59,7 @@ const BRAND = {
   logos: {
     lockupWithTagline: "/Scout Complete Logo Navy Dark NEW.png",
     wordmarkOnly: "/Scout Only Logo Navy Dark NEW.png",
+    wordmarkWhite: "/Scout Only Logo White.png",
     iconOnly: "/favicon.png",
   },
 
@@ -311,48 +313,62 @@ function scrollToSection(href) {
       </div>
 
       {/* Hero */}
-      <header id="top" className="relative overflow-hidden">
-        <div className="absolute inset-0 -z-10">
-          <div className="absolute -top-24 left-1/2 h-72 w-[44rem] -translate-x-1/2 rounded-full bg-[var(--brand)]/10 blur-3xl" />
-          <div className="absolute -bottom-20 right-[-12rem] h-72 w-[42rem] rounded-full bg-[var(--brand)]/10 blur-3xl" />
-        </div>
+      <header id="top" className="relative isolate overflow-hidden">
+       {/* Background image */}
+<div className="absolute inset-0 z-0 pointer-events-none">
+  <img
+    src="/hero-bg.jpg"
+    alt=""
+    className="h-full w-full object-cover"
+    loading="eager"
+  />
+  {/* Reduce overlay first to confirm image is there */}
+  <div className="absolute inset-0 bg-black/10" />
+</div>
 
-        <div className="mx-auto w-full max-w-6xl px-4 pt-14 pb-8 md:px-6 md:pt-20 md:pb-10">
+
+        <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pt-14 pb-8 md:px-6 md:pt-20 md:pb-10">
+
 
           <motion.div
             variants={fadeUp}
             initial="hidden"
             animate="show"
             transition={{ duration: 0.5 }}
-            className="grid items-center gap-10 md:grid-cols-2"
+            className="rounded-3xl bg-black/20 backdrop-blur-sm p-6 md:p-7 border border-white/10"
           >
             <div>
-              <div className="mb-5 flex flex-wrap gap-2">
-  <Pill icon={Camera} className="text-xs text-foreground/60 border-border/60 shadow-none">
+              <div className="mb-4 flex flex-wrap gap-2">
+  <Pill icon={Camera} className="bg-white/85 text-[#23243A] border-white/20 backdrop-blur-sm"
+>
     Time-stamped photo documentation
   </Pill>
-  <Pill icon={ClipboardList} className="text-xs text-foreground/60 border-border/60 shadow-none">
+  <Pill icon={ClipboardList} className="bg-white/85 text-[#23243A] border-white/20 backdrop-blur-sm">
     Report-ready deliverables
   </Pill>
-  <Pill icon={ShieldCheck} className="text-xs text-foreground/60 border-border/60 shadow-none">
+  <Pill icon={ShieldCheck} className="bg-white/85 text-[#23243A] border-white/20 backdrop-blur-sm"
+>
     Non-inspection scope
   </Pill>
 </div>
 
               <div className="mb-5">
                 <img
-                  src={BRAND.logos.wordmarkOnly}
+                  src={BRAND.logos.wordmarkWhite}
                   alt="SCOUT"
                   className="h-10 w-auto object-contain md:h-12"
                   loading="eager"
                 />
               </div>
 
-              <h1 className="text-3xl font-semibold tracking-tight text-[var(--brand-ink)] md:text-5xl">
+              <h1 className="text-3xl font-semibold tracking-tight text-white md:text-6xl">
+
                 Clear, time-stamped visual documentation for your property.
               </h1>
 
-              <p className="mt-4 max-w-xl text-base leading-relaxed text-foreground/70">
+              <p className="mt-4 max-w-xl text-base font-medium leading-relaxed text-white/90">
+
+
                 {BRAND.descriptor} for property owners, managers, HOAs, and
                 commercial facilities. We create structured, time-stamped visual
                 records of observable conditions—without performing inspections.
@@ -370,7 +386,7 @@ function scrollToSection(href) {
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
 
-                <Button
+                {/*<Button
                   variant="outline"
                   className="rounded-2xl hover:border-[var(--brand)]"
                   onClick={() => {
@@ -379,7 +395,7 @@ function scrollToSection(href) {
                   }}
                 >
                   Explore services
-                </Button>
+                </Button>*/}
 
                 <a
                   href={BRAND.sampleReportHref}
@@ -390,32 +406,17 @@ function scrollToSection(href) {
                 </a>
               </div>
 
-              <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {/*<div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <Stat label="Typical turnaround" value="24–72 hrs" />
                 <Stat label="Deliverables" value="PDF + photo set" />
-                <Stat label="Service area" value="Central Ohio" />
-              </div>
+              </div>*/}
 
-              <div className="mt-6 flex flex-wrap gap-2">
-                {[
-                  "Property Management",
-                  "HOAs / Condos",
-                  "Retail / Office",
-                  "Multifamily",
-                  "Insurance claim support",
-                ].map((x) => (
-                  <Badge
-                    key={x}
-                    variant="secondary"
-                    className="rounded-full border border-border bg-[var(--brand)]/5 text-foreground"
-                  >
-                    {x}
-                  </Badge>
-                ))}
-              </div>
+
             </div>
 
-            <div className="md:justify-self-end">
+            <div className="w-full md:justify-self-end mt-6">
+  <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px] md:items-start">
+
               <Card className="rounded-3xl shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-xl">What SCOUT delivers</CardTitle>
@@ -499,26 +500,77 @@ function scrollToSection(href) {
                 </CardContent>
               </Card>
 
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-[var(--brand)]" />
-                    <div className="text-sm font-semibold">Service area</div>
-                  </div>
-                  <div className="mt-1 text-sm text-foreground/70">
-                    {BRAND.serviceArea}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-[var(--brand)]" />
-                    <div className="text-sm font-semibold">Scheduling</div>
-                  </div>
-                  <div className="mt-1 text-sm text-foreground/70">
-                    Weekdays + flexible windows
-                  </div>
-                </div>
+<div className="grid gap-4">
+  {/* Service area */}
+  <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
+    <div className="flex items-center gap-2">
+      <MapPin className="h-4 w-4 text-[var(--brand)]" />
+      <div className="text-sm font-semibold">Service area</div>
+    </div>
+    <div className="mt-1 text-sm text-foreground/70">
+      {BRAND.serviceArea}
+    </div>
+  </div>
+
+  {/* Scheduling (moved above stats) */}
+  <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
+    <div className="flex items-center gap-2">
+      <Clock className="h-4 w-4 text-[var(--brand)]" />
+      <div className="text-sm font-semibold">Scheduling</div>
+    </div>
+    <div className="mt-1 text-sm text-foreground/70">
+      Weekdays + flexible windows
+    </div>
+  </div>
+
+  {/* Stat bubbles */}
+  <div className="grid gap-3">
+    {/* Turnaround */}
+    <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
+      <div className="flex items-center gap-2">
+        <Zap className="h-4 w-4 text-[var(--brand)]" />
+        <div className="text-lg font-semibold tracking-tight">24–72 hrs</div>
+      </div>
+      <div className="mt-1 text-sm text-foreground/70">
+        Typical turnaround
+      </div>
+    </div>
+
+    {/* Deliverables */}
+    <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
+      <div className="flex items-center gap-2">
+        <FileText className="h-4 w-4 text-[var(--brand)]" />
+        <div className="text-lg font-semibold tracking-tight">
+          PDF + photo set
+        </div>
+      </div>
+      <div className="mt-1 text-sm text-foreground/70">
+        Deliverables
+      </div>
+    </div>
+  </div>
+</div>
+
+              <div className="mt-6 flex flex-wrap gap-2">
+                {[
+                  "Property Management",
+                  "HOAs / Condos",
+                  "Retail / Office",
+                  "Multifamily",
+                  "Insurance claim support",
+                ].map((x) => (
+                  <Badge
+                    key={x}
+                    variant="secondary"
+                    className="rounded-full border border-white/20 bg-white/85 text-[#23243A] backdrop-blur-sm"
+                  >
+                    {x}
+                  </Badge>
+                ))}
               </div>
+
+
+</div>
             </div>
           </motion.div>
         </div>
@@ -564,7 +616,7 @@ function scrollToSection(href) {
                   "Optional labeled photos for key items (e.g., north elevation, main entry)",
                 ].map((x) => (
                   <li key={x} className="flex items-start gap-2">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 text-[var(--brand)]" />
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand)]" />
                     <span>{x}</span>
                   </li>
                 ))}
@@ -579,8 +631,8 @@ function scrollToSection(href) {
             <CardContent>
               <div className="flex flex-wrap gap-2">
                 {[
-                  "Quarterly cadence",
                   "Monthly cadence",
+                  "Quarterly cadence",
                   "After-storm documentation",
                   "Vendor work verification support",
                   "Priority turnaround",
@@ -616,26 +668,53 @@ function scrollToSection(href) {
       className="py-10 md:py-14"
       >
         <div className="grid gap-4 md:grid-cols-3">
-          <Card className="rounded-3xl shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg">1) Scope & schedule</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm leading-relaxed text-foreground/70">
-              We confirm access points, coverage areas, and your desired cadence
-              (one-time, quarterly, monthly). You’ll receive a clear time window.
-            </CardContent>
-          </Card>
-          <Card className="rounded-3xl shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg">2) Document on site</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm leading-relaxed text-foreground/70">
-              We capture time-stamped photos of reasonably accessible areas.
-              Notes are strictly observational, with no testing, measuring, or
-              professional conclusions.
-            </CardContent>
-          </Card>
-          <Card className="rounded-3xl shadow-sm">
+          <Card className="rounded-3xl shadow-sm overflow-hidden">
+
+  {/* NEW — image */}
+  <img
+    src="/process-scope.jpg"
+    alt="Scope and scheduling"
+    className="w-full rounded-2xl object-cover"
+    loading="lazy"
+  />
+
+  <CardHeader>
+    <CardTitle className="text-lg">1) Scope & schedule</CardTitle>
+  </CardHeader>
+
+  <CardContent className="text-sm leading-relaxed text-foreground/70">
+    We confirm access points, coverage areas, and your desired cadence
+    (one-time, monthly, quarterly). You’ll receive a clear time window.
+  </CardContent>
+</Card>
+          <Card className="rounded-3xl shadow-sm overflow-hidden">
+
+  {/* NEW — image */}
+  <img
+    src="/process-document.jpg"
+    alt="On-site visual documentation"
+    className="w-full rounded-2xl object-cover"
+    loading="lazy"
+  />
+
+  <CardHeader>
+    <CardTitle className="text-lg">2) Document on site</CardTitle>
+  </CardHeader>
+
+  <CardContent className="text-sm leading-relaxed text-foreground/70">
+    We capture wide and detailed photos of observable conditions using
+    consistent framing and timestamps.
+  </CardContent>
+</Card>
+          <Card className="rounded-3xl shadow-sm overflow-hidden">
+            {/* NEW — image */}
+            
+  <img
+    src="/process-deliver.jpg"
+    alt="Structured report and photo deliverables"
+    className="w-full rounded-2xl object-cover"
+    loading="lazy"
+  />
             <CardHeader>
               <CardTitle className="text-lg">3) Deliver & archive</CardTitle>
             </CardHeader>
@@ -670,13 +749,13 @@ function scrollToSection(href) {
                   "SCOUT — Request for sample report",
                   "Please send a sample SCOUT report and a quote for my property.\n\nProperty address: \nPreferred cadence: \nNotes:"
                 )}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-border bg-background px-4 py-2 text-sm font-medium text-foreground/80 shadow-sm hover:text-foreground hover:border-[var(--brand)]"
+                className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-border bg-background px-4 text-sm font-medium text-foreground/80 shadow-sm hover:text-foreground hover:border-[var(--brand)]"
+
               >
                 <Mail className="h-4 w-4 text-[var(--brand)]" />
                 Request sample
               </a>
-              <Button
-                className="rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
+              <Button className="h-11 rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
                 onClick={() => {
                   const el = document.querySelector("#contact");
                   el?.scrollIntoView({ behavior: "smooth" });
@@ -691,128 +770,146 @@ function scrollToSection(href) {
 
 
       <Section
-        id="pricing"
-        eyebrow="Pricing"
-        title="Straightforward pricing that scales with complexity"
-        subtitle="Pricing depends on property size, number of buildings/elevations, access, and desired cadence. Use the ranges below as planning guidance; quotes are finalized after scoping."
-      className="py-10 md:py-14"
-      >
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="rounded-3xl shadow-sm">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">One-time baseline</CardTitle>
-                <Badge
-                  variant="secondary"
-                  className="rounded-full border border-border bg-[var(--brand)]/5 text-foreground"
-                >
-                  Popular
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-semibold tracking-tight">$350–$950</div>
-              <div className="mt-1 text-sm text-foreground/70">
-                Typical small-to-mid properties
-              </div>
-              <ul className="mt-4 space-y-2 text-sm text-foreground/70">
-                {[
-                  "Exterior documentation + key site features",
-                  "Structured PDF report + organized photo set",
-                  "Clear scope/limitations language",
-                ].map((x) => (
-                  <li key={x} className="flex items-start gap-2">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 text-[var(--brand)]" />
-                    <span>{x}</span>
-                  </li>
-                ))}
-              </ul>
-              <Button
-                className="mt-5 w-full rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
-                onClick={() => {
-                  const el = document.querySelector("#contact");
-                  el?.scrollIntoView({ behavior: "smooth" });
-                }}
-              >
-                Request pricing
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </CardContent>
-          </Card>
+  id="pricing"
+  eyebrow="Pricing"
+  title="Straightforward pricing that scales with complexity"
+  subtitle="Pricing depends on property size, number of buildings/elevations, access, and desired cadence. Use the ranges below as planning guidance; quotes are finalized after scoping."
+  className="py-10 md:py-14"
+>
+  {/* ADD md:items-stretch so cards can share height */}
+  <div className="grid gap-4 md:grid-cols-3 md:items-stretch">
+    
+    {/* CARD 1 */}
+    <Card className="flex h-full flex-col rounded-3xl shadow-sm">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg">One-time baseline</CardTitle>
+          <Badge
+            variant="secondary"
+            className="rounded-full border border-border bg-[var(--brand)]/5 text-foreground"
+          >
+            Popular
+          </Badge>
+        </div>
+      </CardHeader>
 
-          <Card className="rounded-3xl shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg">Quarterly tracking</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-semibold tracking-tight">$250–$750</div>
-              <div className="mt-1 text-sm text-foreground/70">Per visit (recurring)</div>
-              <ul className="mt-4 space-y-2 text-sm text-foreground/70">
-                {[
-                  "Repeatable photo index for comparisons",
-                  "Visual change / no visible change notation",
-                  "Seasonal issues captured consistently",
-                ].map((x) => (
-                  <li key={x} className="flex items-start gap-2">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 text-[var(--brand)]" />
-                    <span>{x}</span>
-                  </li>
-                ))}
-              </ul>
-              <Button
-                variant="outline"
-                className="mt-5 w-full rounded-2xl hover:border-[var(--brand)]"
-                onClick={() => {
-                  const el = document.querySelector("#contact");
-                  el?.scrollIntoView({ behavior: "smooth" });
-                }}
-              >
-                Build a cadence
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg">After-storm documentation</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-semibold tracking-tight">$450–$1,500</div>
-              <div className="mt-1 text-sm text-foreground/70">
-                Priority scheduling available
-              </div>
-              <ul className="mt-4 space-y-2 text-sm text-foreground/70">
-                {[
-                  "Time-stamped photo set focused on impacted areas",
-                  "Rapid delivery for claim file support",
-                  "Clear non-inspection boundaries",
-                ].map((x) => (
-                  <li key={x} className="flex items-start gap-2">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 text-[var(--brand)]" />
-                    <span>{x}</span>
-                  </li>
-                ))}
-              </ul>
-              <Button
-                variant="outline"
-                className="mt-5 w-full rounded-2xl hover:border-[var(--brand)]"
-                onClick={() => {
-                  const el = document.querySelector("#contact");
-                  el?.scrollIntoView({ behavior: "smooth" });
-                }}
-              >
-                Get storm support
-              </Button>
-            </CardContent>
-          </Card>
+      {/* Make content a flex column */}
+      <CardContent className="flex flex-1 flex-col">
+        <div className="text-3xl font-semibold tracking-tight">$350–$950</div>
+        <div className="mt-1 text-sm text-foreground/70">
+          Typical small-to-mid properties
         </div>
 
-        <p className="mt-6 text-xs leading-relaxed text-foreground/60">
-          Note: These ranges are provided for planning purposes and may vary
-          based on scope, access, number of buildings/elevations, and requested
-          deliverables. SCOUT does not provide inspection services.
-        </p>
-      </Section>
+        <ul className="mt-4 space-y-2 text-sm text-foreground/70">
+          {[
+            "Exterior documentation + key site features",
+            "Structured PDF report + organized photo set",
+            "Clear scope/limitations language",
+          ].map((x) => (
+            <li key={x} className="flex items-start gap-2">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 text-[var(--brand)]" />
+              <span>{x}</span>
+            </li>
+          ))}
+        </ul>
+<div className="h-3" />
+        {/* CHANGE mt-5 -> mt-auto */}
+        <Button
+          className="mt-auto w-full rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
+          onClick={() => {
+            const el = document.querySelector("#contact");
+            el?.scrollIntoView({ behavior: "smooth" });
+          }}
+        >
+          Request pricing
+          <ArrowRight className="ml-2 h-4 w-4" />
+        </Button>
+      </CardContent>
+    </Card>
+
+    {/* CARD 2 */}
+    <Card className="flex h-full flex-col rounded-3xl shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-lg">Quarterly tracking</CardTitle>
+      </CardHeader>
+
+      <CardContent className="flex flex-1 flex-col">
+        <div className="text-3xl font-semibold tracking-tight">$250–$750</div>
+        <div className="mt-1 text-sm text-foreground/70">Per visit (recurring)</div>
+
+        <ul className="mt-4 space-y-2 text-sm text-foreground/70">
+          {[
+            "Repeatable photo index for comparisons",
+            "Visual change / no visible change notation",
+            "Seasonal issues captured consistently",
+          ].map((x) => (
+            <li key={x} className="flex items-start gap-2">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 text-[var(--brand)]" />
+              <span>{x}</span>
+            </li>
+          ))}
+        </ul>
+<div className="h-3" />
+        <Button
+          variant="outline"
+          className="mt-auto w-full rounded-2xl hover:border-[var(--brand)]"
+          onClick={() => {
+            const el = document.querySelector("#contact");
+            el?.scrollIntoView({ behavior: "smooth" });
+          }}
+        >
+          Build a cadence
+        </Button>
+      </CardContent>
+    </Card>
+
+    {/* CARD 3 */}
+    <Card className="flex h-full flex-col rounded-3xl shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-lg">After-storm documentation</CardTitle>
+      </CardHeader>
+
+      <CardContent className="flex flex-1 flex-col">
+        <div className="text-3xl font-semibold tracking-tight">$450–$1,500</div>
+        <div className="mt-1 text-sm text-foreground/70">
+          Priority scheduling available
+        </div>
+
+        <ul className="mt-4 space-y-2 text-sm text-foreground/70">
+          {[
+            "Time-stamped photo set focused on impacted areas",
+            "Rapid delivery for claim file support",
+            "Clear non-inspection boundaries",
+          ].map((x) => (
+            <li key={x} className="flex items-start gap-2">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 text-[var(--brand)]" />
+              <span>{x}</span>
+            </li>
+          ))}
+        </ul>
+<div className="h-3" />
+        <Button
+          variant="outline"
+          className="mt-auto w-full rounded-2xl hover:border-[var(--brand)]"
+          onClick={() => {
+            const el = document.querySelector("#contact");
+            el?.scrollIntoView({ behavior: "smooth" });
+          }}
+        >
+          Get storm support
+        </Button>
+      </CardContent>
+    </Card>
+
+  </div>
+
+  <p className="mt-6 text-xs leading-relaxed text-foreground/60">
+    Note: These ranges are provided for planning purposes and may vary
+    based on scope, access, number of buildings/elevations, and requested
+    deliverables. SCOUT does not provide inspection services.
+  </p>
+</Section>
+
 
       <Section
         id="faq"
