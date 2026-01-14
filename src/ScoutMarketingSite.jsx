@@ -213,25 +213,17 @@ function scrollToSection(href) {
       {/* Top bar */}
       <div className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 md:px-6">
-          <a href="#top" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-background shadow-sm overflow-hidden">
-             {/* <img
-                src={BRAND.logos.iconOnly}
-                alt="SCOUT icon"
-                className="h-6 w-6 object-contain"
-                loading="eager"
-              />*/}
-            </div>
-            <div className="leading-tight">
-              <img
-                src={BRAND.logos.wordmarkOnly}
-                alt="SCOUT"
-                className="h-6 w-auto object-contain"
-                loading="eager"
-              />
-              <div className="text-xs text-foreground/60">{BRAND.tagline}</div>
-            </div>
-          </a>
+<a href="#top" className="flex items-center gap-2">
+  <div className="leading-tight">
+    <img
+      src={BRAND.logos.wordmarkOnly}
+      alt="SCOUT"
+      className="h-6 w-auto object-contain"
+      loading="eager"
+    />
+    <div className="text-xs text-foreground/60">{BRAND.tagline}</div>
+  </div>
+</a>
 {/* Desktop nav */}
           <nav className="hidden items-center gap-5 md:flex">
             {nav.map((n) => (
@@ -999,15 +991,16 @@ function scrollToSection(href) {
         <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-center">
             <div>
-              <div className="flex items-center gap-3">
+              {/*<div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-background shadow-sm overflow-hidden">
-                  {/*<img
+                  <img
                     src={BRAND.logos.iconOnly}
                     alt="SCOUT icon"
                     className="h-6 w-6 object-contain"
                     loading="lazy"
-                  /> */}
-                </div>
+                  /> 
+                </div>*/}
+                <div className="flex items-center gap-2">
                 <img
                   src={BRAND.logos.wordmarkOnly}
                   alt="SCOUT"
