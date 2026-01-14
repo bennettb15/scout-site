@@ -69,7 +69,8 @@ const BRAND = {
   ctaPrimary: "Request a Quote",
   ctaSecondary: "See How It Works",
   sampleReportLabel: "Download sample report (PDF)",
-  sampleReportHref: "#", // Replace with an actual file URL when available
+  sampleReportHref: "#", sampleReportHref: "/scout-sample-report.pdf",
+
 };
 
 const fadeUp = {
@@ -750,17 +751,14 @@ function scrollToSection(href) {
             </div>
             <div className="flex gap-2">
               <a
-                href={formatMailto(
-                  BRAND.email,
-                  "SCOUT — Request for sample report",
-                  "Please send a sample SCOUT report and a quote for my property.\n\nProperty address: \nPreferred cadence: \nNotes:"
-                )}
-                className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-border bg-background px-4 text-sm font-medium text-foreground/80 shadow-sm hover:text-foreground hover:border-[var(--brand)]"
-
-              >
-                <Mail className="h-4 w-4 text-[var(--brand)]" />
-                Request sample
-              </a>
+  href="/scout-sample-report.pdf"
+  target="_blank"
+  rel="noopener noreferrer"
+  className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-border bg-background px-4 text-sm font-medium text-foreground/80 shadow-sm hover:text-foreground hover:border-[var(--brand)]"
+>
+  <Download className="h-4 w-4 text-[var(--brand)]" />
+  Download sample report (PDF)
+</a>
               <Button className="h-11 rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
                 onClick={() => {
                   const el = document.querySelector("#contact");
