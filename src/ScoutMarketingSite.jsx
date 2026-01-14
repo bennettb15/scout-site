@@ -17,6 +17,7 @@ import {
   Mail,
   Download,
   Sparkles,
+  Menu,
 } from "lucide-react";
 
 // If your project has shadcn/ui, these imports will work.
@@ -26,6 +27,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+
 
 /**
  * SCOUT – Marketing Website (React)
@@ -150,6 +159,16 @@ function formatMailto(email, subject, body) {
 }
 
 export default function ScoutMarketingSite() {
+
+const [mobileOpen, setMobileOpen] = useState(false);
+
+function scrollToSection(href) {
+  const id = href?.replace("#", "");
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: "smooth" });
+  setMobileOpen(false);
+}
+
   const brandStyle = {
     "--brand": BRAND.brandNavy,
     "--brand-ink": "#23243A",
@@ -213,7 +232,7 @@ export default function ScoutMarketingSite() {
               <div className="text-xs text-foreground/60">{BRAND.tagline}</div>
             </div>
           </a>
-
+{/* Desktop nav */}
           <nav className="hidden items-center gap-5 md:flex">
             {nav.map((n) => (
               <NavLink key={n.href} href={n.href}>
@@ -221,7 +240,52 @@ export default function ScoutMarketingSite() {
               </NavLink>
             ))}
           </nav>
+          {/* Mobile nav */}
+<div className="md:hidden">
+  <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+    <SheetTrigger asChild>
+      <Button variant="outline" className="rounded-2xl">
+        <Menu className="h-5 w-5" />
+      </Button>
+    </SheetTrigger>
 
+    <SheetContent side="right" className="w-[320px] sm:w-[360px]">
+      <SheetHeader>
+        <SheetTitle>Menu</SheetTitle>
+      </SheetHeader>
+
+      <div className="mt-6 flex flex-col gap-2">
+        {nav.map((n) => (
+          <button
+            key={n.href}
+            onClick={() => scrollToSection(n.href)}
+            className="w-full rounded-xl border border-border bg-background px-4 py-3 text-left text-sm font-medium text-foreground/80 hover:border-[var(--brand)] hover:text-foreground"
+          >
+            {n.label}
+          </button>
+        ))}
+
+        <div className="mt-4 grid gap-2">
+          <Button
+            className="rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
+            onClick={() => scrollToSection("#contact")}
+          >
+            {BRAND.ctaPrimary}
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+
+          <Button
+            variant="outline"
+            className="rounded-2xl hover:border-[var(--brand)]"
+            onClick={() => scrollToSection("#how")}
+          >
+            {BRAND.ctaSecondary}
+          </Button>
+        </div>
+      </div>
+    </SheetContent>
+  </Sheet>
+</div>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
