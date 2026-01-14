@@ -108,10 +108,13 @@ const Pill = ({ icon: Icon, children, className = "" }) => (
       className
     }
   >
-    <Icon className="h-4 w-4 text-[var(--brand)]" />
+    <span className="inline-flex h-4 w-4 items-center justify-center flex-shrink-0">
+      <Icon className="h-4 w-4 text-[var(--brand)]" />
+    </span>
     <span>{children}</span>
   </div>
 );
+
 
 const NavLink = ({ href, children }) => (
   <a
