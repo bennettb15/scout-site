@@ -605,7 +605,7 @@ function scrollToSection(href) {
         </div>
       </Section>
 </div>
-<div className="bg-[var(--brand)]/5">
+<div className="bg-slate-100">
       <Section
         id="how"
         eyebrow="Process"
