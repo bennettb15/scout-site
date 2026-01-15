@@ -378,7 +378,7 @@ function scrollToSection(href) {
 
                 {BRAND.descriptor} for property owners, managers, HOAs, and
                 commercial facilities. We create structured, time-stamped visual
-                records of observable conditions—without performing inspections.
+                records of observable conditions, without performing inspections.
               </p>
 
               <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -463,7 +463,7 @@ function scrollToSection(href) {
                     <div>
                       <div className="text-sm font-semibold">Clear boundaries</div>
                       <div className="text-sm text-foreground/70">
-                        Non-invasive documentation only—no inspections,
+                        Non-invasive documentation only; no inspections,
                         measurements, testing, or professional opinions.
                       </div>
                     </div>
@@ -594,7 +594,7 @@ function scrollToSection(href) {
           <Feature
             icon={Building2}
             title="Commercial exteriors"
-            desc="Elevations, entries, roofs-from-ground vantage points, gutters/downspouts, masonry, windows/doors, hardscape, and key site features—where accessible."
+            desc="Elevations, entries, roofs-from-ground vantage points, gutters/downspouts, masonry, windows/doors, hardscape, and key site features; where accessible."
           />
           <Feature
             icon={Home}
@@ -658,7 +658,7 @@ function scrollToSection(href) {
               <p className="mt-3 text-sm leading-relaxed text-foreground/70">
                 If a property has complex transitions (many gutters, rooflines,
                 entrances, or elevations), we scale photo count responsibly by
-                using a consistent indexing system—wide context first, then
+                using a consistent indexing system; wide context first, then
                 detail coverage only where needed.
               </p>
             </CardContent>
@@ -740,7 +740,7 @@ function scrollToSection(href) {
                 Non-inspection boundaries
               </div>
               <h3 className="mt-3 text-xl font-semibold tracking-tight">
-                Documentation—not inspection
+                Documentation; not inspection
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-foreground/70">
                 SCOUT provides visual documentation of observable property
@@ -808,7 +808,7 @@ function scrollToSection(href) {
           {[
             "Exterior documentation + key site features",
             "Structured PDF report + organized photo set",
-            "Clear scope/limitations language",
+            "Clear scope / limitations language",
           ].map((x) => (
             <li key={x} className="flex items-start gap-2">
               <CheckCircle2 className="mt-0.5 h-4 w-4 text-[var(--brand)]" />
