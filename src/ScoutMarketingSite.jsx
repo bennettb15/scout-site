@@ -50,7 +50,7 @@ import {
 const BRAND = {
   name: "SCOUT",
   tagline: "Observe & Report",
-  descriptor: "Visual Documentation Services",
+  descriptor: "Visual documentation services",
 
   // Matched to your navy mark
   brandNavy: "#343655",
@@ -63,7 +63,7 @@ const BRAND = {
     iconOnly: "/favicon.png",
   },
 
-  serviceArea: "Columbus, OH and surrounding areas",
+  serviceArea: "Columbus, Ohio and surrounding areas",
   phone: "(614) 555-0123",
   email: "hello@scoutdocs.com",
   ctaPrimary: "Request a Quote",
@@ -594,7 +594,7 @@ function scrollToSection(href) {
           <Feature
             icon={Building2}
             title="Commercial exteriors"
-            desc="Elevations, entries, roofs-from-ground vantage points, gutters/downspouts, masonry, windows/doors, hardscape, and key site features; where accessible."
+            desc="Elevations, entries, roofs from ground vantage points, gutters and downspouts, masonry, windows and doors, hardscape, and key site features, where accessible."
           />
           <Feature
             icon={Home}
@@ -656,10 +656,10 @@ function scrollToSection(href) {
                 ))}
               </div>
               <p className="mt-3 text-sm leading-relaxed text-foreground/70">
-                If a property has complex transitions (many gutters, rooflines,
-                entrances, or elevations), we scale photo count responsibly by
-                using a consistent indexing system; wide context first, then
-                detail coverage only where needed.
+                If a property has complex transitions (multiple gutters, rooflines, 
+                entrances, or elevations), we scale photo count responsibly using a
+                 consistent indexing system, with wide context first 
+                 and detail coverage only where needed.
               </p>
             </CardContent>
           </Card>
@@ -671,7 +671,7 @@ function scrollToSection(href) {
         id="how"
         eyebrow="Process"
         title="A simple workflow that produces consistent records"
-        subtitle="We aim for clarity and repeatability: the same structure each visit, so differences over time are obvious."
+        subtitle="We aim for clarity and repeatability. The same structure is used for each visit so differences over time are obvious."
       className="py-10 md:py-14"
       >
         <div className="grid gap-4 md:grid-cols-3">
@@ -1040,9 +1040,9 @@ function scrollToSection(href) {
               </div>
 
               <p className="mt-3 text-xs leading-relaxed text-foreground/60">
-                By contacting SCOUT you acknowledge this service is visual
-                documentation only and does not include inspection, evaluation,
-                or professional opinions.
+                By contacting SCOUT, you acknowledge this service is visual
+                 documentation only and does not include inspections, evaluations,
+                  or professional opinions.
               </p>
             </CardContent>
           </Card>
