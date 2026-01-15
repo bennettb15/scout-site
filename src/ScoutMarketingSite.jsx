@@ -38,7 +38,7 @@ import {
 
 
 /**
- * SCOUT – Marketing Website (React)
+ * SCOUT - Marketing Website (React)
  * Updated to:
  * - Use your uploaded logos (icon+wordmark header, full lockup hero, icon+wordmark footer)
  * - Apply a brand color system based on your navy logo
@@ -414,7 +414,7 @@ function scrollToSection(href) {
               </div>
 
               {/*<div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <Stat label="Typical turnaround" value="24–72 hrs" />
+                <Stat label="Typical turnaround" value="24-72 hrs" />
                 <Stat label="Deliverables" value="PDF + photo set" />
               </div>*/}
 
@@ -536,7 +536,7 @@ function scrollToSection(href) {
     <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
       <div className="flex items-center gap-2">
         <Zap className="h-4 w-4 text-[var(--brand)]" />
-        <div className="text-base font-medium text-foreground">24–72 hrs</div>
+        <div className="text-base font-medium text-foreground">24-72 hrs</div>
       </div>
       <div className="mt-1 text-sm text-foreground/70">
         Typical turnaround
@@ -799,7 +799,7 @@ function scrollToSection(href) {
 
       {/* Make content a flex column */}
       <CardContent className="flex flex-1 flex-col">
-        <div className="text-3xl font-semibold tracking-tight">$350–$950</div>
+        <div className="text-3xl font-semibold tracking-tight">$350-$950</div>
         <div className="mt-1 text-sm text-foreground/70">
           Typical small-to-mid properties
         </div>
@@ -838,7 +838,7 @@ function scrollToSection(href) {
       </CardHeader>
 
       <CardContent className="flex flex-1 flex-col">
-        <div className="text-3xl font-semibold tracking-tight">$250–$750</div>
+        <div className="text-3xl font-semibold tracking-tight">$250-$750</div>
         <div className="mt-1 text-sm text-foreground/70">Per visit (recurring)</div>
 
         <ul className="mt-4 space-y-2 text-sm text-foreground/70">
@@ -874,7 +874,7 @@ function scrollToSection(href) {
       </CardHeader>
 
       <CardContent className="flex flex-1 flex-col">
-        <div className="text-3xl font-semibold tracking-tight">$450–$1,500</div>
+        <div className="text-3xl font-semibold tracking-tight">$450-$1,500</div>
         <div className="mt-1 text-sm text-foreground/70">
           Priority scheduling available
         </div>
@@ -944,7 +944,7 @@ function scrollToSection(href) {
           />
           <FAQItem
             q="How fast do you deliver?"
-            a="Typical turnaround is 24–72 hours depending on scope and photo volume. Priority turnaround is available for time-sensitive situations."
+            a="Typical turnaround is 24-72 hours depending on scope and photo volume. Priority turnaround is available for time-sensitive situations."
           />
         </div>
       </Section>
