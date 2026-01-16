@@ -355,7 +355,7 @@ function scrollToSection(href) {
   </Pill>
   <Pill icon={ShieldCheck} className="bg-white/85 text-[#23243A] border-white/20 backdrop-blur-sm"
 >
-    Non-inspection scope
+    Observation-based
   </Pill>
 </div>
 
@@ -376,9 +376,9 @@ function scrollToSection(href) {
               <p className="mt-4 max-w-xl text-base font-medium leading-relaxed text-white/90">
 
 
-                {BRAND.descriptor} for property owners, managers, HOAs, and
-                commercial facilities. We create structured, time-stamped visual
-                records of observable conditions, without performing inspections.
+                {BRAND.descriptor} for property owners, managers, HOAs, and 
+                commercial facilities. We create structured, time-stamped visual 
+                records of observable property conditions for reference and comparison over time.
               </p>
 
               <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -463,8 +463,8 @@ function scrollToSection(href) {
                     <div>
                       <div className="text-sm font-semibold">Clear boundaries</div>
                       <div className="text-sm text-foreground/70">
-                        Non-invasive documentation only; no inspections,
-                        measurements, testing, or professional opinions.
+                        Documentation is limited to visual observation only. 
+                        No testing, measurements, or professional judgments are performed.
                       </div>
                     </div>
                   </div>
@@ -618,7 +618,7 @@ function scrollToSection(href) {
                 {[
                   "Time-stamped photo set (wide + detail coverage)",
                   "PDF report with photo index and observable notes",
-                  "Clear scope & limitations language (non-inspection)",
+                  "Clear scope & limitations language",
                   "Optional comparison notes to prior documentation (visual change / no visible change)",
                   "Optional labeled photos for key items (e.g., north elevation, main entry)",
                 ].map((x) => (
@@ -735,18 +735,12 @@ function scrollToSection(href) {
         <div className="mt-6 rounded-3xl border border-border bg-[var(--brand)]/5 p-6 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-sm text-foreground/80">
-                <ShieldCheck className="h-4 w-4 text-[var(--brand)]" />
-                Non-inspection boundaries
-              </div>
-              <h3 className="mt-3 text-xl font-semibold tracking-tight">
-                Documentation; not inspection
+              <h3 className="text-xl font-semibold tracking-tight">
+                Documentation scope
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-foreground/70">
-                SCOUT provides visual documentation of observable property
-                features only. We do not perform inspections, evaluations,
-                assessments, analysis, testing, measurements, or professional
-                opinions of any kind.
+                SCOUT documents observable property features as they appear at the time of service. 
+                Deliverables are visual records intended for reference and comparison, not evaluation.
               </p>
             </div>
             <div className="flex gap-2">
@@ -883,7 +877,7 @@ function scrollToSection(href) {
           {[
             "Time-stamped photo set focused on impacted areas",
             "Rapid delivery for claim file support",
-            "Clear non-inspection boundaries",
+            "Clear documentation scope",
           ].map((x) => (
             <li key={x} className="flex items-start gap-2">
               <CheckCircle2 className="mt-0.5 h-4 w-4 text-[var(--brand)]" />
@@ -910,7 +904,7 @@ function scrollToSection(href) {
   <p className="mt-6 text-xs leading-relaxed text-foreground/60">
     Note: These ranges are provided for planning purposes and may vary
     based on scope, access, number of buildings/elevations, and requested
-    deliverables. SCOUT does not provide inspection services.
+    deliverables. Services are limited to visual documentation only.
   </p>
 </Section>
 
@@ -924,7 +918,7 @@ function scrollToSection(href) {
         <div className="grid gap-4 md:grid-cols-2">
           <FAQItem
             q="Is SCOUT a home or property inspection service?"
-            a="No. SCOUT provides non-invasive visual documentation of observable conditions only. We do not inspect, test, measure, diagnose, evaluate, or provide professional opinions."
+            a="No. SCOUT documents what is visually observable at the time of service. Deliverables are structured photographic records intended for reference and comparison, not evaluation or analysis."
           />
           <FAQItem
             q="What do you mean by ‘observable notes’?"
@@ -1039,11 +1033,7 @@ function scrollToSection(href) {
                 </a>
               </div>
 
-              <p className="mt-3 text-xs leading-relaxed text-foreground/60">
-                By contacting SCOUT, you acknowledge this service is visual
-                 documentation only and does not include inspections, evaluations,
-                  or professional opinions.
-              </p>
+              
             </CardContent>
           </Card>
 
