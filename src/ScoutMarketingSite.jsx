@@ -382,7 +382,7 @@ function scrollToSection(href) {
 
               <h1 className="text-3xl font-semibold tracking-tight text-white md:text-6xl">
 
-                Clear, time-stamped visual documentation for your property.
+                TEST Clear, time-stamped visual documentation for your property.
               </h1>
 
               <p className="mt-4 max-w-xl text-base font-medium leading-relaxed text-white/90">
