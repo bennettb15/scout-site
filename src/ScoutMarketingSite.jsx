@@ -69,7 +69,7 @@ const BRAND = {
   ctaPrimary: "Request a Quote",
   ctaSecondary: "See How It Works",
   sampleReportLabel: "Download sample report (PDF)",
-  sampleReportHref: "#", sampleReportHref: "/scout-sample-report.pdf",
+  sampleReportHref: "/scout-sample-report.pdf",
 
 };
 
@@ -78,26 +78,38 @@ const fadeUp = {
   show: { opacity: 1, y: 0 },
 };
 
-const Section = ({ id, eyebrow, title, subtitle, children,className = "", }) => (
+const Section = ({ id, eyebrow, title, subtitle, children,className = "",invert = false, }) => (
   <section id={id} className={`scroll-mt-24 py-8 md:py-10 ${className}`}>
     <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
-      <div className="mb-8 md:mb-10">
+      <div className="mb-5 md:mb-6">
         {eyebrow ? (
           <div className="mb-3"> {/*flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--brand)]" />*/}
-            <p className="text-sm font-medium tracking-wide text-current/80">
-              {eyebrow}
-            </p>
+            <p
+  className={`text-sm font-medium tracking-wide ${
+    invert ? "text-white/80" : "text-current/80"
+  }`}
+>
+  {eyebrow}
+</p>
           </div>
         ) : null}
-        <h2 className="text-2xl font-semibold tracking-tight text-current md:text-3xl">
-          {title}
-        </h2>
+        <h2
+  className={`text-2xl font-semibold tracking-tight md:text-3xl ${
+    invert ? "text-white" : "text-current"
+  }`}
+>
+  {title}
+</h2>
         {subtitle ? (
-          <p className="mt-3 max-w-3xl text-base leading-relaxed text-current/80">
-            {subtitle}
-          </p>
-        ) : null}
+          <p
+    className={`mt-3 max-w-3xl text-base leading-relaxed ${
+      invert ? "text-white/85" : "text-current/80"
+    }`}
+  >
+    {subtitle}
+  </p>
+) : null}
       </div>
       {children}
     </div>
@@ -588,7 +600,7 @@ function scrollToSection(href) {
         eyebrow="Services"
         title="Visual documentation packages built for repeatability"
         subtitle="Choose a one-time visit or a recurring cadence. Every deliverable is organized, time-stamped, and easy to file, share, and compare over time."
-        className="py-10 md:py-14"
+        /*className="py-10 md:py-14"*/
       >
         <div className="grid gap-4 md:grid-cols-3">
           <Feature
@@ -672,7 +684,7 @@ function scrollToSection(href) {
         eyebrow="Process"
         title="A simple workflow that produces consistent records"
         subtitle="We aim for clarity and repeatability. The same structure is used for each visit so differences over time are obvious."
-      className="py-10 md:py-14"
+       /*className="py-10 md:py-14"*/
       >
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="rounded-3xl shadow-sm overflow-hidden">
@@ -772,7 +784,7 @@ function scrollToSection(href) {
   eyebrow="Pricing"
   title="Straightforward pricing that scales with complexity"
   subtitle="Pricing depends on property size, number of buildings/elevations, access, and desired cadence. Use the ranges below as planning guidance; quotes are finalized after scoping."
-  className="py-10 md:py-14"
+   /*className="py-10 md:py-14"*/
 >
   {/* ADD md:items-stretch so cards can share height */}
   <div className="grid gap-4 md:grid-cols-3 md:items-stretch">
@@ -943,12 +955,13 @@ function scrollToSection(href) {
         </div>
       </Section>
 <div className="bg-[var(--brand)]">
-      <Section
-        id="contact"
-        className="py-16 md:py-20 text-white"
-        eyebrow="Contact"
-        title="Request a quote or schedule a walkthrough"
-        subtitle="Send the basics and we’ll reply with a scoped price and the next available window."
+  <Section
+    id="contact"
+    invert
+    className="py-16 md:py-20"
+    eyebrow="Contact"
+    title="Request a quote or schedule a walkthrough"
+    subtitle="Send the basics and we’ll reply with a scoped price and the next available window."
       >
         <div className="grid gap-4 md:grid-cols-5">
           <Card className="rounded-3xl shadow-sm md:col-span-3">
