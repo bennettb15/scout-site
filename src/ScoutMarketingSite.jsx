@@ -79,22 +79,22 @@ const fadeUp = {
 };
 
 const Section = ({ id, eyebrow, title, subtitle, children,className = "", }) => (
-  <section id={id} className="scroll-mt-24 py-8 md:py-10">
+  <section id={id} className={`scroll-mt-24 py-8 md:py-10 ${className}`}>
     <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
       <div className="mb-8 md:mb-10">
         {eyebrow ? (
           <div className="mb-3"> {/*flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--brand)]" />*/}
-            <p className="text-sm font-medium tracking-wide text-foreground/70">
+            <p className="text-sm font-medium tracking-wide text-current/80">
               {eyebrow}
             </p>
           </div>
         ) : null}
-        <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">
+        <h2 className="text-2xl font-semibold tracking-tight text-current md:text-3xl">
           {title}
         </h2>
         {subtitle ? (
-          <p className="mt-3 max-w-3xl text-base leading-relaxed text-foreground/70">
+          <p className="mt-3 max-w-3xl text-base leading-relaxed text-current/80">
             {subtitle}
           </p>
         ) : null}
@@ -942,9 +942,10 @@ function scrollToSection(href) {
           />
         </div>
       </Section>
-<div className="bg-[var(--brand)]/5">
+<div className="bg-[var(--brand)]">
       <Section
         id="contact"
+        className="py-16 md:py-20 text-white"
         eyebrow="Contact"
         title="Request a quote or schedule a walkthrough"
         subtitle="Send the basics and we’ll reply with a scoped price and the next available window."
