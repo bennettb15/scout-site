@@ -57,7 +57,7 @@ const BRAND = {
 
   // Logo assets (from /public)
   logos: {
-    lockupWithTagline: "/Scout Complete Logo Navy Dark NEW.png",
+    lockupWithTagline: "/Scout Only Logo Navy Dark NEW.png",
     wordmarkOnly: "/Scout Only Logo Navy Dark NEW.png",
     wordmarkWhite: "/Scout Only Logo White.png",
     iconOnly: "/favicon.png",
