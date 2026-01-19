@@ -132,9 +132,10 @@ const Pill = ({ icon: Icon, children, className = "" }) => (
 );
 
 
-const NavLink = ({ href, children }) => (
+const NavLink = ({ href, children, onClick }) => (
   <a
     href={href}
+    onClick={onClick}
     className="text-sm font-medium text-foreground/80 hover:text-[var(--brand)] transition-colors"
   >
     {children}
@@ -214,11 +215,9 @@ const [status, setStatus] = useState("idle");
 
 // ✅ THIS IS 15C — PUT IT RIGHT HERE
 async function handleContactSubmit(e) {
-    e.preventDefault();
+  e.preventDefault();
   if (status === "sending") return;
-
-
-  setStatus("sending");
+    setStatus("sending");
 
   try {
     const payload = {
@@ -281,12 +280,20 @@ async function handleContactSubmit(e) {
 </a>
 {/* Desktop nav */}
           <nav className="hidden items-center gap-5 md:flex">
-            {nav.map((n) => (
-              <NavLink key={n.href} href={n.href}>
-                {n.label}
-              </NavLink>
-            ))}
-          </nav>
+  {nav.map((n) => (
+    <NavLink
+      key={n.href}
+      href={n.href}
+      onClick={(e) => {
+        e.preventDefault();
+        scrollToSection(n.href);
+      }}
+    >
+      {n.label}
+    </NavLink>
+  ))}
+</nav>
+
           {/* Mobile nav */}
 <div className="md:hidden">
   <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -1004,7 +1011,12 @@ async function handleContactSubmit(e) {
     <input
       type="text"
       value={form.website}
-      onChange={(e) => setForm((p) => ({ ...p, website: e.target.value }))}
+onChange={(e) => {
+   if (status === "success" || status === "error") setStatus("idle");
+  setForm((p) => ({ ...p, website: e.target.value }));
+}}
+
+
       className="hidden"
       tabIndex={-1}
       autoComplete="off"
@@ -1015,7 +1027,11 @@ async function handleContactSubmit(e) {
         <label className="text-xs font-medium text-foreground/70">Name</label>
         <Input
           value={form.name}
-          onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+onChange={(e) => {
+  if (status === "success" || status === "error") setStatus("idle");
+  setForm((p) => ({ ...p, name: e.target.value }));
+}}
+
           placeholder="Your name"
           className="rounded-2xl"
           required
@@ -1028,7 +1044,11 @@ async function handleContactSubmit(e) {
         </label>
         <Input
           value={form.company}
-          onChange={(e) => setForm((p) => ({ ...p, company: e.target.value }))}
+onChange={(e) => {
+  if (status === "success" || status === "error") setStatus("idle");
+  setForm((p) => ({ ...p, company: e.target.value }));
+}}
+
           placeholder="Company or HOA"
           className="rounded-2xl"
         />
@@ -1039,7 +1059,11 @@ async function handleContactSubmit(e) {
         <Input
           type="email"
           value={form.email}
-          onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+onChange={(e) => {
+  if (status === "success" || status === "error") setStatus("idle");
+  setForm((p) => ({ ...p, email: e.target.value }));
+}}
+
           placeholder="name@company.com"
           className="rounded-2xl"
           required
@@ -1050,7 +1074,11 @@ async function handleContactSubmit(e) {
         <label className="text-xs font-medium text-foreground/70">Phone</label>
         <Input
           value={form.phone}
-          onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+onChange={(e) => {
+  if (status === "success" || status === "error") setStatus("idle");
+  setForm((p) => ({ ...p, phone: e.target.value }));
+}}
+
           placeholder="(###) ###-####"
           className="rounded-2xl"
         />
@@ -1062,9 +1090,11 @@ async function handleContactSubmit(e) {
         </label>
         <Input
           value={form.propertyAddress}
-          onChange={(e) =>
-            setForm((p) => ({ ...p, propertyAddress: e.target.value }))
-          }
+onChange={(e) => {
+  if (status === "success" || status === "error") setStatus("idle");
+  setForm((p) => ({ ...p, propertyAddress: e.target.value }));
+}}
+
           placeholder="Street, City, State"
           className="rounded-2xl"
         />
@@ -1076,7 +1106,11 @@ async function handleContactSubmit(e) {
         </label>
         <Textarea
           value={form.message}
-          onChange={(e) => setForm((p) => ({ ...p, message: e.target.value }))}
+onChange={(e) => {
+  if (status === "success" || status === "error") setStatus("idle");
+  setForm((p) => ({ ...p, message: e.target.value }));
+}}
+
           placeholder="Example: baseline for a new tenant, quarterly tracking, after-storm documentation..."
           className="min-h-[110px] rounded-2xl"
           required
