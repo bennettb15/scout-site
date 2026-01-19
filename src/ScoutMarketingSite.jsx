@@ -66,7 +66,7 @@ const BRAND = {
 
   serviceArea: "Columbus, Ohio and surrounding areas",
   phone: "(614) 555-0123",
-  email: "hello@scoutdocs.com",
+  email: "hello@scoutclear.com",
   ctaPrimary: "Request a Quote",
   ctaSecondary: "See How It Works",
   sampleReportLabel: "Download sample report (PDF)",
