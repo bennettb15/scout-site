@@ -83,10 +83,10 @@ html: `
 
     <p><strong>Name:</strong> ${safeName}</p>
     <p><strong>Email:</strong> ${safeEmail}</p>
-
+    ${safePhone ? `<p><strong>Phone:</strong> ${safePhone}</p>` : ""}
     ${safeCompany ? `<p><strong>Company / HOA:</strong> ${safeCompany}</p>` : ""}
     ${safePropertyAddress ? `<p><strong>Property address:</strong> ${safePropertyAddress}</p>` : ""}
-    ${safePhone ? `<p><strong>Phone:</strong> ${safePhone}</p>` : ""}
+    
 
     <hr/>
 
