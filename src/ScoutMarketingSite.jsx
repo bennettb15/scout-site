@@ -179,7 +179,7 @@ const FAQItem = ({ q, a }) => (
 function formatMailto(email, subject, body) {
   const s = encodeURIComponent(subject || "");
   const b = encodeURIComponent(body || "");
-  return `mailto:${email}?subject=${s}&body=${b}`;
+  return "";
 }
 
 export default function ScoutMarketingSite() {
