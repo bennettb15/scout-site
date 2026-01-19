@@ -397,7 +397,7 @@ function scrollToSection(href) {
 
               <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Button
-                  className="rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
+                  className="rounded-2xl bg-white text-[var(--brand)] hover:bg-white/90"
                   onClick={() => {
                     const el = document.querySelector("#contact");
                     el?.scrollIntoView({ behavior: "smooth" });
