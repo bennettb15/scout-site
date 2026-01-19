@@ -31,6 +31,7 @@ async function readJsonBody(req) {
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Origin", "*");
 
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -65,13 +66,12 @@ export default async function handler(req, res) {
 
     const toAddress = process.env.CONTACT_TO_EMAIL;     // where you receive inquiries
     const fromAddress = process.env.CONTACT_FROM_EMAIL; // verified sender in Resend
-    const apiKey = process.env.RESEND_API_KEY;
+if (!process.env.RESEND_API_KEY || !toAddress || !fromAddress) {
+  return res.status(500).json({
+    error: "Server is not configured (missing RESEND_API_KEY / CONTACT_TO_EMAIL / CONTACT_FROM_EMAIL)",
+  });
+}
 
-    if (!apiKey || !toAddress || !fromAddress) {
-      return res.status(500).json({
-        error: "Server is not configured (missing RESEND_API_KEY / CONTACT_TO_EMAIL / CONTACT_FROM_EMAIL)",
-      });
-    }
 
 const { data, error } = await resend.emails.send({
   from: fromAddress,
