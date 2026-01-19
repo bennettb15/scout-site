@@ -42,9 +42,9 @@ export default async function handler(req, res) {
     const {
       name,
       company,
+      propertyAddress,
       email,
       phone,
-      propertyAddress,
       message,
       website, // honeypot
     } = body || {};
@@ -77,17 +77,24 @@ const { data, error } = await resend.emails.send({
   from: fromAddress,
   to: toAddress,
   subject: `New SCOUT inquiry — ${safeName}`,
-  html: `
-    <div style="font-family: Arial, sans-serif; line-height:1.5">
-      <h2>New Contact Form Submission</h2>
-      <p><strong>Name:</strong> ${safeName}</p>
-      <p><strong>Email:</strong> ${safeEmail}</p>
-      ${safePhone ? `<p><strong>Phone:</strong> ${safePhone}</p>` : ""}
-      <hr/>
-      <p><strong>Message:</strong></p>
-      <p style="white-space: pre-wrap">${safeMessage}</p>
-    </div>
-  `,
+html: `
+  <div style="font-family: Arial, sans-serif; line-height:1.5">
+    <h2>New Contact Form Submission</h2>
+
+    <p><strong>Name:</strong> ${safeName}</p>
+    <p><strong>Email:</strong> ${safeEmail}</p>
+
+    ${safeCompany ? `<p><strong>Company / HOA:</strong> ${safeCompany}</p>` : ""}
+    ${safePropertyAddress ? `<p><strong>Property address:</strong> ${safePropertyAddress}</p>` : ""}
+    ${safePhone ? `<p><strong>Phone:</strong> ${safePhone}</p>` : ""}
+
+    <hr/>
+
+    <p><strong>Message:</strong></p>
+    <p style="white-space: pre-wrap">${safeMessage}</p>
+  </div>
+`,
+
   replyTo: safeEmail,
 });
 
