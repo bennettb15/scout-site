@@ -51,6 +51,7 @@ const BRAND = {
   name: "SCOUT",
   tagline: "Observe & Report",
   descriptor: "Visual documentation services",
+  siteTitle: "SCOUT | Visual Property Documentation",
 
   // Matched to your navy mark
   brandNavy: "#343655",
@@ -186,6 +187,7 @@ export default function ScoutMarketingSite() {
 const [mobileOpen, setMobileOpen] = useState(false);
 
 useEffect(() => {
+    document.title = BRAND.siteTitle;
     document.documentElement.style.setProperty("--brand", BRAND.brandNavy);
     document.documentElement.style.setProperty("--brand-ink", "#23243A");
   }, []);
