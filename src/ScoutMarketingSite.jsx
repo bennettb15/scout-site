@@ -659,6 +659,7 @@ function scrollToSection(href) {
                   "Priority turnaround",
                   "Expanded photo index",
                   "Interior common areas",
+                  "Client-Provided Document Indexing",
                 ].map((x) => (
                   <Badge
                     key={x}
