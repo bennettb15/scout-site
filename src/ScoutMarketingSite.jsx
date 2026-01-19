@@ -65,7 +65,7 @@ const BRAND = {
   },
 
   serviceArea: "Columbus, Ohio and surrounding areas",
-  phone: "(614) 555-0123",
+  phone: "(614) 321-9845",
   email: "hello@scoutclear.com",
   ctaPrimary: "Request a Quote",
   ctaSecondary: "See How It Works",
