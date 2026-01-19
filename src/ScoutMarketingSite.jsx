@@ -214,8 +214,7 @@ const [status, setStatus] = useState("idle");
 
 // ✅ THIS IS 15C — PUT IT RIGHT HERE
 async function handleContactSubmit(e) {
-  console.log("CONTACT SUBMIT FIRED");
-  e.preventDefault();
+    e.preventDefault();
   if (status === "sending") return;
 
 
