@@ -73,25 +73,31 @@ export default async function handler(req, res) {
       });
     }
 
-    await resend.emails.send({
-      from: fromAddress,
-      to: toAddress,
-      subject: `New SCOUT inquiry — ${safeName}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; line-height:1.5">
-          <h2>New Contact Form Submission</h2>
-          <p><strong>Name:</strong> ${safeName}</p>
-          ${safeCompany ? `<p><strong>Company/HOA:</strong> ${safeCompany}</p>` : ""}
-          <p><strong>Email:</strong> ${safeEmail}</p>
-          ${safePhone ? `<p><strong>Phone:</strong> ${safePhone}</p>` : ""}
-          ${safePropertyAddress ? `<p><strong>Property Address:</strong> ${safePropertyAddress}</p>` : ""}
-          <hr/>
-          <p><strong>Message:</strong></p>
-          <p style="white-space: pre-wrap">${safeMessage}</p>
-        </div>
-      `,
-      replyTo: safeEmail,
-    });
+const { data, error } = await resend.emails.send({
+  from: fromAddress,
+  to: toAddress,
+  subject: `New SCOUT inquiry — ${safeName}`,
+  html: `
+    <div style="font-family: Arial, sans-serif; line-height:1.5">
+      <h2>New Contact Form Submission</h2>
+      <p><strong>Name:</strong> ${safeName}</p>
+      <p><strong>Email:</strong> ${safeEmail}</p>
+      ${safePhone ? `<p><strong>Phone:</strong> ${safePhone}</p>` : ""}
+      <hr/>
+      <p><strong>Message:</strong></p>
+      <p style="white-space: pre-wrap">${safeMessage}</p>
+    </div>
+  `,
+  replyTo: safeEmail,
+});
+
+if (error) {
+  console.error("RESEND ERROR:", error);
+  return res.status(500).json({ error: "Resend failed", details: error });
+}
+
+console.log("RESEND SENT:", data);
+
 
     return res.status(200).json({ ok: true });
   } catch (err) {
