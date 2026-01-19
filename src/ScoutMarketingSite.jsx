@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Camera,
@@ -176,11 +176,6 @@ const FAQItem = ({ q, a }) => (
   </details>
 );
 
-function formatMailto(email, subject, body) {
-  const s = encodeURIComponent(subject || "");
-  const b = encodeURIComponent(body || "");
-  return "";
-}
 
 export default function ScoutMarketingSite() {
 
@@ -205,32 +200,64 @@ function scrollToSection(href) {
   };
 
   const [form, setForm] = useState({
-    name: "",
-    company: "",
-    email: "",
-    phone: "",
-    propertyAddress: "",
-    message: "",
-  });
+  name: "",
+  company: "",
+  email: "",
+  phone: "",
+  propertyAddress: "",
+  message: "",
+  website: "", // honeypot anti-spam (keep blank)
+});
 
-  const mailtoHref = useMemo(() => {
-    const subject = `SCOUT inquiry — ${form.company || form.name || "New lead"}`;
-    const body = [
-      `Name: ${form.name}`,
-      `Company/HOA: ${form.company}`,
-      `Email: ${form.email}`,
-      `Phone: ${form.phone}`,
-      `Property address: ${form.propertyAddress}`,
-      "",
-      "Notes:",
-      form.message,
-      "",
-      "— Sent from scout website contact form",
-    ].join("\n");
-    return formatMailto(BRAND.email, subject, body);
-  }, [form]);
+const [status, setStatus] = useState("idle");
+// idle | sending | success | error
 
-  const nav = [
+// ✅ THIS IS 15C — PUT IT RIGHT HERE
+async function handleContactSubmit(e) {
+  console.log("CONTACT SUBMIT FIRED");
+  e.preventDefault();
+  if (status === "sending") return;
+
+
+  setStatus("sending");
+
+  try {
+    const payload = {
+      name: form.name,
+      company: form.company,
+      email: form.email,
+      phone: form.phone,
+      propertyAddress: form.propertyAddress,
+      message: form.message,
+      website: form.website,
+    };
+
+    const resp = await fetch("/api/contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!resp.ok) throw new Error("Failed");
+
+    setStatus("success");
+    setForm({
+      name: "",
+      company: "",
+      email: "",
+      phone: "",
+      propertyAddress: "",
+      message: "",
+      website: "",
+    });
+  } catch {
+    setStatus("error");
+  }
+}
+
+
+
+   const nav = [
     { label: "Services", href: "#services" },
     { label: "How it works", href: "#how" },
     { label: "Pricing", href: "#pricing" },
@@ -970,88 +997,128 @@ function scrollToSection(href) {
           <Card className="rounded-3xl shadow-sm md:col-span-3">
             <CardHeader>
               <CardTitle className="text-lg">Contact form</CardTitle>
+
             </CardHeader>
-            <CardContent>
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-foreground/70">Name</label>
-                  <Input
-                    value={form.name}
-                    onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                    placeholder="Your name"
-                    className="rounded-2xl"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-foreground/70">Company / HOA</label>
-                  <Input
-                    value={form.company}
-                    onChange={(e) => setForm((p) => ({ ...p, company: e.target.value }))}
-                    placeholder="Company or HOA"
-                    className="rounded-2xl"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-foreground/70">Email</label>
-                  <Input
-                    value={form.email}
-                    onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                    placeholder="name@company.com"
-                    className="rounded-2xl"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-foreground/70">Phone</label>
-                  <Input
-                    value={form.phone}
-                    onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-                    placeholder="(###) ###-####"
-                    className="rounded-2xl"
-                  />
-                </div>
-                <div className="space-y-1 md:col-span-2">
-                  <label className="text-xs font-medium text-foreground/70">Property address</label>
-                  <Input
-                    value={form.propertyAddress}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, propertyAddress: e.target.value }))
-                    }
-                    placeholder="Street, City, State"
-                    className="rounded-2xl"
-                  />
-                </div>
-                <div className="space-y-1 md:col-span-2">
-                  <label className="text-xs font-medium text-foreground/70">
-                    What do you need documented?
-                  </label>
-                  <Textarea
-                    value={form.message}
-                    onChange={(e) => setForm((p) => ({ ...p, message: e.target.value }))}
-                    placeholder="Example: baseline for a new tenant, quarterly condition tracking, after-storm documentation, vendor work verification support..."
-                    className="min-h-[110px] rounded-2xl"
-                  />
-                </div>
-              </div>
+<CardContent>
+  <form onSubmit={handleContactSubmit}>
+    {/* Honeypot field (anti-spam) */}
+    <input
+      type="text"
+      value={form.website}
+      onChange={(e) => setForm((p) => ({ ...p, website: e.target.value }))}
+      className="hidden"
+      tabIndex={-1}
+      autoComplete="off"
+    />
 
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                <a
-                  href={mailtoHref}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90"
-                >
-                  <Mail className="h-4 w-4" />
-                  Send email
-                </a>
-                <a
-                  href={`tel:${BRAND.phone.replace(/[^0-9+]/g, "")}`}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-background px-4 py-2 text-sm font-medium text-foreground/80 shadow-sm hover:text-foreground hover:border-[var(--brand)]"
-                >
-                  <Phone className="h-4 w-4 text-[var(--brand)]" />
-                  Call
-                </a>
-              </div>
+    <div className="grid gap-3 md:grid-cols-2">
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-foreground/70">Name</label>
+        <Input
+          value={form.name}
+          onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+          placeholder="Your name"
+          className="rounded-2xl"
+          required
+        />
+      </div>
 
-              
-            </CardContent>
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-foreground/70">
+          Company / HOA
+        </label>
+        <Input
+          value={form.company}
+          onChange={(e) => setForm((p) => ({ ...p, company: e.target.value }))}
+          placeholder="Company or HOA"
+          className="rounded-2xl"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-foreground/70">Email</label>
+        <Input
+          type="email"
+          value={form.email}
+          onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+          placeholder="name@company.com"
+          className="rounded-2xl"
+          required
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-foreground/70">Phone</label>
+        <Input
+          value={form.phone}
+          onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+          placeholder="(###) ###-####"
+          className="rounded-2xl"
+        />
+      </div>
+
+      <div className="space-y-1 md:col-span-2">
+        <label className="text-xs font-medium text-foreground/70">
+          Property address
+        </label>
+        <Input
+          value={form.propertyAddress}
+          onChange={(e) =>
+            setForm((p) => ({ ...p, propertyAddress: e.target.value }))
+          }
+          placeholder="Street, City, State"
+          className="rounded-2xl"
+        />
+      </div>
+
+      <div className="space-y-1 md:col-span-2">
+        <label className="text-xs font-medium text-foreground/70">
+          What do you need documented?
+        </label>
+        <Textarea
+          value={form.message}
+          onChange={(e) => setForm((p) => ({ ...p, message: e.target.value }))}
+          placeholder="Example: baseline for a new tenant, quarterly tracking, after-storm documentation..."
+          className="min-h-[110px] rounded-2xl"
+          required
+        />
+      </div>
+    </div>
+
+    <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+      <button
+        type="submit"
+        disabled={status === "sending"}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90 disabled:opacity-60"
+      >
+        <Mail className="h-4 w-4" />
+        {status === "sending" ? "Sending..." : "Send message"}
+      </button>
+
+      <a
+        href={`tel:${BRAND.phone.replace(/[^0-9+]/g, "")}`}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-background px-4 py-2 text-sm font-medium text-foreground/80 shadow-sm hover:text-foreground hover:border-[var(--brand)]"
+      >
+        <Phone className="h-4 w-4 text-[var(--brand)]" />
+        Call
+      </a>
+    </div>
+
+    {status === "success" && (
+      <p className="mt-3 text-sm text-foreground">
+        Thanks — your message was sent. We’ll reply shortly.
+      </p>
+    )}
+
+    {status === "error" && (
+      <p className="mt-3 text-sm text-foreground">
+        Something went wrong. Please try again or call us.
+      </p>
+    )}
+  </form>
+</CardContent>
+
+
           </Card>
 
           <div className="md:col-span-2 space-y-4">
