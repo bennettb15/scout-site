@@ -51,7 +51,7 @@ const BRAND = {
   name: "SCOUT",
   tagline: "Observe & Report",
   descriptor: "Visual documentation services",
-  siteTitle: "SCOUT | Visual Property Documentation",
+  siteTitle: "SCOUT | Visual Property Records",
 
   // Matched to your navy mark
   brandNavy: "#343655",
@@ -384,7 +384,7 @@ function scrollToSection(href) {
 
               <h1 className="text-3xl font-semibold tracking-tight text-white md:text-6xl">
 
-                Clear, time-stamped visual documentation for your property.
+                Clear, time-stamped visual records for your property.
               </h1>
 
               <p className="mt-4 max-w-xl text-base font-medium leading-relaxed text-white/90">
@@ -448,10 +448,10 @@ function scrollToSection(href) {
                       <FileText className="h-4 w-4 text-[var(--brand)]" />
                     </div>
                     <div>
-                      <div className="text-sm font-semibold">Structured report</div>
+                      <div className="text-sm font-semibold">Structured visual record (PDF)</div>
                       <div className="text-sm text-foreground/70">
                         Property details, scope, timestamps, photo index, and
-                        observable notes.
+                        observable-condition notes.
                       </div>
                     </div>
                   </div>
@@ -600,7 +600,7 @@ function scrollToSection(href) {
       <Section
         id="services"
         eyebrow="Services"
-        title="Visual documentation packages built for repeatability"
+        title="Visual record packages built for repeatability"
         subtitle="Choose a one-time visit or a recurring cadence. Every deliverable is organized, time-stamped, and easy to file, share, and compare over time."
         /*className="py-10 md:py-14"*/
       >
