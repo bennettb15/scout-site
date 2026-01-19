@@ -100,7 +100,12 @@ console.log("RESEND SENT:", data);
 
 
     return res.status(200).json({ ok: true });
-  } catch (err) {
-    return res.status(500).json({ error: "Failed to send message" });
+    } catch (err) {
+    console.error("RESEND ERROR:", err);
+    return res.status(500).json({
+      error: "Resend failed",
+      details: err?.message || err,
+    });
   }
+
 }
