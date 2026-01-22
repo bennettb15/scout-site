@@ -524,8 +524,9 @@ async function handleContactSubmit(e) {
                     <ul className="mt-2 space-y-1 text-sm text-foreground/70">
                       <li>• Ongoing quarterly or monthly condition tracking</li>
                       <li>• Pre-tenant / move-in baseline</li>
-                      <li>• Vendor work verification support</li>
                       <li>• Post-storm / claim documentation</li>
+                      <li>• Vendor work verification support</li>
+                      
                     </ul>
                   </div>
 
