@@ -522,10 +522,10 @@ async function handleContactSubmit(e) {
                       <div className="text-sm font-semibold">Best use cases</div>
                     </div>
                     <ul className="mt-2 space-y-1 text-sm text-foreground/70">
-                      <li>• Pre-tenant / move-in baseline</li>
-                      <li>• Post-storm / claim documentation</li>
                       <li>• Ongoing quarterly or monthly condition tracking</li>
+                      <li>• Pre-tenant / move-in baseline</li>
                       <li>• Vendor work verification support</li>
+                      <li>• Post-storm / claim documentation</li>
                     </ul>
                   </div>
 
