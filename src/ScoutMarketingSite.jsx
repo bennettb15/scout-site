@@ -899,7 +899,8 @@ async function handleContactSubmit(e) {
 
 
     {/* Right: bullets */}
-<div className="rounded-3xl border border-border bg-[var(--brand)]/5 p-5 md:-mt-10">
+<div className="rounded-3xl border border-border bg-[var(--brand)]/5 p-5 md:-mt-12">
+
 
   <div className="text-sm font-semibold text-foreground">
     With that context in place, you can:
