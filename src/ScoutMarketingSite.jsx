@@ -860,6 +860,53 @@ async function handleContactSubmit(e) {
       </Section>
 
 
+<Section
+  id="value"
+  eyebrow="Value"
+  title="Clear records lead to clearer decisions — and lower unnecessary costs."
+  subtitle="Documentation helps reduce repeat work, over-scoping, and decisions made with incomplete information."
+>
+  <div className="max-w-3xl space-y-4 text-sm leading-relaxed text-foreground/80">
+    <p>
+      In many properties, the most expensive issues aren’t the repairs
+      themselves — they’re the uncertainty around them.
+    </p>
+
+    <p>
+      When conditions aren’t clearly documented over time, decisions get made
+      without context. That often leads to duplicate site visits, re-scoped
+      work, conservative “just-in-case” repairs, and extended back-and-forth
+      with vendors, tenants, or insurers.
+    </p>
+
+    <p>
+      SCOUT provides consistent, time-stamped visual records that establish a
+      clear baseline and track observable changes over time. With that context
+      in place, clients are better equipped to:
+    </p>
+
+    <ul className="ml-4 list-disc space-y-1">
+      <li>Avoid duplicate investigations and re-scoping</li>
+      <li>Support more targeted repairs instead of blanket fixes</li>
+      <li>Resolve questions faster with vendors, tenants, or insurers</li>
+      <li>Retain visual history even as staff or vendors change</li>
+    </ul>
+
+    <p className="pt-2 text-foreground/70">
+      The goal isn’t to reduce necessary work — it’s to help prevent unnecessary
+      costs caused by uncertainty.
+    </p>
+
+    <div className="mt-4 rounded-2xl border border-border bg-[var(--brand)]/5 p-4 text-sm text-foreground/80">
+      A single unnecessary site visit or over-scoped repair can easily exceed
+      the cost of ongoing documentation.
+    </div>
+  </div>
+</Section>
+
+
+
+
       <Section
   id="pricing"
   eyebrow="Pricing"
