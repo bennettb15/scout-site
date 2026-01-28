@@ -868,79 +868,81 @@ async function handleContactSubmit(e) {
   title="Clear records lead to clearer decisions — and lower unnecessary costs."
   subtitle="A visual baseline reduces preventable confusion across vendors, tenants, insurers, and internal teams."
 >
-  <div className="grid gap-4 md:grid-cols-2">
-    {/* Left: short “why it matters” card */}
+    {/* 3-up on desktop, stacked on mobile */}
+  <div className="grid gap-4 md:grid-cols-3 md:items-stretch">
+    {/* Card 1 */}
     <Card className="rounded-3xl shadow-sm">
-      <CardHeader>
-        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
-          <Search className="h-5 w-5 text-[var(--brand)]" />
+      <CardHeader className="space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
+            <Search className="h-4 w-4 text-[var(--brand)]" />
+          </div>
+          <CardTitle className="text-lg">Why it saves money</CardTitle>
         </div>
-        <CardTitle className="text-lg">Why it saves money</CardTitle>
       </CardHeader>
+
       <CardContent className="text-sm leading-relaxed text-foreground/70 space-y-3">
         <p>
           Most avoidable costs come from uncertainty — not the repair itself.
-          When there’s no clear “before” record, decisions get conservative and
-          timelines stretch.
+          When there’s no clear “before” record, timelines stretch and scopes get conservative.
         </p>
-        <div className="rounded-2xl border border-border bg-[var(--brand)]/5 p-4 text-sm text-foreground/80">
-          A single extra site visit, re-scope, or “just-in-case” repair can exceed
-          the cost of documentation.
+
+        <div className="rounded-2xl border border-border bg-background p-4">
+          <div className="text-xs font-medium text-foreground/60">Real-world outcome</div>
+          <div className="mt-1 text-sm text-foreground/80">
+            Extra visits, re-scopes, and “just-in-case” work add up fast.
+          </div>
         </div>
       </CardContent>
     </Card>
 
-    {/* Right: icon bullets (actionable outcomes) */}
+    {/* Card 2 */}
     <Card className="rounded-3xl shadow-sm">
-      <CardHeader>
-        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
-          <ClipboardList className="h-5 w-5 text-[var(--brand)]" />
+      <CardHeader className="space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
+            <Clock className="h-4 w-4 text-[var(--brand)]" />
+          </div>
+          <CardTitle className="text-lg">Reduce repeat work</CardTitle>
         </div>
-        <CardTitle className="text-lg">What you get out of it</CardTitle>
       </CardHeader>
 
       <CardContent className="space-y-3 text-sm text-foreground/70">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
-            <Clock className="h-4 w-4 text-[var(--brand)]" />
-          </div>
-          <div>
-            <div className="font-semibold text-foreground">Fewer repeat visits</div>
-            <div>Reduce “can you go re-check” trips and redundant investigations.</div>
-          </div>
+        <div className="rounded-2xl border border-border bg-background p-4">
+          <div className="font-semibold text-foreground">Fewer repeat visits</div>
+          <div className="mt-1">Cut down “can you re-check” trips and redundant investigations.</div>
         </div>
 
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
-            <ShieldCheck className="h-4 w-4 text-[var(--brand)]" />
-          </div>
-          <div>
-            <div className="font-semibold text-foreground">More targeted scopes</div>
-            <div>Support tighter repair scopes instead of blanket, conservative fixes.</div>
-          </div>
+        <div className="rounded-2xl border border-border bg-background p-4">
+          <div className="font-semibold text-foreground">More targeted scopes</div>
+          <div className="mt-1">Support tighter scopes instead of blanket, conservative fixes.</div>
         </div>
+      </CardContent>
+    </Card>
 
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
-            <Building2 className="h-4 w-4 text-[var(--brand)]" />
-          </div>
-          <div>
-            <div className="font-semibold text-foreground">Cleaner vendor conversations</div>
-            <div>Resolve disputes faster with time-stamped visual context.</div>
-          </div>
-        </div>
-
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
+    {/* Card 3 */}
+    <Card className="rounded-3xl shadow-sm">
+      <CardHeader className="space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
             <FileText className="h-4 w-4 text-[var(--brand)]" />
           </div>
-          <div>
-            <div className="font-semibold text-foreground">Continuity over time</div>
-            <div>Keep a visual history even when staff, tenants, or vendors change.</div>
-          </div>
+          <CardTitle className="text-lg">Make decisions faster</CardTitle>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-3 text-sm text-foreground/70">
+        <div className="rounded-2xl border border-border bg-background p-4">
+          <div className="font-semibold text-foreground">Cleaner conversations</div>
+          <div className="mt-1">Resolve questions faster with time-stamped visual context.</div>
         </div>
 
-        <div className="pt-2">
+        <div className="rounded-2xl border border-border bg-background p-4">
+          <div className="font-semibold text-foreground">Continuity over time</div>
+          <div className="mt-1">Keep a visual history even when staff, tenants, or vendors change.</div>
+        </div>
+
+        <div className="pt-1">
           <Button
             className="w-full rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
             onClick={() => scrollToSection("#contact")}
@@ -952,6 +954,26 @@ async function handleContactSubmit(e) {
       </CardContent>
     </Card>
   </div>
+
+  {/* Bottom “savings” bar */}
+  <div className="mt-4 rounded-3xl border border-border bg-[var(--brand)]/5 p-5">
+    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="text-sm text-foreground/80">
+        <span className="font-semibold text-foreground">Bottom line:</span>{" "}
+        One unnecessary site visit or over-scoped repair can easily exceed the cost of documentation.
+      </div>
+
+      <Button
+        variant="outline"
+        className="rounded-2xl hover:border-[var(--brand)]"
+        onClick={() => scrollToSection("#pricing")}
+      >
+        View pricing
+        <ArrowRight className="ml-2 h-4 w-4" />
+      </Button>
+    </div>
+  </div>
+
 </Section>
 
 
