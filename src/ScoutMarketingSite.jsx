@@ -188,7 +188,32 @@ const [mobileOpen, setMobileOpen] = useState(false);
   const el = document.getElementById(id);
   if (!el) return;
 
-  el.scrollIntoView({ behavior: "smooth", block: "start" });
+  const header = document.querySelector(".sticky.top-0");
+  const offset = header ? header.getBoundingClientRect().height : 0;
+
+  const targetTop = window.scrollY + el.getBoundingClientRect().top - offset - 8;
+
+  const startTop = window.scrollY;
+  const distance = targetTop - startTop;
+
+  const duration = 450; // ms
+  const start = performance.now();
+
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  function step(now) {
+    const elapsed = now - start;
+    const t = Math.min(1, elapsed / duration);
+    const eased = easeInOutCubic(t);
+
+    window.scrollTo(0, startTop + distance * eased);
+
+    if (t < 1) requestAnimationFrame(step);
+  }
+
+  requestAnimationFrame(step);
 }
 
 
