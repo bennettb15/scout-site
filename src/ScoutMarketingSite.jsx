@@ -773,11 +773,12 @@ async function handleContactSubmit(e) {
 
   {/* NEW — image */}
   <img
-    src="/process-scope.jpg"
-    alt="Scope and scheduling"
-    className="w-full rounded-2xl object-cover"
-    loading="lazy"
-  />
+  src="/process-scope.jpg"
+  alt="Scope and scheduling"
+  className="w-full aspect-[16/9] rounded-2xl object-cover"
+  loading="lazy"
+/>
+
 
   <CardHeader>
     <CardTitle className="text-lg">1) Scope & schedule</CardTitle>
@@ -792,11 +793,12 @@ async function handleContactSubmit(e) {
 
   {/* NEW — image */}
   <img
-    src="/process-document.jpg"
-    alt="On-site visual documentation"
-    className="w-full rounded-2xl object-cover"
-    loading="lazy"
-  />
+  src="/process-document.jpg"
+  alt="On-site visual documentation"
+  className="w-full aspect-[16/9] rounded-2xl object-cover"
+  loading="lazy"
+/>
+
 
   <CardHeader>
     <CardTitle className="text-lg">2) Document on site</CardTitle>
@@ -811,11 +813,12 @@ async function handleContactSubmit(e) {
             {/* NEW — image */}
             
   <img
-    src="/process-deliver.jpg"
-    alt="Structured report and photo deliverables"
-    className="w-full rounded-2xl object-cover"
-    loading="lazy"
-  />
+  src="/process-deliver.jpg"
+  alt="Structured report and photo deliverables"
+  className="w-full aspect-[16/9] rounded-2xl object-cover"
+  loading="lazy"
+/>
+
             <CardHeader>
               <CardTitle className="text-lg">3) Deliver & archive</CardTitle>
             </CardHeader>
