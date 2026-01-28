@@ -876,7 +876,8 @@ async function handleContactSubmit(e) {
 
 
     {/* Left: narrative */}
-    <div className="space-y-4 text-base leading-relaxed text-foreground/80">
+    <div className="space-y-4 text-sm leading-relaxed text-foreground/75">
+
   <p>
     In many properties, the most expensive issues aren’t the repairs
     themselves — they’re the uncertainty around them.
@@ -897,15 +898,13 @@ async function handleContactSubmit(e) {
 
 
     {/* Right: bullets */}
-<div className="rounded-3xl border border-border bg-[var(--brand)]/5 p-5 md:-mt-12">
-
-
-
-  <div className="text-base font-semibold text-foreground">
+<div className="rounded-3xl border border-border bg-[var(--brand)]/5 p-5 md:-mt-3">
+  <div className="text-sm font-semibold text-foreground">
     With that context in place, you can:
   </div>
 
-  <ul className="mt-3 space-y-2 text-base text-foreground/80">
+  <ul className="mt-3 space-y-2 text-sm text-foreground/75">
+
     {[
       "Avoid duplicate investigations and re-scoping",
       "Support more targeted repairs instead of blanket fixes",
@@ -919,7 +918,8 @@ async function handleContactSubmit(e) {
     ))}
   </ul>
 
-  <p className="mt-4 text-base text-foreground/75">
+  <p className="mt-4 text-sm text-foreground/70">
+
     The goal isn’t to reduce necessary work — it’s to help prevent unnecessary
     costs caused by uncertainty.
   </p>
@@ -930,7 +930,8 @@ async function handleContactSubmit(e) {
   {/* Bottom line callout */}
   <div className="mt-6 rounded-3xl border border-border bg-background px-5 py-4">
   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-    <div className="text-base text-foreground/80">
+    <div className="text-sm text-foreground/80">
+
       <span className="font-semibold text-foreground">Bottom line:</span>{" "}
       A single unnecessary site visit or over-scoped repair can easily exceed the cost of ongoing documentation.
     </div>
