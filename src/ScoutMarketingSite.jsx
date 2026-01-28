@@ -106,14 +106,15 @@ const Section = ({ id, eyebrow, title, subtitle, children, className = "", inver
   {title}
 </h2>
         {subtitle ? (
-          <p
-    className={`mt-3 max-w-3xl text-base leading-relaxed ${
+  <p
+    className={`mt-3 max-w-2xl text-lg leading-relaxed ${
       invert ? "text-white/85" : "text-current/80"
     }`}
   >
     {subtitle}
   </p>
 ) : null}
+
       </div>
             {children}
     </div>
