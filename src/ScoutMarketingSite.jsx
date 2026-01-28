@@ -876,19 +876,18 @@ async function handleContactSubmit(e) {
         themselves — they’re the uncertainty around them.
       </p>
 
-      <div className="rounded-3xl border border-border bg-background p-5 shadow-sm">
-        <p>
-          When conditions aren’t clearly documented over time, decisions get made
-          without context. That often leads to duplicate site visits, re-scoped
-          work, conservative “just-in-case” repairs, and extended back-and-forth
-          with vendors, tenants, or insurers.
-        </p>
+      <p className="text-sm leading-relaxed text-foreground/75">
+  When conditions aren’t clearly documented over time, decisions get made
+  without context. That often leads to duplicate site visits, re-scoped
+  work, conservative “just-in-case” repairs, and extended back-and-forth
+  with vendors, tenants, or insurers.
+</p>
 
-        <div className="mt-4 border-l-2 border-[var(--brand)] pl-4 text-foreground/70">
-          SCOUT provides consistent, time-stamped visual records that establish a
-          clear baseline and track observable changes over time.
-        </div>
-      </div>
+<div className="mt-4 border-l-2 border-[var(--brand)] pl-4 text-sm text-foreground/70">
+  SCOUT provides consistent, time-stamped visual records that establish a
+  clear baseline and track observable changes over time.
+</div>
+
     </div>
 
     {/* Right: bullets + CTA */}
