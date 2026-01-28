@@ -870,73 +870,73 @@ async function handleContactSubmit(e) {
 >
   <div className="grid gap-6 md:grid-cols-[1.2fr_0.8fr] md:items-start">
     {/* Left: narrative */}
-    <div className="space-y-4 text-sm leading-relaxed text-foreground/75">
-      <p className="text-base text-foreground/80">
-        In many properties, the most expensive issues aren’t the repairs
-        themselves — they’re the uncertainty around them.
-      </p>
+    <div className="space-y-4 text-base leading-relaxed text-foreground/80">
+  <p>
+    In many properties, the most expensive issues aren’t the repairs
+    themselves — they’re the uncertainty around them.
+  </p>
 
-      <p className="text-sm leading-relaxed text-foreground/75">
-  When conditions aren’t clearly documented over time, decisions get made
-  without context. That often leads to duplicate site visits, re-scoped
-  work, conservative “just-in-case” repairs, and extended back-and-forth
-  with vendors, tenants, or insurers.
-</p>
+  <p>
+    When conditions aren’t clearly documented over time, decisions get made
+    without context. That often leads to duplicate site visits, re-scoped
+    work, conservative “just-in-case” repairs, and extended back-and-forth
+    with vendors, tenants, or insurers.
+  </p>
 
-<div className="mt-4 border-l-2 border-[var(--brand)] pl-4 text-sm text-foreground/70">
-  SCOUT provides consistent, time-stamped visual records that establish a
-  clear baseline and track observable changes over time.
+  <p>
+    SCOUT provides consistent, time-stamped visual records that establish a
+    clear baseline and track observable changes over time.
+  </p>
 </div>
 
-    </div>
 
-    {/* Right: bullets + CTA */}
-    <div className="rounded-3xl border border-border bg-[var(--brand)]/5 p-5">
-      <div className="text-sm font-semibold text-foreground">
-        With that context in place, you can:
-      </div>
+    {/* Right: bullets */}
+<div className="rounded-3xl border border-border bg-[var(--brand)]/5 p-5 md:-mt-3">
+  <div className="text-base font-semibold text-foreground">
+    With that context in place, you can:
+  </div>
 
-      <ul className="mt-3 space-y-2 text-sm text-foreground/75">
-        {[
-          "Avoid duplicate investigations and re-scoping",
-          "Support more targeted repairs instead of blanket fixes",
-          "Resolve questions faster with vendors, tenants, or insurers",
-          "Retain visual history even as staff or vendors change",
-        ].map((x) => (
-          <li key={x} className="flex items-start gap-2">
-            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand)]" />
-            <span>{x}</span>
-          </li>
-        ))}
-      </ul>
+  <ul className="mt-3 space-y-2 text-base text-foreground/80">
+    {[
+      "Avoid duplicate investigations and re-scoping",
+      "Support more targeted repairs instead of blanket fixes",
+      "Resolve questions faster with vendors, tenants, or insurers",
+      "Retain visual history even as staff or vendors change",
+    ].map((x) => (
+      <li key={x} className="flex items-start gap-2">
+        <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[var(--brand)]" />
+        <span>{x}</span>
+      </li>
+    ))}
+  </ul>
 
-      <p className="mt-4 text-sm text-foreground/70">
-        The goal isn’t to reduce necessary work — it’s to help prevent unnecessary
-        costs caused by uncertainty.
-      </p>
+  <p className="mt-4 text-base text-foreground/75">
+    The goal isn’t to reduce necessary work — it’s to help prevent unnecessary
+    costs caused by uncertainty.
+  </p>
+</div>
 
-      
-    </div>
   </div>
 
   {/* Bottom line callout */}
-  <div className="mt-6 rounded-3xl border border-border bg-background p-5 shadow-sm">
-    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-      <div className="text-sm text-foreground/80">
-        <span className="font-semibold text-foreground">Bottom line:</span>{" "}
-        A single unnecessary site visit or over-scoped repair can easily exceed the cost of ongoing documentation.
-      </div>
-
-      <Button
-        variant="outline"
-        className="rounded-2xl hover:border-[var(--brand)]"
-        onClick={() => scrollToSection("#pricing")}
-      >
-        View pricing
-        <ArrowRight className="ml-2 h-4 w-4" />
-      </Button>
+  <div className="mt-6 rounded-3xl border border-border bg-background px-5 py-4">
+  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className="text-base text-foreground/80">
+      <span className="font-semibold text-foreground">Bottom line:</span>{" "}
+      A single unnecessary site visit or over-scoped repair can easily exceed the cost of ongoing documentation.
     </div>
+
+    <Button
+      variant="outline"
+      className="rounded-2xl hover:border-[var(--brand)]"
+      onClick={() => scrollToSection("#pricing")}
+    >
+      View pricing
+      <ArrowRight className="ml-2 h-4 w-4" />
+    </Button>
   </div>
+</div>
+
 </Section>
 
 
