@@ -306,12 +306,14 @@ async function handleContactSubmit(e) {
 
 
    const nav = [
-    { label: "Services", href: "#services" },
-    { label: "How it works", href: "#how" },
-    { label: "Pricing", href: "#pricing" },
-    { label: "FAQ", href: "#faq" },
-    { label: "Contact", href: "#contact" },
-  ];
+  { label: "Services", href: "#services" },
+  { label: "How it works", href: "#how" },
+  { label: "Value", href: "#value" },
+  { label: "Pricing", href: "#pricing" },
+  { label: "FAQ", href: "#faq" },
+  { label: "Contact", href: "#contact" },
+];
+
 
   return (
     <div style={brandStyle} className="min-h-screen bg-background text-foreground">
