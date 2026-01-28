@@ -868,7 +868,8 @@ async function handleContactSubmit(e) {
   title="Clear records lead to clearer decisions — and lower unnecessary costs."
   subtitle="Documentation helps reduce repeat work, over-scoping, and decisions made with incomplete information."
 >
-  <div className="grid gap-6 md:grid-cols-[1.2fr_0.8fr] md:items-start">
+  <div className="grid gap-6 md:grid-cols-[1.2fr_0.8fr] md:items-start -mt-4">
+
     {/* Left: narrative */}
     <div className="space-y-4 text-base leading-relaxed text-foreground/80">
   <p>
