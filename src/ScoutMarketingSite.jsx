@@ -79,8 +79,10 @@ const fadeUp = {
   show: { opacity: 1, y: 0 },
 };
 
-const Section = ({ id, eyebrow, title, subtitle, children,className = "",invert = false, }) => (
-  <section id={id} className={`scroll-mt-32 py-8 md:py-10 ${className}`}>
+const Section = ({ id, eyebrow, title, subtitle, children, className = "", invert = false }) => (
+  <div id={id} className={`scroll-mt-32`}>
+    <section className={`py-8 md:py-10 ${className}`}>
+
 
     <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
       <div className="mb-5 md:mb-6">
@@ -113,10 +115,12 @@ const Section = ({ id, eyebrow, title, subtitle, children,className = "",invert 
   </p>
 ) : null}
       </div>
-      {children}
+            {children}
     </div>
   </section>
+  </div>
 );
+
 
 const Pill = ({ icon: Icon, children, className = "" }) => (
   <div
