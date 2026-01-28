@@ -868,7 +868,8 @@ async function handleContactSubmit(e) {
   title="Clear records lead to clearer decisions — and lower unnecessary costs."
   subtitle="Documentation helps reduce repeat work, over-scoping, and decisions made with incomplete information."
 >
-  <div className="grid gap-6 md:grid-cols-[1.2fr_0.8fr] md:items-start -mt-4">
+  <div className="grid gap-6 md:grid-cols-[1.2fr_0.8fr] md:items-start">
+
 
     {/* Left: narrative */}
     <div className="space-y-4 text-base leading-relaxed text-foreground/80">
@@ -892,7 +893,8 @@ async function handleContactSubmit(e) {
 
 
     {/* Right: bullets */}
-<div className="rounded-3xl border border-border bg-[var(--brand)]/5 p-5 md:-mt-3">
+<div className="rounded-3xl border border-border bg-[var(--brand)]/5 p-5 md:-mt-12">
+
   <div className="text-base font-semibold text-foreground">
     With that context in place, you can:
   </div>
