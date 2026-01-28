@@ -192,7 +192,8 @@ const [mobileOpen, setMobileOpen] = useState(false);
     const offset = header ? header.getBoundingClientRect().height : 0;
 
     const top = window.scrollY + el.getBoundingClientRect().top - offset - 8;
-    window.scrollTo({ top, behavior: "smooth" });
+    window.scrollTo({ top, behavior: "auto" });
+
   }
 
   function scrollToSection(href) {
