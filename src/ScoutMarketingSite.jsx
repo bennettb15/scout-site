@@ -875,6 +875,7 @@ async function handleContactSubmit(e) {
   <div className="grid gap-6 md:grid-cols-[1.2fr_0.8fr] md:items-start">
 
 
+
     {/* Left: narrative */}
     <div className="space-y-4 text-sm leading-relaxed text-foreground/75">
 
@@ -898,7 +899,8 @@ async function handleContactSubmit(e) {
 
 
     {/* Right: bullets */}
-<div className="rounded-3xl border border-border bg-[var(--brand)]/5 p-5 md:-mt-3">
+<div className="rounded-3xl border border-border bg-[var(--brand)]/5 p-5 md:-mt-10">
+
   <div className="text-sm font-semibold text-foreground">
     With that context in place, you can:
   </div>
