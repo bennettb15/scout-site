@@ -204,12 +204,11 @@ const [mobileOpen, setMobileOpen] = useState(false);
     if (mobileOpen) return;
     if (!pendingHref) return;
 
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        scrollNow(pendingHref);
-        setPendingHref(null);
-      });
-    });
+    setTimeout(() => {
+  scrollNow(pendingHref);
+  setPendingHref(null);
+}, 350);
+
   }, [mobileOpen, pendingHref]);
 
 
