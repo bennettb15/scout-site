@@ -199,10 +199,19 @@ function scrollToSection(href) {
 
 
 useEffect(() => {
-    document.title = BRAND.siteTitle;
-    document.documentElement.style.setProperty("--brand", BRAND.brandNavy);
-    document.documentElement.style.setProperty("--brand-ink", "#23243A");
-  }, []);
+  document.title = BRAND.siteTitle;
+  document.documentElement.style.setProperty("--brand", BRAND.brandNavy);
+  document.documentElement.style.setProperty("--brand-ink", "#23243A");
+
+  // Enable smooth scrolling for anchor/hash navigation
+  document.documentElement.style.scrollBehavior = "smooth";
+
+  return () => {
+    // Cleanup so this component doesn't permanently affect other pages
+    document.documentElement.style.scrollBehavior = "";
+  };
+}, []);
+
 
 
   const brandStyle = {
