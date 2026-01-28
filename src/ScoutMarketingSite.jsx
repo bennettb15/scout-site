@@ -205,11 +205,9 @@ function doScroll(behavior = "auto") {
   window.scrollTo({ top, behavior });
 }
 
-// 1) initial scroll:
-// Pricing tends to shift; go directly there to avoid a visible jump.
-// Everything else can be smooth.
-const initialBehavior = id === "pricing" ? "auto" : "smooth";
-doScroll(initialBehavior);
+// 1) initial scroll: smooth for all sections (including Pricing)
+doScroll("smooth");
+
 
 
 // 2) correction scroll after layout settles:
