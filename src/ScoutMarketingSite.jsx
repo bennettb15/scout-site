@@ -188,20 +188,9 @@ const [mobileOpen, setMobileOpen] = useState(false);
   const el = document.getElementById(id);
   if (!el) return;
 
-  const header = document.querySelector(".sticky.top-0");
-  const offset = header ? header.getBoundingClientRect().height : 0;
-
-  const top =
-    window.scrollY + el.getBoundingClientRect().top - offset - 8;
-
-  // 1️⃣ Instant jump (cannot be interrupted)
-  window.scrollTo({ top, behavior: "auto" });
-
-  // 2️⃣ Smooth settle (feels nice)
-  setTimeout(() => {
-    window.scrollTo({ top, behavior: "smooth" });
-  }, 50);
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
 }
+
 
 
   function scrollToSection(href) {
@@ -1009,10 +998,10 @@ async function handleContactSubmit(e) {
           />
         </div>
       </Section>
-<div className="bg-[var(--brand)]">
+<div id="contact" className="bg-[var(--brand)] scroll-mt-24">
   <Section
-    id="contact"
     invert
+
     className="py-16 md:py-20"
     eyebrow="Contact"
     title="Request a quote or schedule a walkthrough"
