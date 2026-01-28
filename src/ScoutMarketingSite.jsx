@@ -197,10 +197,11 @@ function scrollToSection(href) {
     const header = document.querySelector(".sticky.top-0");
     const offset = header ? header.getBoundingClientRect().height : 0;
 
-    const top = window.scrollY + el.getBoundingClientRect().top - offset - 8;
+    const top = window.scrollY + el.getBoundingClientRect().top - offset - 24;
 
-    // Use a reliable scroll (works every time on mobile + desktop)
-    window.scrollTo({ top, behavior: "auto" });
+// Use a reliable scroll (works every time on mobile + desktop)
+window.scrollTo({ top, behavior: "auto" });
+
   }, 450);
 }
 
