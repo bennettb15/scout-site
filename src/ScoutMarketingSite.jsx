@@ -194,17 +194,23 @@ function scrollToSection(href) {
   // Wait for the Sheet close animation / scroll lock to finish
   setTimeout(() => {
     const id = href?.replace("#", "");
-    const el = document.getElementById(id);
-    if (!el) return;
+const el = document.getElementById(id);
+if (!el) return;
 
-    // Sticky header offset
-    const header = document.querySelector(".sticky.top-0");
-    const offset = header ? header.getBoundingClientRect().height : 0;
+function doScroll() {
+  const header = document.querySelector(".sticky.top-0");
+  const offset = header ? header.getBoundingClientRect().height : 0;
 
-    const top = window.scrollY + el.getBoundingClientRect().top - offset - 24;
+  const top = window.scrollY + el.getBoundingClientRect().top - offset - 24;
+  window.scrollTo({ top, behavior: "auto" });
+}
 
-// Use a reliable scroll (works every time on mobile + desktop)
-window.scrollTo({ top, behavior: "auto" });
+// 1) initial scroll
+doScroll();
+
+// 2) correction scroll after layout settles (fixes Pricing landing off)
+setTimeout(doScroll, 300);
+
 
   }, 450);
 }
