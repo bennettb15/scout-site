@@ -184,17 +184,25 @@ const [mobileOpen, setMobileOpen] = useState(false);
   const [pendingHref, setPendingHref] = useState(null);
 
   function scrollNow(href) {
-    const id = href?.replace("#", "");
-    const el = document.getElementById(id);
-    if (!el) return;
+  const id = href?.replace("#", "");
+  const el = document.getElementById(id);
+  if (!el) return;
 
-    const header = document.querySelector(".sticky.top-0");
-    const offset = header ? header.getBoundingClientRect().height : 0;
+  const header = document.querySelector(".sticky.top-0");
+  const offset = header ? header.getBoundingClientRect().height : 0;
 
-    const top = window.scrollY + el.getBoundingClientRect().top - offset - 8;
-    window.scrollTo({ top, behavior: "auto" });
+  const top =
+    window.scrollY + el.getBoundingClientRect().top - offset - 8;
 
-  }
+  // 1️⃣ Instant jump (cannot be interrupted)
+  window.scrollTo({ top, behavior: "auto" });
+
+  // 2️⃣ Smooth settle (feels nice)
+  setTimeout(() => {
+    window.scrollTo({ top, behavior: "smooth" });
+  }, 50);
+}
+
 
   function scrollToSection(href) {
     setPendingHref(href);
