@@ -916,13 +916,7 @@ async function handleContactSubmit(e) {
         costs caused by uncertainty.
       </p>
 
-      <Button
-        className="mt-4 w-full rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
-        onClick={() => scrollToSection("#contact")}
-      >
-        Request a quote
-        <ArrowRight className="ml-2 h-4 w-4" />
-      </Button>
+      
     </div>
   </div>
 
