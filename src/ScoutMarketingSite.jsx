@@ -208,8 +208,20 @@ function doScroll(behavior = "auto") {
 // 1) initial scroll: smooth (visual scroll)
 doScroll("smooth");
 
-// 2) correction scroll after layout settles: auto (no visible jump if already close)
-setTimeout(() => doScroll("auto"), 350);
+// 2) correction scroll after layout settles:
+// If we’re already close, use smooth; if we’re far off, use auto (prevents weird mobile interruptions)
+setTimeout(() => {
+  const header = document.querySelector(".sticky.top-0");
+  const offset = header ? header.getBoundingClientRect().height : 0;
+  const correctedTop = window.scrollY + el.getBoundingClientRect().top - offset - 24;
+
+  const diff = Math.abs(window.scrollY - correctedTop);
+
+  // If adjustment is small, smooth looks great; if large, auto avoids “stutter”
+  const behavior = diff <= 120 ? "smooth" : "auto";
+  doScroll(behavior);
+}, 350);
+
 
 
 
