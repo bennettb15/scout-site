@@ -181,6 +181,37 @@ const FAQItem = ({ q, a }) => (
 export default function ScoutMarketingSite() {
 
 const [mobileOpen, setMobileOpen] = useState(false);
+  const [pendingHref, setPendingHref] = useState(null);
+
+  function scrollNow(href) {
+    const id = href?.replace("#", "");
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    const header = document.querySelector(".sticky.top-0");
+    const offset = header ? header.getBoundingClientRect().height : 0;
+
+    const top = window.scrollY + el.getBoundingClientRect().top - offset - 8;
+    window.scrollTo({ top, behavior: "smooth" });
+  }
+
+  function scrollToSection(href) {
+    setPendingHref(href);
+    setMobileOpen(false);
+  }
+
+  useEffect(() => {
+    if (mobileOpen) return;
+    if (!pendingHref) return;
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scrollNow(pendingHref);
+        setPendingHref(null);
+      });
+    });
+  }, [mobileOpen, pendingHref]);
+
 
 useEffect(() => {
     document.title = BRAND.siteTitle;
@@ -188,12 +219,6 @@ useEffect(() => {
     document.documentElement.style.setProperty("--brand-ink", "#23243A");
   }, []);
 
-function scrollToSection(href) {
-  const id = href?.replace("#", "");
-  const el = document.getElementById(id);
-  if (el) el.scrollIntoView({ behavior: "smooth" });
-  setMobileOpen(false);
-}
 
   const brandStyle = {
     "--brand": BRAND.brandNavy,
@@ -345,19 +370,14 @@ async function handleContactSubmit(e) {
             <Button
               variant="outline"
               className="hidden rounded-2xl md:inline-flex hover:border-[var(--brand)]"
-              onClick={() => {
-                const el = document.querySelector("#how");
-                el?.scrollIntoView({ behavior: "smooth" });
-              }}
+              onClick={() => scrollToSection("#how")}
             >
               {BRAND.ctaSecondary}
             </Button>
             <Button
               className="rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
-              onClick={() => {
-                const el = document.querySelector("#contact");
-                el?.scrollIntoView({ behavior: "smooth" });
-              }}
+              onClick={() => scrollToSection("#contact")}
+
             >
               {BRAND.ctaPrimary}
               <ArrowRight className="ml-2 h-4 w-4" />
@@ -431,10 +451,8 @@ async function handleContactSubmit(e) {
               <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Button
                   className="rounded-2xl bg-white text-[var(--brand)] hover:bg-white/90"
-                  onClick={() => {
-                    const el = document.querySelector("#contact");
-                    el?.scrollIntoView({ behavior: "smooth" });
-                  }}
+                  onClick={() => scrollToSection("#contact")}
+
                 >
                   {BRAND.ctaPrimary}
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -533,10 +551,8 @@ async function handleContactSubmit(e) {
                   <div className="flex gap-2">
                     <Button
                       className="w-full rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
-                      onClick={() => {
-                        const el = document.querySelector("#contact");
-                        el?.scrollIntoView({ behavior: "smooth" });
-                      }}
+                     onClick={() => scrollToSection("#contact")}
+
                     >
                       Get started
                       <ArrowRight className="ml-2 h-4 w-4" />
@@ -544,10 +560,8 @@ async function handleContactSubmit(e) {
                     <Button
                       variant="outline"
                       className="w-full rounded-2xl hover:border-[var(--brand)]"
-                      onClick={() => {
-                        const el = document.querySelector("#faq");
-                        el?.scrollIntoView({ behavior: "smooth" });
-                      }}
+                      onClick={() => scrollToSection("#faq")}
+
                     >
                       Read FAQ
                     </Button>
@@ -803,10 +817,8 @@ async function handleContactSubmit(e) {
   Download sample report (PDF)
 </a>
               <Button className="h-11 rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
-                onClick={() => {
-                  const el = document.querySelector("#contact");
-                  el?.scrollIntoView({ behavior: "smooth" });
-                }}
+                onClick={() => scrollToSection("#contact")}
+
               >
                 Get a quote
               </Button>
@@ -863,10 +875,8 @@ async function handleContactSubmit(e) {
         {/* CHANGE mt-5 -> mt-auto */}
         <Button
           className="mt-auto w-full rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
-          onClick={() => {
-            const el = document.querySelector("#contact");
-            el?.scrollIntoView({ behavior: "smooth" });
-          }}
+          onClick={() => scrollToSection("#contact")}
+
         >
           Request pricing
           <ArrowRight className="ml-2 h-4 w-4" />
@@ -900,10 +910,8 @@ async function handleContactSubmit(e) {
         <Button
           variant="outline"
           className="mt-auto w-full rounded-2xl hover:border-[var(--brand)]"
-          onClick={() => {
-            const el = document.querySelector("#contact");
-            el?.scrollIntoView({ behavior: "smooth" });
-          }}
+          onClick={() => scrollToSection("#contact")}
+
         >
           Build a cadence
         </Button>
@@ -938,10 +946,8 @@ async function handleContactSubmit(e) {
         <Button
           variant="outline"
           className="mt-auto w-full rounded-2xl hover:border-[var(--brand)]"
-          onClick={() => {
-            const el = document.querySelector("#contact");
-            el?.scrollIntoView({ behavior: "smooth" });
-          }}
+          onClick={() => scrollToSection("#contact")}
+
         >
           Get storm support
         </Button>
