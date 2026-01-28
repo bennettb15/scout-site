@@ -866,115 +866,46 @@ async function handleContactSubmit(e) {
   id="value"
   eyebrow="Value"
   title="Clear records lead to clearer decisions — and lower unnecessary costs."
-  subtitle="A visual baseline reduces preventable confusion across vendors, tenants, insurers, and internal teams."
+  subtitle="Documentation helps reduce repeat work, over-scoping, and decisions made with incomplete information."
 >
-    {/* 3-up on desktop, stacked on mobile */}
-  <div className="grid gap-4 md:grid-cols-3 md:items-stretch">
-    {/* Card 1 */}
-    <Card className="rounded-3xl shadow-sm">
-      <CardHeader className="space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
-            <Search className="h-4 w-4 text-[var(--brand)]" />
-          </div>
-          <CardTitle className="text-lg">Why it saves money</CardTitle>
-        </div>
-      </CardHeader>
+  <div className="max-w-3xl space-y-4 text-sm leading-relaxed text-foreground/80">
+    <p>
+      In many properties, the most expensive issues aren’t the repairs
+      themselves — they’re the uncertainty around them.
+    </p>
 
-      <CardContent className="text-sm leading-relaxed text-foreground/70 space-y-3">
-        <p>
-          Most avoidable costs come from uncertainty — not the repair itself.
-          When there’s no clear “before” record, timelines stretch and scopes get conservative.
-        </p>
+    <p>
+      When conditions aren’t clearly documented over time, decisions get made
+      without context. That often leads to duplicate site visits, re-scoped
+      work, conservative “just-in-case” repairs, and extended back-and-forth
+      with vendors, tenants, or insurers.
+    </p>
 
-        <div className="rounded-2xl border border-border bg-background p-4">
-          <div className="text-xs font-medium text-foreground/60">Real-world outcome</div>
-          <div className="mt-1 text-sm text-foreground/80">
-            Extra visits, re-scopes, and “just-in-case” work add up fast.
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <p>
+      SCOUT provides consistent, time-stamped visual records that establish a
+      clear baseline and track observable changes over time. With that context
+      in place, clients are better equipped to:
+    </p>
 
-    {/* Card 2 */}
-    <Card className="rounded-3xl shadow-sm">
-      <CardHeader className="space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
-            <Clock className="h-4 w-4 text-[var(--brand)]" />
-          </div>
-          <CardTitle className="text-lg">Reduce repeat work</CardTitle>
-        </div>
-      </CardHeader>
+    <ul className="ml-4 list-disc space-y-1">
+      <li>Avoid duplicate investigations and re-scoping</li>
+      <li>Support more targeted repairs instead of blanket fixes</li>
+      <li>Resolve questions faster with vendors, tenants, or insurers</li>
+      <li>Retain visual history even as staff or vendors change</li>
+    </ul>
 
-      <CardContent className="space-y-3 text-sm text-foreground/70">
-        <div className="rounded-2xl border border-border bg-background p-4">
-          <div className="font-semibold text-foreground">Fewer repeat visits</div>
-          <div className="mt-1">Cut down “can you re-check” trips and redundant investigations.</div>
-        </div>
+    <p className="pt-2 text-foreground/70">
+      The goal isn’t to reduce necessary work — it’s to help prevent unnecessary
+      costs caused by uncertainty.
+    </p>
 
-        <div className="rounded-2xl border border-border bg-background p-4">
-          <div className="font-semibold text-foreground">More targeted scopes</div>
-          <div className="mt-1">Support tighter scopes instead of blanket, conservative fixes.</div>
-        </div>
-      </CardContent>
-    </Card>
-
-    {/* Card 3 */}
-    <Card className="rounded-3xl shadow-sm">
-      <CardHeader className="space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
-            <FileText className="h-4 w-4 text-[var(--brand)]" />
-          </div>
-          <CardTitle className="text-lg">Make decisions faster</CardTitle>
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-3 text-sm text-foreground/70">
-        <div className="rounded-2xl border border-border bg-background p-4">
-          <div className="font-semibold text-foreground">Cleaner conversations</div>
-          <div className="mt-1">Resolve questions faster with time-stamped visual context.</div>
-        </div>
-
-        <div className="rounded-2xl border border-border bg-background p-4">
-          <div className="font-semibold text-foreground">Continuity over time</div>
-          <div className="mt-1">Keep a visual history even when staff, tenants, or vendors change.</div>
-        </div>
-
-        <div className="pt-1">
-          <Button
-            className="w-full rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
-            onClick={() => scrollToSection("#contact")}
-          >
-            Request a quote
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  </div>
-
-  {/* Bottom “savings” bar */}
-  <div className="mt-4 rounded-3xl border border-border bg-[var(--brand)]/5 p-5">
-    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-      <div className="text-sm text-foreground/80">
-        <span className="font-semibold text-foreground">Bottom line:</span>{" "}
-        One unnecessary site visit or over-scoped repair can easily exceed the cost of documentation.
-      </div>
-
-      <Button
-        variant="outline"
-        className="rounded-2xl hover:border-[var(--brand)]"
-        onClick={() => scrollToSection("#pricing")}
-      >
-        View pricing
-        <ArrowRight className="ml-2 h-4 w-4" />
-      </Button>
+    <div className="mt-4 rounded-2xl border border-border bg-[var(--brand)]/5 p-4 text-sm text-foreground/80">
+      A single unnecessary site visit or over-scoped repair can easily exceed
+      the cost of ongoing documentation.
     </div>
   </div>
-
 </Section>
+
 
 
 
