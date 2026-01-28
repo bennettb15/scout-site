@@ -197,19 +197,20 @@ function scrollToSection(href) {
 const el = document.getElementById(id);
 if (!el) return;
 
-function doScroll() {
+function doScroll(behavior = "auto") {
   const header = document.querySelector(".sticky.top-0");
   const offset = header ? header.getBoundingClientRect().height : 0;
 
   const top = window.scrollY + el.getBoundingClientRect().top - offset - 24;
-  window.scrollTo({ top, behavior: "auto" });
+  window.scrollTo({ top, behavior });
 }
 
-// 1) initial scroll
-doScroll();
+// 1) initial scroll: smooth (visual scroll)
+doScroll("smooth");
 
-// 2) correction scroll after layout settles (fixes Pricing landing off)
-setTimeout(doScroll, 300);
+// 2) correction scroll after layout settles: auto (no visible jump if already close)
+setTimeout(() => doScroll("auto"), 350);
+
 
 
   }, 450);
