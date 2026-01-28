@@ -205,8 +205,12 @@ function doScroll(behavior = "auto") {
   window.scrollTo({ top, behavior });
 }
 
-// 1) initial scroll: smooth (visual scroll)
-doScroll("smooth");
+// 1) initial scroll:
+// Pricing tends to shift; go directly there to avoid a visible jump.
+// Everything else can be smooth.
+const initialBehavior = id === "pricing" ? "auto" : "smooth";
+doScroll(initialBehavior);
+
 
 // 2) correction scroll after layout settles:
 // If we’re already close, use smooth; if we’re far off, use auto (prevents weird mobile interruptions)
@@ -217,10 +221,13 @@ setTimeout(() => {
 
   const diff = Math.abs(window.scrollY - correctedTop);
 
-  // If adjustment is small, smooth looks great; if large, auto avoids “stutter”
-  const behavior = diff <= 120 ? "smooth" : "auto";
+  // Pricing is the section that tends to shift; make its correction instant to avoid a visible hitch.
+  const isPricing = id === "pricing";
+
+  const behavior = isPricing ? "auto" : (diff <= 120 ? "smooth" : "auto");
   doScroll(behavior);
 }, 350);
+
 
 
 
