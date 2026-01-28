@@ -184,17 +184,26 @@ export default function ScoutMarketingSite() {
 const [mobileOpen, setMobileOpen] = useState(false);
 
 function scrollToSection(href) {
-  // 1) close the menu first
+  // Close the menu if it’s open (mobile)
   setMobileOpen(false);
 
-  // 2) after the sheet finishes closing, use native anchor scroll
+  // Wait for the Sheet close animation / scroll lock to finish
   setTimeout(() => {
-    const id = href?.startsWith("#") ? href : `#${href}`;
-    if (!id) return;
+    const id = href?.replace("#", "");
+    const el = document.getElementById(id);
+    if (!el) return;
 
-    window.location.hash = id;
+    // Sticky header offset
+    const header = document.querySelector(".sticky.top-0");
+    const offset = header ? header.getBoundingClientRect().height : 0;
+
+    const top = window.scrollY + el.getBoundingClientRect().top - offset - 8;
+
+    // Use a reliable scroll (works every time on mobile + desktop)
+    window.scrollTo({ top, behavior: "auto" });
   }, 450);
 }
+
 
 
 
