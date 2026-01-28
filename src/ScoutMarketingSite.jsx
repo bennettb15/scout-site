@@ -327,7 +327,11 @@ async function handleContactSubmit(e) {
       </Button>
     </SheetTrigger>
 
-    <SheetContent side="right" className="w-[320px] sm:w-[360px]">
+    <SheetContent
+  side="right"
+  className="w-[320px] sm:w-[360px]"
+  onCloseAutoFocus={(e) => e.preventDefault()}
+>
       <SheetHeader>
         <SheetTitle>Menu</SheetTitle>
       </SheetHeader>
