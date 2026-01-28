@@ -80,7 +80,8 @@ const fadeUp = {
 };
 
 const Section = ({ id, eyebrow, title, subtitle, children,className = "",invert = false, }) => (
-  <section id={id} className={`scroll-mt-24 py-8 md:py-10 ${className}`}>
+  <section id={id} className={`scroll-mt-32 py-8 md:py-10 ${className}`}>
+
     <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
       <div className="mb-5 md:mb-6">
         {eyebrow ? (
@@ -181,58 +182,20 @@ const FAQItem = ({ q, a }) => (
 export default function ScoutMarketingSite() {
 
 const [mobileOpen, setMobileOpen] = useState(false);
-  const [pendingHref, setPendingHref] = useState(null);
 
-  function scrollNow(href) {
-  const id = href?.replace("#", "");
-  const el = document.getElementById(id);
-  if (!el) return;
+function scrollToSection(href) {
+  // 1) close the menu first
+  setMobileOpen(false);
 
-  const header = document.querySelector(".sticky.top-0");
-  const offset = header ? header.getBoundingClientRect().height : 0;
+  // 2) after the sheet finishes closing, use native anchor scroll
+  setTimeout(() => {
+    const id = href?.startsWith("#") ? href : `#${href}`;
+    if (!id) return;
 
-  const targetTop = window.scrollY + el.getBoundingClientRect().top - offset - 8;
-
-  const startTop = window.scrollY;
-  const distance = targetTop - startTop;
-
-  const duration = 450; // ms
-  const start = performance.now();
-
-  function easeInOutCubic(t) {
-    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-  }
-
-  function step(now) {
-    const elapsed = now - start;
-    const t = Math.min(1, elapsed / duration);
-    const eased = easeInOutCubic(t);
-
-    window.scrollTo(0, startTop + distance * eased);
-
-    if (t < 1) requestAnimationFrame(step);
-  }
-
-  requestAnimationFrame(step);
+    window.location.hash = id;
+  }, 450);
 }
 
-
-
-  function scrollToSection(href) {
-    setPendingHref(href);
-    setMobileOpen(false);
-  }
-
-  useEffect(() => {
-    if (mobileOpen) return;
-    if (!pendingHref) return;
-
-    setTimeout(() => {
-  scrollNow(pendingHref);
-  setPendingHref(null);
-}, 350);
-
-  }, [mobileOpen, pendingHref]);
 
 
 useEffect(() => {
@@ -353,8 +316,8 @@ async function handleContactSubmit(e) {
     <SheetContent
   side="right"
   className="w-[320px] sm:w-[360px]"
-  onCloseAutoFocus={(e) => e.preventDefault()}
 >
+
       <SheetHeader>
         <SheetTitle>Menu</SheetTitle>
       </SheetHeader>
