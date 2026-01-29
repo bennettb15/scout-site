@@ -883,15 +883,15 @@ async function handleContactSubmit(e) {
     <div className="space-y-4 text-sm leading-relaxed text-foreground/75">
 
   <p>
-    Across many properties, unnecessary costs often come from a lack of shared context rather than the repair work itself.
-     When past conditions aren’t clearly recorded, even routine questions can require additional site visits, expanded scopes,
-      or conservative “just-in-case” solutions.
+    Across many properties, unnecessary costs rarely come from the repair itself. They come from decisions made without 
+    a clear record of prior conditions — which turns routine questions into extra site visits, expanded scopes, or 
+    conservative “just-in-case” solutions.
   </p>
 
   <p>
     SCOUT creates consistent, time-stamped visual records that establish a reliable baseline and make observable changes easy
-     to reference over time. Each visit follows the same structure, so information stays clear even as people, vendors, or 
-     conditions change.
+     to reference over time. Each visit follows the same structure, creating a durable visual record that remains usable and 
+     comparable over time — even as people, vendors, or conditions change.
 
   </p>
 </div>
@@ -922,8 +922,8 @@ async function handleContactSubmit(e) {
 
   <p className="mt-4 text-sm text-foreground/70">
 
-    The goal isn’t to reduce necessary work — it’s to help prevent unnecessary
-    costs caused by uncertainty.
+    The goal isn’t to reduce necessary work — it’s to prevent unnecessary
+    costs before they happen.
   </p>
 </div>
 
