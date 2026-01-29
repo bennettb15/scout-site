@@ -867,7 +867,7 @@ async function handleContactSubmit(e) {
 
 <Section
   id="value"
-  eyebrow="Value"
+  eyebrow="Value of records"
   title="Clear records lead to clearer decisions — and lower unnecessary costs."
 >
   <p className="mt-4 mb-2 max-w-2xl text-sm leading-relaxed text-foreground/70">
