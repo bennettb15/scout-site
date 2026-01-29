@@ -937,14 +937,14 @@ async function handleContactSubmit(e) {
       A single unnecessary site visit or over-scoped repair can easily exceed the cost of ongoing documentation.
     </div>
 
-    <Button
+    {/*<Button
       variant="outline"
       className="rounded-2xl hover:border-[var(--brand)]"
       onClick={() => scrollToSection("#pricing")}
     >
       View pricing
       <ArrowRight className="ml-2 h-4 w-4" />
-    </Button>
+    </Button>*/}
   </div>
 </div>
 
