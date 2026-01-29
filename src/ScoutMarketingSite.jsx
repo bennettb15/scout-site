@@ -870,9 +870,10 @@ async function handleContactSubmit(e) {
   eyebrow="Value"
   title="Clear records lead to clearer decisions — and lower unnecessary costs."
 >
-  <p className="mt-3 max-w-2xl text-base leading-relaxed text-foreground/80">
-    Documentation helps reduce repeat work, over-scoping, and decisions made with incomplete information.
-  </p>
+  <p className="mt-4 mb-2 max-w-2xl text-sm leading-relaxed text-foreground/70">
+  Documentation helps reduce repeat work, over-scoping, and decisions made with incomplete information.
+</p>
+
 
   <div className="grid gap-6 md:grid-cols-[1.2fr_0.8fr] md:items-start">
 
