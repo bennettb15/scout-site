@@ -1163,16 +1163,17 @@ onChange={(e) => {
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground/70">Name</label>
         <Input
-          value={form.name}
-onChange={(e) => {
-  if (status === "success" || status === "error") setStatus("idle");
-  setForm((p) => ({ ...p, name: e.target.value }));
-}}
+  value={form.name}
+  onChange={(e) => {
+    if (status === "success" || status === "error") setStatus("idle");
+    setForm((p) => ({ ...p, name: e.target.value }));
+  }}
+  placeholder="Your name"
+  autoComplete="name"
+  className="rounded-2xl"
+  required
+/>
 
-          placeholder="Your name"
-          className="rounded-2xl"
-          required
-        />
       </div>
 
       <div className="space-y-1">
@@ -1180,31 +1181,33 @@ onChange={(e) => {
           Company / HOA
         </label>
         <Input
-          value={form.company}
-onChange={(e) => {
-  if (status === "success" || status === "error") setStatus("idle");
-  setForm((p) => ({ ...p, company: e.target.value }));
-}}
+  value={form.company}
+  onChange={(e) => {
+    if (status === "success" || status === "error") setStatus("idle");
+    setForm((p) => ({ ...p, company: e.target.value }));
+  }}
+  placeholder="Company or HOA"
+  autoComplete="organization"
+  className="rounded-2xl"
+/>
 
-          placeholder="Company or HOA"
-          className="rounded-2xl"
-        />
       </div>
 
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground/70">Email</label>
-        <Input
-          type="email"
-          value={form.email}
-onChange={(e) => {
-  if (status === "success" || status === "error") setStatus("idle");
-  setForm((p) => ({ ...p, email: e.target.value }));
-}}
+       <Input
+  type="email"
+  value={form.email}
+  onChange={(e) => {
+    if (status === "success" || status === "error") setStatus("idle");
+    setForm((p) => ({ ...p, email: e.target.value }));
+  }}
+  placeholder="name@company.com"
+  autoComplete="email"
+  className="rounded-2xl"
+  required
+/>
 
-          placeholder="name@company.com"
-          className="rounded-2xl"
-          required
-        />
       </div>
 
       <div className="space-y-1">
@@ -1240,15 +1243,16 @@ onChange={(e) => {
           Property address
         </label>
         <Input
-          value={form.propertyAddress}
-onChange={(e) => {
-  if (status === "success" || status === "error") setStatus("idle");
-  setForm((p) => ({ ...p, propertyAddress: e.target.value }));
-}}
+  value={form.propertyAddress}
+  onChange={(e) => {
+    if (status === "success" || status === "error") setStatus("idle");
+    setForm((p) => ({ ...p, propertyAddress: e.target.value }));
+  }}
+  placeholder="Street, City, State"
+  autoComplete="street-address"
+  className="rounded-2xl"
+/>
 
-          placeholder="Street, City, State"
-          className="rounded-2xl"
-        />
       </div>
 
       <div className="space-y-1 md:col-span-2">
