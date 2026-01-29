@@ -61,7 +61,7 @@ const BRAND = {
     lockupWithTagline: "/Scout Only Logo Navy Dark NEW.png",
     wordmarkOnly: "/Scout Only Logo Navy Dark NEW.png",
     wordmarkWhite: "/Scout Only Logo White.png",
-    iconOnly: "/favicon.png",
+    iconOnly: "/favicon-navy.png",
   },
 
   serviceArea: "Columbus, Ohio and surrounding areas",
