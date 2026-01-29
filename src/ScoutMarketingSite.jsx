@@ -868,7 +868,7 @@ async function handleContactSubmit(e) {
 <Section
   id="value"
   eyebrow="Value of records"
-  title="Clear records lead to clearer decisions — and lower unnecessary costs."
+  title="Clear records lead to clearer decisions and lower unnecessary costs."
 >
   <p className="mt-4 mb-2 max-w-2xl text-sm leading-relaxed text-foreground/70">
   Clear documentation helps teams make decisions based on records, not assumptions.
@@ -889,9 +889,9 @@ async function handleContactSubmit(e) {
   </p>
 
   <p>
-    SCOUT creates consistent, time-stamped visual records that establish a reliable baseline and make observable changes easy
-     to reference over time. Each visit follows the same structure, creating a durable visual record that remains usable and 
-     comparable over time — even as people, vendors, or conditions change.
+    SCOUT creates consistent, time-stamped visual records that establish a reliable baseline and make observable changes 
+    easy to reference over time. Each visit follows the same structure, creating a durable visual record that remains 
+    usable and comparable over time, even as people, vendors, or conditions change.
 
   </p>
 </div>
@@ -922,8 +922,7 @@ async function handleContactSubmit(e) {
 
   <p className="mt-4 text-sm text-foreground/70">
 
-    The goal isn’t to reduce necessary work — it’s to prevent unnecessary
-    costs before they happen.
+    The goal isn’t to reduce necessary work but to prevent unnecessary costs before they happen.
   </p>
 </div>
 
