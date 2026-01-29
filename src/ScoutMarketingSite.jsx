@@ -871,7 +871,7 @@ async function handleContactSubmit(e) {
   title="Clear records lead to clearer decisions — and lower unnecessary costs."
 >
   <p className="mt-4 mb-2 max-w-2xl text-sm leading-relaxed text-foreground/70">
-  Clear documentation helps teams make decisions with confidence, instead of assumptions.
+  Clear documentation helps teams make decisions based on records, not assumptions.
 </p>
 
 
@@ -883,9 +883,9 @@ async function handleContactSubmit(e) {
     <div className="space-y-4 text-sm leading-relaxed text-foreground/75">
 
   <p>
-    Across many properties, unnecessary costs rarely come from the repair itself. They come from decisions made without 
-    a clear record of prior conditions — which turns routine questions into extra site visits, expanded scopes, or 
-    conservative “just-in-case” solutions.
+    Across many properties, unnecessary costs rarely come from the repair itself. They come from decisions made without a 
+    clear record of prior conditions, turning routine questions into extra site visits, expanded scopes, or conservative 
+    “just-in-case” solutions.
   </p>
 
   <p>
