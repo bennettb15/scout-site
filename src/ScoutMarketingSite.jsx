@@ -930,7 +930,7 @@ async function handleContactSubmit(e) {
   </div>
 
   {/* Bottom line callout */}
-  <div className="mt-6 rounded-3xl border border-border bg-background px-5 py-4">
+  <div className="mt-6 rounded-3xl border border-border bg-[var(--brand)]/5 px-5 py-4">
   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
     <div className="text-sm text-foreground/80">
 
