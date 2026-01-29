@@ -871,7 +871,7 @@ async function handleContactSubmit(e) {
   title="Clear records lead to clearer decisions — and lower unnecessary costs."
 >
   <p className="mt-4 mb-2 max-w-2xl text-sm leading-relaxed text-foreground/70">
-  Documentation helps reduce repeat work, over-scoping, and decisions made with incomplete information.
+  Clear documentation helps teams make decisions with confidence, instead of assumptions.
 </p>
 
 
@@ -883,20 +883,16 @@ async function handleContactSubmit(e) {
     <div className="space-y-4 text-sm leading-relaxed text-foreground/75">
 
   <p>
-    In many properties, the most expensive issues aren’t the repairs
-    themselves — they’re the uncertainty around them.
+    Across many properties, unnecessary costs often come from a lack of shared context rather than the repair work itself.
+     When past conditions aren’t clearly recorded, even routine questions can require additional site visits, expanded scopes,
+      or conservative “just-in-case” solutions.
   </p>
 
   <p>
-    When conditions aren’t clearly documented over time, decisions get made
-    without context. That often leads to duplicate site visits, re-scoped
-    work, conservative “just-in-case” repairs, and extended back-and-forth
-    with vendors, tenants, or insurers.
-  </p>
+    SCOUT creates consistent, time-stamped visual records that establish a reliable baseline and make observable changes easy
+     to reference over time. Each visit follows the same structure, so information stays clear even as people, vendors, or 
+     conditions change.
 
-  <p>
-    SCOUT provides consistent, time-stamped visual records that establish a
-    clear baseline and track observable changes over time.
   </p>
 </div>
 
