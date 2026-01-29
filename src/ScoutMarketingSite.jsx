@@ -1210,15 +1210,29 @@ onChange={(e) => {
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground/70">Phone</label>
         <Input
-          value={form.phone}
-onChange={(e) => {
-  if (status === "success" || status === "error") setStatus("idle");
-  setForm((p) => ({ ...p, phone: e.target.value }));
-}}
+  value={form.phone}
+  onChange={(e) => {
+    if (status === "success" || status === "error") setStatus("idle");
 
-          placeholder="(###) ###-####"
-          className="rounded-2xl"
-        />
+    const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+    let formatted = digits;
+
+    if (digits.length > 6) {
+      formatted = `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    } else if (digits.length > 3) {
+      formatted = `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+    } else if (digits.length > 0) {
+      formatted = `(${digits}`;
+    }
+
+    setForm((p) => ({ ...p, phone: formatted }));
+  }}
+  placeholder="(###) ###-####"
+  inputMode="tel"
+  autoComplete="tel"
+  className="rounded-2xl"
+/>
+
       </div>
 
       <div className="space-y-1 md:col-span-2">
