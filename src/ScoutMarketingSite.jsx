@@ -54,7 +54,7 @@ const BRAND = {
   siteTitle: "SCOUT | Visual Property Records",
 
   // Matched to your navy mark
-  brandNavy: "#343655",
+  brandNavy: "#1C2742",
 
   // Logo assets (from /public)
   logos: {
