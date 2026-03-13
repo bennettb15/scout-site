@@ -1395,7 +1395,7 @@ onChange={(e) => {
                 {BRAND.descriptor} · {BRAND.serviceArea}
               </div>
               <div className="mt-2 text-xs text-foreground/60">
-                © {new Date().getFullYear()} {BRAND.name}. All rights reserved.
+                © {new Date().getFullYear()} Scout Systems LLC. All rights reserved.
               </div>
             </div>
 
