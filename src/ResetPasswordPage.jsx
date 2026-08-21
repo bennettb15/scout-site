@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   exchangeRecoveryCode,
   hasSupabaseConfig,
+  setRecoverySession,
+  supabase,
   updateRecoveryPassword,
+  verifyRecoveryTokenHash,
 } from "./lib/supabaseClient";
 
 const BRAND = {
@@ -21,6 +24,8 @@ function getRecoveryLinkValues() {
 
   return {
     code: query.get("code"),
+    tokenHash: query.get("token_hash") || hash.get("token_hash"),
+    type: query.get("type") || hash.get("type"),
     accessToken: hash.get("access_token"),
     refreshToken: hash.get("refresh_token"),
     error:
@@ -33,7 +38,6 @@ function getRecoveryLinkValues() {
 
 export default function ResetPasswordPage() {
   const [linkStatus, setLinkStatus] = useState("checking");
-  const [recoveryAccessToken, setRecoveryAccessToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [formError, setFormError] = useState("");
@@ -49,13 +53,15 @@ export default function ResetPasswordPage() {
     let isActive = true;
 
     async function establishRecoverySession() {
-      if (!hasSupabaseConfig) {
+      if (!hasSupabaseConfig || !supabase) {
         setLinkStatus("missing-config");
         return;
       }
 
       const {
         code,
+        tokenHash,
+        type,
         accessToken: hashAccessToken,
         refreshToken,
         error,
@@ -67,33 +73,45 @@ export default function ResetPasswordPage() {
       }
 
       try {
-        let accessToken = hashAccessToken;
+        let session = null;
 
-        if (code) {
-          const session = await exchangeRecoveryCode(code);
-          accessToken = session.access_token;
-        } else {
-          accessToken = accessToken && refreshToken ? accessToken : "";
+        if (tokenHash) {
+          if (type !== "recovery") {
+            throw new Error("Unsupported recovery token type.");
+          }
+          session = await verifyRecoveryTokenHash(tokenHash);
+        } else if (hashAccessToken && refreshToken) {
+          session = await setRecoverySession(hashAccessToken, refreshToken);
+        } else if (code) {
+          session = await exchangeRecoveryCode(code);
         }
 
-        if (!accessToken) {
+        if (!session?.access_token) {
           throw new Error("Missing recovery session.");
         }
 
         window.history.replaceState(null, "", "/reset-password");
-        if (isActive) {
-          setRecoveryAccessToken(accessToken);
-          setLinkStatus("ready");
-        }
+        if (isActive) setLinkStatus("ready");
       } catch {
         if (isActive) setLinkStatus("invalid");
       }
     }
 
+    const {
+      data: { subscription },
+    } = supabase?.auth.onAuthStateChange((event, session) => {
+      if (!isActive || event !== "PASSWORD_RECOVERY") return;
+      if (session?.access_token) {
+        window.history.replaceState(null, "", "/reset-password");
+        setLinkStatus("ready");
+      }
+    }) || { data: { subscription: null } };
+
     establishRecoverySession();
 
     return () => {
       isActive = false;
+      subscription?.unsubscribe();
     };
   }, []);
 
@@ -127,15 +145,14 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    if (!recoveryAccessToken) {
+    if (!hasSupabaseConfig || !supabase) {
       setLinkStatus("missing-config");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await updateRecoveryPassword(recoveryAccessToken, newPassword);
-      setRecoveryAccessToken("");
+      await updateRecoveryPassword(newPassword);
       setLinkStatus("updated");
     } catch (error) {
       setFormError(error.message || "Unable to update your password.");
