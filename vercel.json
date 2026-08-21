@@ -4,6 +4,10 @@
     {
       "source": "/verified",
       "destination": "/index.html"
+    },
+    {
+      "source": "/reset-password",
+      "destination": "/index.html"
     }
   ]
 }
