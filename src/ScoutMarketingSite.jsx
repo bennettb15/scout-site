@@ -391,9 +391,9 @@ async function handleContactSubmit(e) {
           <Button
             variant="outline"
             className="rounded-2xl hover:border-[var(--brand)]"
-            onClick={() => scrollToSection("#how")}
+            asChild
           >
-            {BRAND.ctaSecondary}
+            <a href="/reports">Client Portal</a>
           </Button>
         </div>
       </div>
@@ -404,9 +404,9 @@ async function handleContactSubmit(e) {
             <Button
               variant="outline"
               className="hidden rounded-2xl md:inline-flex hover:border-[var(--brand)]"
-              onClick={() => scrollToSection("#how")}
+              asChild
             >
-              {BRAND.ctaSecondary}
+              <a href="/reports">Client Portal</a>
             </Button>
             <Button
               className="rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"

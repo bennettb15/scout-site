@@ -1,10 +1,22 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
 
 @source "../index.html";
-@source "./**/*.{js,jsx,ts,tsx}";
+@source "./App.jsx";
+@source "./ResetPasswordPage.jsx";
+@source "./ScoutMarketingSite.jsx";
+@source "./ScoutReportsPortalPage.jsx";
+@source "./VerifiedEmailPage.jsx";
+@source "./main.jsx";
+@source "./components/ui/badge.tsx";
+@source "./components/ui/button.tsx";
+@source "./components/ui/card.tsx";
+@source "./components/ui/input.tsx";
+@source "./components/ui/sheet.tsx";
+@source "./components/ui/textarea.tsx";
+@source "./lib/supabaseClient.js";
+@source "./lib/utils.ts";
 
 @plugin "tailwindcss-animate";
-@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
