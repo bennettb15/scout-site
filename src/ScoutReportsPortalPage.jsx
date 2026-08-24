@@ -141,6 +141,10 @@ function compactPhotoLabel(photo) {
   return String(photo.displayName || "Photo").replace(/\bAngle\s+(\d+)\b/g, "A$1");
 }
 
+function photoFlaggedReason(photo) {
+  return String(photo.flaggedReason || photo.flagReason || photo.reason || "").trim();
+}
+
 export default function ScoutReportsPortalPage() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -1349,6 +1353,12 @@ export default function ScoutReportsPortalPage() {
           const canNavigate = viewerPhotos.length > 1;
           const hasPreview = Boolean(activePhotoViewer.photo.previewUrl);
           const activePhotoLabel = compactPhotoLabel(activePhotoViewer.photo);
+          const activePhotoFlagged = Boolean(
+            activePhotoViewer.photo.isFlagged ||
+              activePhotoViewer.photo.flagged ||
+              activePhotoViewer.photo.is_flagged
+          );
+          const activePhotoFlaggedReason = photoFlaggedReason(activePhotoViewer.photo);
           return (
             <div
               className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm"
@@ -1466,13 +1476,15 @@ export default function ScoutReportsPortalPage() {
                   <div className="truncate text-sm font-semibold text-slate-900">
                     {activePhotoLabel}
                   </div>
-                  <div className="mt-1 flex items-center justify-center gap-2 text-xs text-slate-500">
-                    {(activePhotoViewer.photo.isFlagged ||
-                      activePhotoViewer.photo.flagged ||
-                      activePhotoViewer.photo.is_flagged) && (
-                      <span className="inline-flex items-center gap-1 font-semibold text-red-700">
+                  <div className="mt-1 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                    {activePhotoFlagged && (
+                      <span className="inline-flex max-w-full items-center gap-1 font-semibold text-red-700">
                         <Flag className="h-3.5 w-3.5 fill-red-600 text-red-600" />
-                        Flagged
+                        <span className="truncate">
+                          {activePhotoFlaggedReason
+                            ? `Flagged: ${activePhotoFlaggedReason}`
+                            : "Flagged"}
+                        </span>
                       </span>
                     )}
                     {canNavigate && currentIndex >= 0 && (

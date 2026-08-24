@@ -22,6 +22,7 @@ function publicPhoto(row, previewUrl = null) {
     byteSize: row.byte_size,
     mimeType: originalMimeType(row),
     isFlagged: Boolean(row.is_flagged),
+    flaggedReason: String(row.reason || "").trim() || null,
     imageWidth: row.image_width,
     imageHeight: row.image_height,
     canPreviewInBrowser: Boolean(previewUrl),
@@ -60,7 +61,7 @@ export default async function handler(req, res) {
     const { data: rows, error: shotsError } = await auth.client
       .from("shots")
       .select(
-        "id,org_id,property_id,session_id,building,elevation,detail_type,angle_index,captured_at,position,storage_bucket,storage_path,byte_size,upload_state,is_flagged,image_width,image_height"
+        "id,org_id,property_id,session_id,building,elevation,detail_type,angle_index,captured_at,position,storage_bucket,storage_path,byte_size,upload_state,is_flagged,reason,image_width,image_height"
       )
       .eq("org_id", reportPackage.org_id)
       .eq("property_id", reportPackage.property_id)

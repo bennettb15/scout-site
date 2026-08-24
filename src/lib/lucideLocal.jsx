@@ -133,7 +133,14 @@ export const Menu = createIcon(<path d="M4 6h16M4 12h16M4 18h16" />);
 export const Phone = createIcon(
   <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2z" />
 );
-export const RefreshCw = createIcon(<path d="M21 12a9 9 0 0 1-15.5 6.3L3 16M3 12A9 9 0 0 1 18.5 5.7L21 8M3 16v5h5M21 8V3h-5" />);
+export const RefreshCw = createIcon(
+  <>
+    <path d="M3 12a9 9 0 0 1 9-9 9.8 9.8 0 0 1 6.7 2.7L21 8" />
+    <path d="M21 3v5h-5" />
+    <path d="M21 12a9 9 0 0 1-9 9 9.8 9.8 0 0 1-6.7-2.7L3 16" />
+    <path d="M8 16H3v5" />
+  </>
+);
 export const Search = createIcon(
   <>
     <circle cx="11" cy="11" r="7" />
