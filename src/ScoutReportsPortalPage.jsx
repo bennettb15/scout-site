@@ -364,25 +364,11 @@ export default function ScoutReportsPortalPage() {
         params.set("photoIds", selectedPhotos.map((photo) => photo.id).join(","));
       }
 
-      const response = await fetch(`/api/stamped-export?${params.toString()}`, {
-        method: "POST",
+      const downloadResponse = await fetch(`/api/stamped-export-download?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
       });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok || !body.export?.id) {
-        throw new Error(body.error || "Unable to prepare stamped photo download.");
-      }
-
-      const downloadResponse = await fetch(
-        `/api/stamped-export-download?exportId=${encodeURIComponent(body.export.id)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        }
-      );
       if (!downloadResponse.ok) {
         const downloadBody = await downloadResponse.json().catch(() => ({}));
         throw new Error(downloadBody.error || "Unable to prepare stamped photo download.");
