@@ -7,6 +7,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "lucide-react": path.resolve(__dirname, "./src/lib/lucideLocal.jsx"),
       "@": path.resolve(__dirname, "./src"),
     },
   },
