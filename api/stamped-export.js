@@ -8,6 +8,41 @@ import {
   methodAllowed,
   sendJson,
 } from "./_reportPortalShared.js";
+import { createHash } from "node:crypto";
+
+const MEDIA_PREPARER_VERSION = "phase2a-shadow-media-prep-2-local-date";
+const STAMPED_ZIP_EXPORT_VERSION = "stamped-zip-export-2-friendly-filename";
+
+function sha256Text(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+async function stampedZipCacheKey(client, reportPackage) {
+  const { data, error } = await client
+    .from("session_snapshots")
+    .select("raw_session_json_sha256,snapshot_payload_sha256")
+    .eq("id", reportPackage.snapshot_id)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) {
+    const notFound = new Error("Report snapshot not found.");
+    notFound.statusCode = 404;
+    throw notFound;
+  }
+
+  const parts = [
+    "stamped_jpg_zip",
+    String(reportPackage.session_id).toLowerCase(),
+    String(reportPackage.snapshot_id).toLowerCase(),
+    MEDIA_PREPARER_VERSION,
+    STAMPED_ZIP_EXPORT_VERSION,
+    String(data.raw_session_json_sha256 || ""),
+    String(data.snapshot_payload_sha256 || ""),
+  ];
+  return `stamped-jpg-zip:${sha256Text(parts.join("|"))}`;
+}
 
 export function publicExport(row) {
   if (!row) return null;
@@ -79,6 +114,50 @@ export async function readyStampedExportForPackage(client, reportPackage) {
     return null;
   }
   return row;
+}
+
+async function inFlightStampedExportForPackage(client, reportPackage, cacheKey) {
+  const { data, error } = await client
+    .from("temporary_exports")
+    .select("id,status,filename,byte_size,expires_at,created_at,requested_at")
+    .eq("artifact_type", "stamped_jpg_zip")
+    .eq("cache_key", cacheKey)
+    .eq("org_id", reportPackage.org_id)
+    .eq("property_id", reportPackage.property_id)
+    .eq("session_id", reportPackage.session_id)
+    .eq("snapshot_id", reportPackage.snapshot_id)
+    .in("status", ["queued", "generating"])
+    .is("deleted_at", null)
+    .order("requested_at", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  return data?.[0] || null;
+}
+
+async function enqueueStampedExport(client, reportPackage, cacheKey) {
+  const row = {
+    org_id: reportPackage.org_id,
+    property_id: reportPackage.property_id,
+    session_id: reportPackage.session_id,
+    snapshot_id: reportPackage.snapshot_id,
+    artifact_type: "stamped_jpg_zip",
+    status: "queued",
+    cache_key: cacheKey,
+    storage_bucket: DELIVERABLES_BUCKET,
+    mime_type: "application/zip",
+  };
+  const { data, error } = await client
+    .from("temporary_exports")
+    .insert(row)
+    .select("id,status,filename,byte_size,expires_at,created_at,requested_at")
+    .single();
+
+  if (!error) return data;
+  if (error.code === "23505") {
+    const existing = await inFlightStampedExportForPackage(client, reportPackage, cacheKey);
+    if (existing) return existing;
+  }
+  throw error;
 }
 
 export async function validateSelectedPhotoIds(auth, reportPackage, photoIds) {
@@ -164,12 +243,12 @@ export async function prepareStampedExportForPhotos(auth, reportPackage, photoId
   const service = createServiceClient();
   await validateSelectedPhotoIds(auth, reportPackage, photoIds);
   const exportRow = await readyStampedExportForPackage(service, reportPackage);
-  if (!exportRow) {
-    const error = new Error("Stamped photos are not prepared yet.");
-    error.statusCode = 404;
-    throw error;
-  }
-  return exportRow;
+  if (exportRow) return exportRow;
+
+  const cacheKey = await stampedZipCacheKey(service, reportPackage);
+  const existing = await inFlightStampedExportForPackage(service, reportPackage, cacheKey);
+  if (existing) return existing;
+  return enqueueStampedExport(service, reportPackage, cacheKey);
 }
 
 export default async function handler(req, res) {

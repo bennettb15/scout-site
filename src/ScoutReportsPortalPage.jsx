@@ -316,6 +316,77 @@ export default function ScoutReportsPortalPage() {
     }
   }
 
+  function updatePackageStampedExport(packageId, stampedExport) {
+    setPackages((current) =>
+      current.map((item) =>
+        item.id === packageId
+          ? {
+              ...item,
+              stampedExport: stampedExport || item.stampedExport,
+            }
+          : item
+      )
+    );
+  }
+
+  function wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function requestStampedExport(reportPackage, selectedPhotos) {
+    const params = new URLSearchParams({ packageId: reportPackage.id });
+    if (selectedPhotos.length > 0) {
+      params.set("photoIds", selectedPhotos.map((photo) => photo.id).join(","));
+    }
+    const response = await fetch(`/api/stamped-export?${params.toString()}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || !body.export) {
+      throw new Error(body.error || "Unable to prepare stamped photo download.");
+    }
+    updatePackageStampedExport(reportPackage.id, body.export);
+    return body.export;
+  }
+
+  async function loadStampedExportStatus(reportPackage) {
+    const response = await fetch(
+      `/api/stamped-export?packageId=${encodeURIComponent(reportPackage.id)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      }
+    );
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(body.error || "Unable to check stamped export status.");
+    }
+    updatePackageStampedExport(reportPackage.id, body.export);
+    return body.export;
+  }
+
+  async function waitForStampedExport(reportPackage, selectedPhotos) {
+    let exportRow = await requestStampedExport(reportPackage, selectedPhotos);
+    if (exportRow?.status === "ready") return exportRow;
+    if (!["queued", "generating"].includes(exportRow?.status)) {
+      throw new Error("Stamped photos are not prepared yet.");
+    }
+
+    for (let attempt = 0; attempt < 45; attempt += 1) {
+      await wait(2000);
+      exportRow = await loadStampedExportStatus(reportPackage);
+      if (exportRow?.status === "ready") return exportRow;
+      if (["failed", "expired"].includes(exportRow?.status)) {
+        throw new Error("Stamped photos are not prepared yet.");
+      }
+    }
+    throw new Error("Stamped photos are still being prepared. Try again in a moment.");
+  }
+
   async function handleDownloadStampedPhotos(reportPackage) {
     if (!session?.access_token) return;
     const actionId = `${reportPackage.id}:stamped:selected`;
@@ -328,6 +399,7 @@ export default function ScoutReportsPortalPage() {
       if (selectedPhotos.length === 0) {
         throw new Error("Select at least one photo.");
       }
+      await waitForStampedExport(reportPackage, selectedPhotos);
 
       if (selectedPhotos.length === 1) {
         const photo = selectedPhotos[0];
