@@ -1472,13 +1472,13 @@ export default function ScoutReportsPortalPage() {
                   </div>
                 </div>
 
-                <div className="border-t border-slate-200 bg-white px-4 py-3 text-center">
+                <div className="border-t border-slate-200 bg-white px-4 py-3.5 text-center">
                   <div className="truncate text-sm font-semibold text-slate-900">
                     {activePhotoLabel}
                   </div>
-                  <div className="mt-1 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-slate-500">
-                    {activePhotoFlagged && (
-                      <span className="inline-flex max-w-full items-center gap-1 font-semibold text-red-700">
+                  {activePhotoFlagged && (
+                    <div className="mt-1.5 flex justify-center text-xs font-semibold text-red-700">
+                      <span className="inline-flex max-w-full items-center justify-center gap-1">
                         <Flag className="h-3.5 w-3.5 fill-red-600 text-red-600" />
                         <span className="truncate">
                           {activePhotoFlaggedReason
@@ -1486,7 +1486,9 @@ export default function ScoutReportsPortalPage() {
                             : "Flagged"}
                         </span>
                       </span>
-                    )}
+                    </div>
+                  )}
+                  <div className="mt-1.5 text-xs text-slate-500">
                     {canNavigate && currentIndex >= 0 && (
                       <span>
                         {currentIndex + 1} of {viewerPhotos.length}
