@@ -296,7 +296,10 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-row-main {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
+    min-height: 144px;
     padding-top: 4px;
   }
 
@@ -327,7 +330,7 @@ const PUNCH_LIST_STYLES = `
     text-overflow: ellipsis;
     white-space: nowrap;
     color: rgb(15 23 42);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 800;
     letter-spacing: 0;
     line-height: 1.25;
@@ -337,7 +340,8 @@ const PUNCH_LIST_STYLES = `
     display: flex;
     align-items: center;
     gap: 5px;
-    margin-top: 7px;
+    margin-top: auto;
+    padding-top: 10px;
     color: rgb(220 38 38);
     font-size: 14px;
     font-weight: 700;
@@ -438,14 +442,6 @@ const PUNCH_LIST_STYLES = `
     line-height: 1.2;
   }
 
-  .punch-lightbox-property-address {
-    margin-top: 3px;
-    color: rgb(71 85 105);
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1.35;
-  }
-
   .punch-lightbox-meta-line {
     padding: 0 16px 9px;
     color: rgb(71 85 105);
@@ -457,7 +453,7 @@ const PUNCH_LIST_STYLES = `
   .punch-lightbox-location-line {
     padding: 0 16px 12px;
     color: rgb(15 23 42);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 800;
     line-height: 1.25;
   }
@@ -587,8 +583,12 @@ const PUNCH_LIST_STYLES = `
     }
 
     .punch-location-line {
-      font-size: 12px;
+      font-size: 13px;
       white-space: normal;
+    }
+
+    .punch-row-main {
+      min-height: 96px;
     }
 
     .punch-property-line,
@@ -858,8 +858,7 @@ function IssueRow({ row, selected, onSelect, onDownloadOriginal, downloadId, onP
 
 function ImagePreviewModal({ row, onClose }) {
   if (!row?.preview?.previewUrl) return null;
-  const propertyTitle = propertyLine(row.property);
-  const propertyAddress = propertyAddressLine(row.property);
+  const propertyTitle = propertyIdentityLine(row.property);
   const flagNote = row.title || row.reason || "Flagged observation";
   return (
     <div
@@ -873,9 +872,6 @@ function ImagePreviewModal({ row, onClose }) {
         <div className="punch-lightbox-header">
           <div className="punch-lightbox-property">
             <div className="punch-lightbox-property-title">{propertyTitle}</div>
-            {propertyAddress && propertyAddress !== propertyTitle && (
-              <div className="punch-lightbox-property-address">{propertyAddress}</div>
-            )}
           </div>
           <button
             type="button"
