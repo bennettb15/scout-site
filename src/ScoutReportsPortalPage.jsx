@@ -970,15 +970,16 @@ export default function ScoutReportsPortalPage() {
               loading="eager"
             />
           </a>
-          {session && (
-            <div className="flex items-center gap-2">
-              <a
-                href="/punch-list"
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
-              >
-                <ClipboardList className="h-4 w-4" />
-                Punch List
-              </a>
+          <div className="flex items-center gap-2">
+            <a
+              href="/punch-list"
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
+            >
+              <ClipboardList className="h-4 w-4" />
+              Punch List
+            </a>
+            {session && (
+              <>
               {canOpenAdmin && (
                 <a
                   href="/admin/portal-access"
@@ -996,8 +997,9 @@ export default function ScoutReportsPortalPage() {
                 <LogOut className="h-4 w-4" />
                 Sign Out
               </button>
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </header>
 

@@ -7,31 +7,33 @@ import PortalAccessAdminPage from "./PortalAccessAdminPage";
 import ForgotPasswordPage from "./ForgotPasswordPage";
 
 export default function App() {
-  if (window.location.pathname === "/verified") {
+  const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+
+  if (pathname === "/verified") {
     return <VerifiedEmailPage />;
   }
 
-  if (window.location.pathname === "/reset-password") {
+  if (pathname === "/reset-password") {
     return <ResetPasswordPage />;
   }
 
-  if (window.location.pathname === "/accept-invite") {
+  if (pathname === "/accept-invite") {
     return <ResetPasswordPage />;
   }
 
-  if (window.location.pathname === "/forgot-password") {
+  if (pathname === "/forgot-password") {
     return <ForgotPasswordPage />;
   }
 
-  if (window.location.pathname === "/reports") {
+  if (pathname === "/reports") {
     return <ScoutReportsPortalPage />;
   }
 
-  if (window.location.pathname === "/punch-list") {
+  if (pathname === "/punch-list") {
     return <ScoutPunchListPage />;
   }
 
-  if (window.location.pathname === "/admin/portal-access") {
+  if (pathname === "/admin/portal-access") {
     return <PortalAccessAdminPage />;
   }
 
