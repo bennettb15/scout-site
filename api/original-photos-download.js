@@ -208,8 +208,8 @@ export default async function handler(req, res) {
       )
       .in("id", photoIds)
       .eq("org_id", reportPackage.org_id)
-      .eq("property_id", reportPackage.property_id)
       .eq("session_id", reportPackage.session_id)
+      .or(`property_id.eq.${reportPackage.property_id},property_id.is.null`)
       .eq("storage_bucket", ORIGINALS_BUCKET)
       .eq("upload_state", "uploaded")
       .is("deleted_at", null)
@@ -221,11 +221,15 @@ export default async function handler(req, res) {
       return sendJson(res, 500, { error: "Unable to prepare original photos download." });
     }
 
-    const found = new Set((rows || []).map((row) => String(row.id).toLowerCase()));
+    const safeRows = (rows || []).map((row) => ({
+      ...row,
+      property_id: row.property_id || reportPackage.property_id,
+    }));
+    const found = new Set(safeRows.map((row) => String(row.id).toLowerCase()));
     if (
       found.size !== photoIds.length ||
       photoIds.some((id) => !found.has(id)) ||
-      rows.some((row) => !originalPathIsExpected(row))
+      safeRows.some((row) => !originalPathIsExpected(row))
     ) {
       return sendJson(res, 404, { error: "Original photos not found." });
     }
@@ -233,7 +237,7 @@ export default async function handler(req, res) {
     const service = createServiceClient();
     const used = new Set();
     const entries = [];
-    for (const row of rows) {
+    for (const row of safeRows) {
       const { data, error } = await service.storage.from(ORIGINALS_BUCKET).download(row.storage_path);
       if (error || !data) {
         return sendJson(res, 500, { error: "Unable to prepare original photos download." });

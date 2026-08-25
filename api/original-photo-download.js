@@ -45,8 +45,8 @@ export default async function handler(req, res) {
       )
       .eq("id", photoId)
       .eq("org_id", reportPackage.org_id)
-      .eq("property_id", reportPackage.property_id)
       .eq("session_id", reportPackage.session_id)
+      .or(`property_id.eq.${reportPackage.property_id},property_id.is.null`)
       .eq("storage_bucket", ORIGINALS_BUCKET)
       .eq("upload_state", "uploaded")
       .is("deleted_at", null)
@@ -55,15 +55,18 @@ export default async function handler(req, res) {
     if (shotError) {
       return sendJson(res, 500, { error: "Unable to prepare photo download." });
     }
-    if (!shotRow || !originalPathIsExpected(shotRow)) {
+    const safeShotRow = shotRow
+      ? { ...shotRow, property_id: shotRow.property_id || reportPackage.property_id }
+      : null;
+    if (!safeShotRow || !originalPathIsExpected(safeShotRow)) {
       return sendJson(res, 404, { error: "Original photo not found." });
     }
 
-    const filename = friendlyOriginalDownloadFilename(shotRow);
+    const filename = friendlyOriginalDownloadFilename(safeShotRow);
     const service = createServiceClient();
     const { data, error } = await service.storage
       .from(ORIGINALS_BUCKET)
-      .createSignedUrl(shotRow.storage_path, SIGNED_URL_SECONDS, {
+      .createSignedUrl(safeShotRow.storage_path, SIGNED_URL_SECONDS, {
         download: filename,
       });
 

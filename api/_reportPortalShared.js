@@ -137,6 +137,22 @@ export function expectedStampedZipPath(exportRow) {
     .join("/");
 }
 
+export function expectedOriginalJpgPreviewPath(shotRow) {
+  return [
+    "orgs",
+    shotRow.org_id,
+    "properties",
+    shotRow.property_id,
+    "sessions",
+    shotRow.session_id,
+    "previews",
+    "original-jpg",
+    `${shotRow.id}.jpg`,
+  ]
+    .map((part) => String(part).toLowerCase())
+    .join("/");
+}
+
 export function expectedOriginalPath(shotRow) {
   return [
     "sessions",
@@ -210,6 +226,10 @@ export function originalMimeType(shotRow) {
 
 export function originalIsBrowserPreviewable(shotRow) {
   return ["image/jpeg", "image/png"].includes(originalMimeType(shotRow));
+}
+
+export function originalNeedsJpgPreviewDerivative(shotRow) {
+  return ["image/heic", "image/heif"].includes(originalMimeType(shotRow));
 }
 
 export function publicReportTypeLabel(reportType) {

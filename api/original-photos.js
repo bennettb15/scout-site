@@ -1,17 +1,56 @@
 import {
+  DELIVERABLES_BUCKET,
   ORIGINALS_BUCKET,
   SIGNED_URL_SECONDS,
   authenticateRequest,
   createServiceClient,
+  expectedOriginalJpgPreviewPath,
   friendlyOriginalDownloadFilename,
   friendlyPhotoDisplayName,
   getQueryValue,
   methodAllowed,
   originalIsBrowserPreviewable,
   originalMimeType,
+  originalNeedsJpgPreviewDerivative,
   originalPathIsExpected,
   sendJson,
 } from "./_reportPortalShared.js";
+
+async function deliverableObjectExists(service, path) {
+  const parts = String(path || "").split("/").filter(Boolean);
+  const filename = parts.pop();
+  if (!filename || parts.length === 0) return false;
+
+  const { data, error } = await service.storage
+    .from(DELIVERABLES_BUCKET)
+    .list(parts.join("/"), { limit: 1, search: filename });
+
+  if (error || !Array.isArray(data)) return false;
+  return data.some((item) => item?.name === filename);
+}
+
+async function signedPreviewUrlForPhoto(service, row) {
+  if (originalIsBrowserPreviewable(row)) {
+    const { data } = await service.storage
+      .from(ORIGINALS_BUCKET)
+      .createSignedUrl(row.storage_path, SIGNED_URL_SECONDS);
+    return data?.signedUrl || null;
+  }
+
+  if (!originalNeedsJpgPreviewDerivative(row)) {
+    return null;
+  }
+
+  const previewPath = expectedOriginalJpgPreviewPath(row);
+  if (!(await deliverableObjectExists(service, previewPath))) {
+    return null;
+  }
+
+  const { data } = await service.storage
+    .from(DELIVERABLES_BUCKET)
+    .createSignedUrl(previewPath, SIGNED_URL_SECONDS);
+  return data?.signedUrl || null;
+}
 
 function publicPhoto(row, previewUrl = null) {
   return {
@@ -64,8 +103,8 @@ export default async function handler(req, res) {
         "id,org_id,property_id,session_id,building,elevation,detail_type,angle_index,captured_at,position,storage_bucket,storage_path,byte_size,upload_state,is_flagged,reason,image_width,image_height"
       )
       .eq("org_id", reportPackage.org_id)
-      .eq("property_id", reportPackage.property_id)
       .eq("session_id", reportPackage.session_id)
+      .or(`property_id.eq.${reportPackage.property_id},property_id.is.null`)
       .eq("storage_bucket", ORIGINALS_BUCKET)
       .eq("upload_state", "uploaded")
       .is("deleted_at", null)
@@ -77,18 +116,12 @@ export default async function handler(req, res) {
       return sendJson(res, 500, { error: "Unable to load original photos." });
     }
 
-    const safeRows = rows.filter(originalPathIsExpected);
+    const safeRows = (rows || [])
+      .filter(originalPathIsExpected)
+      .map((row) => ({ ...row, property_id: row.property_id || reportPackage.property_id }));
     const service = createServiceClient();
     const photos = await Promise.all(
-      safeRows.map(async (row) => {
-        if (!originalIsBrowserPreviewable(row)) {
-          return publicPhoto(row);
-        }
-        const { data } = await service.storage
-          .from(ORIGINALS_BUCKET)
-          .createSignedUrl(row.storage_path, SIGNED_URL_SECONDS);
-        return publicPhoto(row, data?.signedUrl || null);
-      })
+      safeRows.map(async (row) => publicPhoto(row, await signedPreviewUrlForPhoto(service, row)))
     );
 
     return sendJson(res, 200, { photos });
