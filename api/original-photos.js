@@ -14,6 +14,7 @@ import {
   originalNeedsJpgPreviewDerivative,
   originalPathIsExpected,
   sendJson,
+  stampedPhotoFilename,
 } from "./_reportPortalShared.js";
 
 function textValue(value) {
@@ -75,6 +76,22 @@ function flaggedReasonFromSnapshot(shot, issuesById) {
   return issueReason(issue);
 }
 
+function snapshotResolvedInSession(shot, issuesById) {
+  if (
+    boolValue(
+      shot?.isResolvedInSession ||
+        shot?.is_resolved_in_session ||
+        shot?.resolvedInSession ||
+        shot?.resolved_in_session
+    )
+  ) {
+    return true;
+  }
+  const issue = issuesById.get(snapshotIssueId(shot));
+  const status = textValue(shot?.issueStatus || shot?.issue_status || issue?.status || issue?.issueStatus);
+  return String(status || "").toLowerCase() === "resolved";
+}
+
 function buildSnapshotPhotoMetadata(rawSession) {
   const shots = Array.isArray(rawSession?.shots) ? rawSession.shots : [];
   const issues = Array.isArray(rawSession?.issues)
@@ -100,8 +117,10 @@ function buildSnapshotPhotoMetadata(rawSession) {
       elevation: textValue(shot?.elevation || shot?.targetElevation),
       detail_type: textValue(shot?.detailType || shot?.detail_type || shot?.type),
       angle_index: safeAngleIndex(shot?.angleIndex || shot?.angle_index),
+      shot_key: textValue(shot?.shotKey || shot?.shot_key),
       captured_at: snapshotCapturedAt(shot),
       is_flagged: boolValue(shot?.isFlagged || shot?.is_flagged || shot?.flagged),
+      is_resolved_in_session: snapshotResolvedInSession(shot, issuesById),
       reason: flaggedReasonFromSnapshot(shot, issuesById),
       priority: textValue(shot?.priority),
       snapshot_order: index,
@@ -192,8 +211,10 @@ function enrichPhotoRow(row, snapshotMetadata) {
     elevation: metadata.elevation || row.elevation,
     detail_type: metadata.detail_type || row.detail_type,
     angle_index: metadata.angle_index || row.angle_index,
+    shot_key: metadata.shot_key || row.shot_key,
     captured_at: metadata.captured_at || row.captured_at,
     is_flagged: metadata.is_flagged,
+    is_resolved_in_session: metadata.is_resolved_in_session || row.is_resolved_in_session,
     reason: metadata.reason || row.reason,
     priority: metadata.priority || row.priority || null,
     snapshot_order: metadata.snapshot_order,
@@ -262,6 +283,7 @@ function publicPhoto(row, previewUrl = null) {
     flagReason: flaggedReason,
     reason: flaggedReason,
     priority: String(row.priority || "").trim() || null,
+    stampedFilename: stampedPhotoFilename(row),
     imageWidth: row.image_width,
     imageHeight: row.image_height,
     canPreviewInBrowser: Boolean(previewUrl),

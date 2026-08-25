@@ -208,6 +208,42 @@ export function friendlyOriginalDownloadFilename(shotRow) {
   ].join("_") + `.${extension.toUpperCase()}`;
 }
 
+function safeStampedFilenamePart(value) {
+  const raw = String(value || "").trim();
+  const forbidden = new Set('/\\:*?"<>|');
+  const chars = [];
+  for (const ch of raw) {
+    if (ch.charCodeAt(0) < 32 || forbidden.has(ch) || ch === " ") {
+      chars.push("_");
+    } else {
+      chars.push(ch);
+    }
+  }
+  return chars.join("").replace(/_+/g, "_").replace(/^_+|_+$/g, "") || "Item";
+}
+
+function safeStampedAngle(value) {
+  const number = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function stampedDetailId(shotRow) {
+  const shotKey = String(shotRow.shot_key || shotRow.shotKey || "").trim().toUpperCase();
+  if (/^A\d+$/.test(shotKey)) return shotKey;
+  return `A${safeStampedAngle(shotRow.angle_index)}`;
+}
+
+export function stampedPhotoFilename(shotRow) {
+  const base = [
+    safeStampedFilenamePart(shotRow.building),
+    safeStampedFilenamePart(shotRow.elevation),
+    safeStampedFilenamePart(shotRow.detail_type || "Shot"),
+    safeStampedFilenamePart(stampedDetailId(shotRow)),
+  ].join("_");
+  const suffix = shotRow.is_flagged || shotRow.is_resolved_in_session ? "_Flagged" : "";
+  return `${base}${suffix}.jpg`;
+}
+
 export function originalMimeType(shotRow) {
   const extension = originalFilename(shotRow).split(".").pop()?.toLowerCase();
   switch (extension) {
