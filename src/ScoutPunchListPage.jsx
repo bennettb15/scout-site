@@ -72,6 +72,27 @@ function formatShortDate(value) {
   }).format(date);
 }
 
+function formatDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function textValue(value) {
   const text = String(value || "").trim();
   return text || "";
@@ -122,6 +143,13 @@ function propertyAddressLine(property) {
     .join(" ");
 }
 
+function propertyIdentityLine(property) {
+  const name = textValue(property?.name);
+  const address = propertyAddressLine(property);
+  if (name && address && name !== address) return `${name} · ${address}`;
+  return name || address || "Property";
+}
+
 function propertyOptionLabel(property) {
   if (!property) return "Property";
   const cityState = [property.city, property.state].filter(Boolean).join(", ");
@@ -150,6 +178,16 @@ function issueCode(row) {
 
 function locationCodeLine(row) {
   return locationLine(row) || issueCode(row);
+}
+
+function orgDateTimeLine(row) {
+  return [
+    row.org?.name,
+    formatDate(row.capturedAt || row.updatedAt),
+    formatTime(row.capturedAt || row.updatedAt),
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function priorityStyle(priority) {
@@ -262,7 +300,29 @@ const PUNCH_LIST_STYLES = `
     padding-top: 4px;
   }
 
+  .punch-property-line {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: rgb(15 23 42);
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1.25;
+  }
+
+  .punch-org-line {
+    margin-top: 5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: rgb(71 85 105);
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1.35;
+  }
+
   .punch-location-line {
+    margin-top: 10px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -277,7 +337,7 @@ const PUNCH_LIST_STYLES = `
     display: flex;
     align-items: center;
     gap: 5px;
-    margin-top: 6px;
+    margin-top: 7px;
     color: rgb(220 38 38);
     font-size: 14px;
     font-weight: 700;
@@ -289,17 +349,6 @@ const PUNCH_LIST_STYLES = `
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .punch-meta-line {
-    margin-top: 9px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: rgb(100 116 139);
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1.35;
   }
 
   .punch-row-controls {
@@ -361,7 +410,7 @@ const PUNCH_LIST_STYLES = `
   .punch-lightbox-panel {
     position: relative;
     display: grid;
-    grid-template-rows: auto auto auto minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
     width: min(980px, 100%);
     max-height: calc(100vh - 40px);
     border-radius: 10px;
@@ -405,15 +454,59 @@ const PUNCH_LIST_STYLES = `
     line-height: 1.35;
   }
 
-  .punch-lightbox-subheader {
+  .punch-lightbox-location-line {
+    padding: 0 16px 12px;
+    color: rgb(15 23 42);
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.25;
+  }
+
+  .punch-lightbox-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-top: 1px solid rgb(226 232 240);
+    padding: 12px 16px 14px;
+    background: white;
+  }
+
+  .punch-lightbox-issue {
     display: flex;
     align-items: center;
     gap: 7px;
-    padding: 0 16px 12px;
+    min-width: 0;
     color: rgb(220 38 38);
     font-size: 14px;
     font-weight: 800;
     line-height: 1.3;
+  }
+
+  .punch-lightbox-issue span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .punch-lightbox-priority {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    color: rgb(15 23 42);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .punch-lightbox-priority-value {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid;
+    border-radius: 999px;
+    padding: 4px 9px;
   }
 
   .punch-lightbox-media {
@@ -498,8 +591,18 @@ const PUNCH_LIST_STYLES = `
       white-space: normal;
     }
 
-    .punch-flag-line span,
-    .punch-meta-line {
+    .punch-property-line,
+    .punch-org-line,
+    .punch-flag-line span {
+      white-space: normal;
+    }
+
+    .punch-lightbox-summary {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .punch-lightbox-issue span {
       white-space: normal;
     }
   }
@@ -661,13 +764,6 @@ function RowDetail({ row, onDownloadOriginal, downloadId, onPreview }) {
 
 function IssueRow({ row, selected, onSelect, onDownloadOriginal, downloadId, onPreview }) {
   const originalDownload = row.preview?.originalDownload || {};
-  const metaLine = [
-    propertyLine(row.property),
-    row.org?.name,
-    formatDateTime(row.capturedAt || row.updatedAt),
-  ]
-    .filter(Boolean)
-    .join(" | ");
   const flagNote = row.title || row.reason || "Flagged observation";
 
   return (
@@ -693,15 +789,18 @@ function IssueRow({ row, selected, onSelect, onDownloadOriginal, downloadId, onP
           <IssueThumbnail row={row} onPreview={onPreview} />
         </div>
         <div className="punch-row-main">
+          <div className="punch-property-line">
+            {propertyIdentityLine(row.property)}
+          </div>
+          <div className="punch-org-line">
+            {orgDateTimeLine(row)}
+          </div>
           <div className="punch-location-line">
             {locationCodeLine(row) || "LOCATION NOT SET"}
           </div>
           <div className="punch-flag-line">
             <Flag className="h-3.5 w-3.5 shrink-0 fill-current" />
             <span>{flagNote}</span>
-          </div>
-          <div className="punch-meta-line">
-            {metaLine}
           </div>
         </div>
         <div className="punch-row-controls">
@@ -761,13 +860,7 @@ function ImagePreviewModal({ row, onClose }) {
   if (!row?.preview?.previewUrl) return null;
   const propertyTitle = propertyLine(row.property);
   const propertyAddress = propertyAddressLine(row.property);
-  const metaLine = [
-    locationCodeLine(row),
-    row.org?.name,
-    formatDateTime(row.capturedAt || row.updatedAt),
-  ]
-    .filter(Boolean)
-    .join(" | ");
+  const flagNote = row.title || row.reason || "Flagged observation";
   return (
     <div
       className="punch-lightbox"
@@ -793,10 +886,9 @@ function ImagePreviewModal({ row, onClose }) {
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="punch-lightbox-meta-line">{metaLine}</div>
-        <div className="punch-lightbox-subheader">
-          <Flag className="h-3.5 w-3.5 shrink-0 fill-current" />
-          <span>{row.title || row.reason || "Flagged observation"}</span>
+        <div className="punch-lightbox-meta-line">{orgDateTimeLine(row)}</div>
+        <div className="punch-lightbox-location-line">
+          {locationCodeLine(row) || "LOCATION NOT SET"}
         </div>
         <div className="punch-lightbox-media">
           <img
@@ -804,6 +896,18 @@ function ImagePreviewModal({ row, onClose }) {
             alt={locationCodeLine(row) || row.title || "Punch list photo preview"}
             className="punch-lightbox-image"
           />
+        </div>
+        <div className="punch-lightbox-summary">
+          <div className="punch-lightbox-issue">
+            <Flag className="h-3.5 w-3.5 shrink-0 fill-current" />
+            <span>{flagNote}</span>
+          </div>
+          <div className="punch-lightbox-priority">
+            Priority
+            <span className="punch-lightbox-priority-value" style={priorityStyle(row.priority)}>
+              {optionLabel(row.priority, PRIORITY_LABELS)}
+            </span>
+          </div>
         </div>
       </div>
     </div>
