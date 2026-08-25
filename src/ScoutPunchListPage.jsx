@@ -159,17 +159,29 @@ function uniqueOptions(rows, getter, labeler) {
 }
 
 function IssueThumbnail({ row, large = false }) {
-  const sizeClass = large ? "h-44 w-full" : "h-20 w-20";
+  const sizeClass = large ? "w-full" : "";
+  const frameStyle = large
+    ? { width: "100%", height: 176, minHeight: 176 }
+    : {
+        width: 88,
+        height: 88,
+        minWidth: 88,
+        maxWidth: 88,
+        flexBasis: 88,
+        aspectRatio: "1 / 1",
+      };
   const label = locationLine(row) || row.title || "Punch list photo";
   return (
     <div
       className={`${sizeClass} flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-slate-100 text-foreground/45`}
+      style={frameStyle}
     >
       {row.preview?.previewUrl ? (
         <img
           src={row.preview.previewUrl}
           alt={label}
           className="h-full w-full object-cover"
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
         />
       ) : (
         <Camera className={large ? "h-8 w-8" : "h-5 w-5"} />
