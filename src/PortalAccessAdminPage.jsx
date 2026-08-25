@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ClipboardList,
+  KeyRound,
   LogOut,
   RefreshCw,
   ShieldCheck,
@@ -43,11 +45,14 @@ export default function PortalAccessAdminPage() {
   const [actionMessage, setActionMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [setupSubmitting, setSetupSubmitting] = useState(false);
   const [adminEmails, setAdminEmails] = useState([]);
   const [orgs, setOrgs] = useState([]);
   const [accessRows, setAccessRows] = useState([]);
   const [selectedOrgId, setSelectedOrgId] = useState("");
   const [clientEmail, setClientEmail] = useState("");
+  const [setupLinkDetails, setSetupLinkDetails] = useState(null);
+  const [copyMessage, setCopyMessage] = useState("");
   const [revokeId, setRevokeId] = useState("");
 
   useEffect(() => {
@@ -137,6 +142,8 @@ export default function PortalAccessAdminPage() {
     setSubmitting(true);
     setActionMessage("");
     setLoadError("");
+    setSetupLinkDetails(null);
+    setCopyMessage("");
 
     try {
       const response = await fetch("/api/admin/portal-access", {
@@ -165,6 +172,61 @@ export default function PortalAccessAdminPage() {
       setLoadError(error.message || "Unable to grant portal access.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleCreateSetupLink() {
+    if (!session?.access_token) return;
+    setSetupSubmitting(true);
+    setActionMessage("");
+    setLoadError("");
+    setSetupLinkDetails(null);
+    setCopyMessage("");
+
+    try {
+      const response = await fetch("/api/admin/portal-access", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "setupLink",
+          email: clientEmail,
+          orgId: selectedOrgId,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body.error || "Unable to create setup link.");
+      }
+
+      setSetupLinkDetails({
+        email: body.user.email,
+        orgName: body.org.name,
+        setupUrl: body.setupUrl,
+        setupPath: body.setupPath,
+      });
+      setActionMessage(
+        `Created manual setup link for ${body.user.email} and granted ${body.org.name}.`
+      );
+      await loadAccess();
+    } catch (error) {
+      setLoadError(error.message || "Unable to create setup link.");
+    } finally {
+      setSetupSubmitting(false);
+    }
+  }
+
+  async function handleCopySetupLink() {
+    if (!setupLinkDetails?.setupUrl) return;
+    setCopyMessage("");
+
+    try {
+      await navigator.clipboard.writeText(setupLinkDetails.setupUrl);
+      setCopyMessage("Setup link copied.");
+    } catch {
+      setCopyMessage("Copy failed. Select the link and copy it manually.");
     }
   }
 
@@ -347,7 +409,11 @@ export default function PortalAccessAdminPage() {
                     type="email"
                     autoComplete="email"
                     value={clientEmail}
-                    onChange={(event) => setClientEmail(event.target.value)}
+                    onChange={(event) => {
+                      setClientEmail(event.target.value);
+                      setSetupLinkDetails(null);
+                      setCopyMessage("");
+                    }}
                     className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
                   />
                 </label>
@@ -368,13 +434,72 @@ export default function PortalAccessAdminPage() {
                 <button
                   type="button"
                   onClick={handleGrant}
-                  disabled={submitting || !clientEmail || !selectedOrgId}
+                  disabled={
+                    submitting ||
+                    setupSubmitting ||
+                    !clientEmail ||
+                    !selectedOrgId
+                  }
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
                 >
                   <UserPlus className="h-4 w-4" />
                   Grant / Invite
                 </button>
+                <button
+                  type="button"
+                  onClick={handleCreateSetupLink}
+                  disabled={
+                    submitting ||
+                    setupSubmitting ||
+                    !clientEmail ||
+                    !selectedOrgId
+                  }
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-semibold text-foreground/75 shadow-sm hover:text-foreground disabled:opacity-60"
+                >
+                  <KeyRound className="h-4 w-4" />
+                  {setupSubmitting ? "Creating..." : "Create Setup Link"}
+                </button>
               </div>
+              <p className="mt-3 text-sm leading-relaxed text-foreground/60">
+                Use the setup link only when invite email delivery is delayed or
+                rate-limited. It grants org-level access and creates a one-time
+                password setup link for manual delivery.
+              </p>
+              {setupLinkDetails?.setupUrl && (
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <div className="text-sm font-semibold text-amber-950">
+                    Manual setup link for {setupLinkDetails.email}
+                  </div>
+                  <p className="mt-1 text-sm text-amber-900/80">
+                    Copy this link and send it directly to the client. It opens
+                    {setupLinkDetails.setupPath === "/reset-password"
+                      ? " the Client Portal password reset page."
+                      : " the Client Portal invite setup page."}
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2 md:flex-row">
+                    <input
+                      type="text"
+                      readOnly
+                      value={setupLinkDetails.setupUrl}
+                      className="h-11 min-w-0 flex-1 rounded-lg border border-amber-200 bg-background px-3 text-sm text-foreground outline-none"
+                      onFocus={(event) => event.target.select()}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCopySetupLink}
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm"
+                    >
+                      <ClipboardList className="h-4 w-4" />
+                      Copy Setup Link
+                    </button>
+                  </div>
+                  {copyMessage && (
+                    <p className="mt-2 text-sm font-medium text-amber-950">
+                      {copyMessage}
+                    </p>
+                  )}
+                </div>
+              )}
             </section>
 
             <section className="rounded-lg border border-border bg-background shadow-sm">

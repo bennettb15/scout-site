@@ -116,6 +116,82 @@ async function ensureInvitedUser(service, email, req) {
   return { user: data.user, invited: true };
 }
 
+async function generateSetupLinkUser(service, email, req) {
+  const existing = await findAuthUserByEmail(service, email);
+  const redirectTo = existing
+    ? inviteRedirectTo(req).replace(/\/accept-invite$/, "/reset-password")
+    : inviteRedirectTo(req);
+  const { data, error } = await service.auth.admin.generateLink({
+    type: existing ? "recovery" : "invite",
+    email,
+    options: {
+      redirectTo,
+    },
+  });
+
+  if (error) throw error;
+  if (!data?.user?.id || !data?.properties?.action_link) {
+    throw new Error("Supabase did not return a setup link.");
+  }
+
+  return {
+    user: data.user,
+    setupUrl: data.properties.action_link,
+    setupPath: existing ? "/reset-password" : "/accept-invite",
+    setupType: existing ? "recovery" : "invite",
+  };
+}
+
+async function upsertOrgMembership(service, { orgId, userId, role, actorId }) {
+  const { data: existingMembership, error: existingMembershipError } =
+    await service
+      .from("org_memberships")
+      .select("id,role,access_scope,deleted_at")
+      .eq("org_id", orgId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+  if (existingMembershipError) throw existingMembershipError;
+  if (
+    existingMembership?.deleted_at === null &&
+    role === "viewer" &&
+    existingMembership.role !== "viewer"
+  ) {
+    throw new Error("Existing non-client org roles cannot be changed here.");
+  }
+
+  const { data: membership, error: membershipError } = await service
+    .from("org_memberships")
+    .upsert(
+      {
+        org_id: orgId,
+        user_id: userId,
+        role,
+        access_scope: "org",
+        updated_by: actorId,
+        deleted_at: null,
+      },
+      { onConflict: "org_id,user_id" }
+    )
+    .select("id,org_id,user_id,role,access_scope,created_at,updated_at,deleted_at")
+    .single();
+
+  if (membershipError) throw membershipError;
+  return membership;
+}
+
+function membershipResponse(membership) {
+  return {
+    id: membership.id,
+    orgId: membership.org_id,
+    userId: membership.user_id,
+    role: membership.role,
+    accessScope: membership.access_scope || "org",
+    createdAt: membership.created_at,
+    updatedAt: membership.updated_at,
+  };
+}
+
 async function grantOrgAccess(req, res, context) {
   let body = {};
   try {
@@ -137,60 +213,79 @@ async function grantOrgAccess(req, res, context) {
     await ensureUserProfile(context.service, user, context.user.id);
 
     const role = isApprovedAdminEmail(email) ? "owner" : "viewer";
-    const { data: existingMembership, error: existingMembershipError } =
-      await context.service
-        .from("org_memberships")
-        .select("id,role,access_scope,deleted_at")
-        .eq("org_id", orgId)
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-    if (existingMembershipError) throw existingMembershipError;
-    if (
-      existingMembership?.deleted_at === null &&
-      role === "viewer" &&
-      existingMembership.role !== "viewer"
-    ) {
-      return sendJson(res, 400, {
-        error: "Existing non-client org roles cannot be changed here.",
-      });
-    }
-
-    const { data: membership, error: membershipError } = await context.service
-      .from("org_memberships")
-      .upsert(
-        {
-          org_id: orgId,
-          user_id: user.id,
-          role,
-          access_scope: "org",
-          updated_by: context.user.id,
-          deleted_at: null,
-        },
-        { onConflict: "org_id,user_id" }
-      )
-      .select("id,org_id,user_id,role,access_scope,created_at,updated_at,deleted_at")
-      .single();
-
-    if (membershipError) throw membershipError;
+    const membership = await upsertOrgMembership(context.service, {
+      orgId,
+      userId: user.id,
+      role,
+      actorId: context.user.id,
+    });
 
     return sendJson(res, 200, {
       user: userSummary(user),
       invited,
       org,
-      membership: {
-        id: membership.id,
-        orgId: membership.org_id,
-        userId: membership.user_id,
-        role: membership.role,
-        accessScope: membership.access_scope || "org",
-        createdAt: membership.created_at,
-        updatedAt: membership.updated_at,
-      },
+      membership: membershipResponse(membership),
     });
   } catch (error) {
-    return sendJson(res, 500, {
+    const status = error.message === "Existing non-client org roles cannot be changed here."
+      ? 400
+      : 500;
+    return sendJson(res, status, {
       error: error.message || "Unable to grant portal access.",
+    });
+  }
+}
+
+async function createSetupLink(req, res, context) {
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body." });
+  }
+
+  const email = validateEmail(body.email);
+  const orgId = validateUuid(body.orgId);
+  if (!email) return sendJson(res, 400, { error: "Valid email is required." });
+  if (!orgId) return sendJson(res, 400, { error: "Valid org ID is required." });
+  if (isApprovedAdminEmail(email)) {
+    return sendJson(res, 400, {
+      error: "Admin setup links cannot be generated here.",
+    });
+  }
+
+  try {
+    const org = await loadOrg(context.service, orgId);
+    if (!org) return sendJson(res, 404, { error: "Organization not found." });
+
+    const { user, setupUrl, setupPath, setupType } = await generateSetupLinkUser(
+      context.service,
+      email,
+      req
+    );
+    await ensureUserProfile(context.service, user, context.user.id);
+
+    const membership = await upsertOrgMembership(context.service, {
+      orgId,
+      userId: user.id,
+      role: "viewer",
+      actorId: context.user.id,
+    });
+
+    return sendJson(res, 200, {
+      user: userSummary(user),
+      org,
+      membership: membershipResponse(membership),
+      setupUrl,
+      setupPath,
+      setupType,
+    });
+  } catch (error) {
+    const status = error.message === "Existing non-client org roles cannot be changed here."
+      ? 400
+      : 500;
+    return sendJson(res, status, {
+      error: error.message || "Unable to create setup link.",
     });
   }
 }
@@ -265,6 +360,17 @@ export default async function handler(req, res) {
   if (!context) return;
 
   if (req.method === "GET") return handleGet(req, res, context);
-  if (req.method === "POST") return grantOrgAccess(req, res, context);
+  if (req.method === "POST") {
+    let body = {};
+    try {
+      body = await readJsonBody(req);
+    } catch {
+      return sendJson(res, 400, { error: "Invalid JSON body." });
+    }
+
+    req.body = body;
+    if (body.action === "setupLink") return createSetupLink(req, res, context);
+    return grantOrgAccess(req, res, context);
+  }
   if (req.method === "DELETE") return revokeOrgAccess(req, res, context);
 }
