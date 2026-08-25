@@ -54,15 +54,23 @@ function AccountStatus({ status }) {
   const isConfirmed = state === "confirmed";
   const isPending = state === "pending";
   const badgeClass = isConfirmed
-    ? "border-green-700 bg-green-50 text-green-900"
+    ? ""
     : isPending
       ? "border-amber-200 bg-amber-50 text-amber-900"
       : "border-slate-200 bg-slate-50 text-foreground/65";
+  const badgeStyle = isConfirmed
+    ? {
+        backgroundColor: "#f0fdf4",
+        borderColor: "#15803d",
+        color: "#14532d",
+      }
+    : undefined;
 
   return (
     <div className="grid gap-1">
       <span
         className={`inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-xs font-semibold leading-none ${badgeClass}`}
+        style={badgeStyle}
       >
         {accountStatus.label || "Status unavailable"}
       </span>
