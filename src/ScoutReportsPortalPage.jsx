@@ -94,6 +94,13 @@ function propertyOptionLabel(property) {
   return property.name || address || "Property";
 }
 
+function propertyAddressLine(property) {
+  if (!property) return "";
+  const cityState = [property.city, property.state].filter(Boolean).join(", ");
+  const locality = [cityState, property.postalCode].filter(Boolean).join(" ");
+  return [property.addressLine1, locality].filter(Boolean).join(" · ");
+}
+
 function packageDisplayTimestamp(reportPackage) {
   return (
     reportPackage.sessionCompletedAt ||
@@ -1118,6 +1125,11 @@ export default function ScoutReportsPortalPage() {
                             </>
                           )}
                         </div>
+                        {propertyAddressLine(reportPackage.property) && (
+                          <div className="mt-0.5 text-xs font-normal leading-snug text-foreground/50">
+                            {propertyAddressLine(reportPackage.property)}
+                          </div>
+                        )}
                         <div className="mt-1 text-sm text-foreground/60">
                           {packageSummary(reportPackage)}
                         </div>
