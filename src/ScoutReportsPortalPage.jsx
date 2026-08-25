@@ -10,6 +10,7 @@ import {
   FileText,
   LogOut,
   RefreshCw,
+  ShieldCheck,
   X,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
@@ -193,6 +194,7 @@ export default function ScoutReportsPortalPage() {
   const [selectedPhotoIdsByPackageId, setSelectedPhotoIdsByPackageId] = useState({});
   const [flaggedOnlyByPackageId, setFlaggedOnlyByPackageId] = useState({});
   const [activePhotoViewer, setActivePhotoViewer] = useState(null);
+  const [canOpenAdmin, setCanOpenAdmin] = useState(false);
 
   useEffect(() => {
     document.title = BRAND.siteTitle;
@@ -280,7 +282,37 @@ export default function ScoutReportsPortalPage() {
       setSelectedOrgId("");
       setSelectedPropertyId(ALL_PROPERTIES);
       setReportsError("");
+      setCanOpenAdmin(false);
     }
+  }, [session?.access_token]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadAdminStatus() {
+      if (!session?.access_token) {
+        setCanOpenAdmin(false);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/admin/me", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+        const body = await response.json().catch(() => ({}));
+        if (active) setCanOpenAdmin(response.ok && body.isAdmin === true);
+      } catch {
+        if (active) setCanOpenAdmin(false);
+      }
+    }
+
+    loadAdminStatus();
+
+    return () => {
+      active = false;
+    };
   }, [session?.access_token]);
 
   useEffect(() => {
@@ -938,14 +970,25 @@ export default function ScoutReportsPortalPage() {
             />
           </a>
           {session && (
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign Out
-            </button>
+            <div className="flex items-center gap-2">
+              {canOpenAdmin && (
+                <a
+                  href="/admin/portal-access"
+                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  Admin
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign Out
+              </button>
+            </div>
           )}
         </div>
       </header>

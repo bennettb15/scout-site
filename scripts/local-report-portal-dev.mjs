@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import originalPhotoDownloadHandler from "../api/original-photo-download.js";
 import originalPhotosDownloadHandler from "../api/original-photos-download.js";
 import originalPhotosHandler from "../api/original-photos.js";
+import portalAdminMeHandler from "../api/admin/me.js";
 import portalAccessAdminHandler from "../api/admin/portal-access.js";
 import reportDownloadHandler from "../api/report-download.js";
 import reportOrgsHandler from "../api/report-orgs.js";
@@ -144,6 +145,10 @@ const server = createServer(async (req, res) => {
     }
     if (req.url?.startsWith("/api/admin/portal-access")) {
       await portalAccessAdminHandler(makeRequest(req.url, req), makeResponse(res));
+      return;
+    }
+    if (req.url?.startsWith("/api/admin/me")) {
+      await portalAdminMeHandler(makeRequest(req.url, req), makeResponse(res));
       return;
     }
     if (req.url?.startsWith("/api/report-orgs")) {
