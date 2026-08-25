@@ -298,7 +298,7 @@ const PUNCH_LIST_STYLES = `
     align-content: start;
     gap: 7px;
     width: 196px;
-    padding-right: 8px;
+    padding: 10px 12px 10px 0;
   }
 
   .punch-row-chevron {
@@ -316,7 +316,7 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-control-label {
-    color: rgb(100 116 139);
+    color: rgb(15 23 42);
     font-size: 11px;
     font-weight: 800;
     line-height: 1;
@@ -405,21 +405,28 @@ const PUNCH_LIST_STYLES = `
     font-weight: 600;
   }
 
-  .punch-lightbox-chips {
+  .punch-lightbox-fields {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 10px;
   }
 
-  .punch-lightbox-chip {
+  .punch-lightbox-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: rgb(15 23 42);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .punch-lightbox-field-value {
     display: inline-flex;
     align-items: center;
     border: 1px solid;
     border-radius: 999px;
-    padding: 4px 9px;
-    font-size: 12px;
-    font-weight: 800;
-    line-height: 1;
+    padding: 4px 8px;
   }
 
   .punch-lightbox-close {
@@ -472,8 +479,7 @@ const PUNCH_LIST_STYLES = `
       grid-column: 1 / -1;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       width: 100%;
-      padding-right: 0;
-      padding-top: 2px;
+      padding: 8px 0 2px;
     }
 
     .punch-control {
@@ -792,12 +798,18 @@ function ImagePreviewModal({ row, onClose }) {
         </div>
         <div className="punch-lightbox-footer">
           <div className="min-w-0">{metaLine}</div>
-          <div className="punch-lightbox-chips">
-            <span className="punch-lightbox-chip" style={priorityStyle(row.priority)}>
-              {optionLabel(row.priority, PRIORITY_LABELS)}
+          <div className="punch-lightbox-fields">
+            <span className="punch-lightbox-field">
+              Priority:
+              <span className="punch-lightbox-field-value" style={priorityStyle(row.priority)}>
+                {optionLabel(row.priority, PRIORITY_LABELS)}
+              </span>
             </span>
-            <span className="punch-lightbox-chip" style={statusStyle(row.status)}>
-              {statusLabel(row.status)}
+            <span className="punch-lightbox-field">
+              Status:
+              <span className="punch-lightbox-field-value" style={statusStyle(row.status)}>
+                {statusLabel(row.status)}
+              </span>
             </span>
           </div>
         </div>
