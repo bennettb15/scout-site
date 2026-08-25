@@ -108,6 +108,7 @@ export default function PortalAccessAdminPage() {
   const [loadError, setLoadError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [adminStatus, setAdminStatus] = useState("signed-out");
   const [submitting, setSubmitting] = useState(false);
   const [setupSubmitting, setSetupSubmitting] = useState(false);
   const [adminEmails, setAdminEmails] = useState([]);
@@ -152,7 +153,7 @@ export default function PortalAccessAdminPage() {
   }, []);
 
   async function loadAccess(activeSession = session) {
-    if (!activeSession?.access_token) return;
+    if (!activeSession?.access_token || adminStatus !== "authorized") return;
     setLoading(true);
     setLoadError("");
     try {
@@ -179,8 +180,46 @@ export default function PortalAccessAdminPage() {
   }
 
   useEffect(() => {
-    if (session?.access_token) loadAccess(session);
-  }, [session]);
+    let active = true;
+
+    async function loadAdminStatus() {
+      if (!session?.access_token) {
+        setAdminStatus("signed-out");
+        setAdminEmails([]);
+        setOrgs([]);
+        setAccessRows([]);
+        setSelectedOrgId("");
+        return;
+      }
+
+      setAdminStatus("checking");
+      setLoadError("");
+
+      try {
+        const response = await fetch("/api/admin/me", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+        const body = await response.json().catch(() => ({}));
+        if (active) {
+          setAdminStatus(response.ok && body.isAdmin === true ? "authorized" : "denied");
+        }
+      } catch {
+        if (active) setAdminStatus("denied");
+      }
+    }
+
+    loadAdminStatus();
+
+    return () => {
+      active = false;
+    };
+  }, [session?.access_token]);
+
+  useEffect(() => {
+    if (session?.access_token && adminStatus === "authorized") loadAccess(session);
+  }, [session?.access_token, adminStatus]);
 
   async function handleSignIn(event) {
     event.preventDefault();
@@ -384,13 +423,13 @@ export default function PortalAccessAdminPage() {
         <div className="mb-6 flex flex-col justify-between gap-3 md:flex-row md:items-end">
           <div>
             <div className="text-sm font-medium text-[var(--brand)]">
-              Admin
+              {session && adminStatus === "denied" ? "Client Portal" : "Admin"}
             </div>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-              Portal Access
+              {session && adminStatus === "denied" ? "Access Unavailable" : "Portal Access"}
             </h1>
           </div>
-          {session && (
+          {session && adminStatus === "authorized" && (
             <button
               type="button"
               onClick={() => loadAccess()}
@@ -453,7 +492,19 @@ export default function PortalAccessAdminPage() {
           </form>
         )}
 
-        {session && (
+        {session && adminStatus === "checking" && (
+          <div className="rounded-lg border border-border bg-background p-6 text-sm text-foreground/70 shadow-sm">
+            Checking admin access...
+          </div>
+        )}
+
+        {session && adminStatus === "denied" && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 shadow-sm">
+            Admin access required.
+          </div>
+        )}
+
+        {session && adminStatus === "authorized" && (
           <div className="grid gap-4">
             <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm text-foreground/70 shadow-sm">
               Signed in as{" "}
