@@ -143,11 +143,36 @@ function propertyAddressLine(property) {
     .join(" ");
 }
 
-function propertyIdentityLine(property) {
+function PropertyIdentityText({ property }) {
   const name = textValue(property?.name);
   const address = propertyAddressLine(property);
-  if (name && address && name !== address) return `${name} · ${address}`;
-  return name || address || "Property";
+  const primary = name || address || "Property";
+  const showAddress = name && address && name !== address;
+
+  if (!showAddress) {
+    return <span className={name ? "punch-property-name" : "punch-property-address"}>{primary}</span>;
+  }
+
+  return (
+    <>
+      <span className="punch-property-name">{name} ·</span>
+      <span className="punch-property-address">{address}</span>
+    </>
+  );
+}
+
+function PunchMetadataHeader({ row }) {
+  return (
+    <div className="punch-metadata-header">
+      <div className="punch-property-line">
+        <PropertyIdentityText property={row.property} />
+      </div>
+      <div className="punch-org-line">{orgDateTimeLine(row)}</div>
+      <div className="punch-location-line">
+        {locationCodeLine(row) || "LOCATION NOT SET"}
+      </div>
+    </div>
+  );
 }
 
 function propertyOptionLabel(property) {
@@ -319,13 +344,26 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-property-line {
+    display: flex;
+    gap: 4px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     color: rgb(15 23 42);
     font-size: 15px;
-    font-weight: 800;
     line-height: 1.25;
+  }
+
+  .punch-property-name {
+    flex: 0 0 auto;
+    font-weight: 800;
+  }
+
+  .punch-property-address {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
   }
 
   .punch-org-line {
@@ -356,7 +394,7 @@ const PUNCH_LIST_STYLES = `
     align-items: center;
     gap: 5px;
     margin-top: auto;
-    margin-bottom: 24px;
+    margin-bottom: 15px;
     color: rgb(220 38 38);
     font-size: 14px;
     font-weight: 700;
@@ -450,14 +488,12 @@ const PUNCH_LIST_STYLES = `
     min-width: 0;
   }
 
-  .punch-lightbox-property-title {
-    color: rgb(15 23 42);
+  .punch-lightbox-header .punch-property-line {
     font-size: 18px;
-    font-weight: 800;
     line-height: 1.2;
   }
 
-  .punch-lightbox-meta-line {
+  .punch-lightbox-header .punch-org-line {
     margin-top: 4px;
     color: rgb(71 85 105);
     font-size: 13px;
@@ -465,15 +501,7 @@ const PUNCH_LIST_STYLES = `
     line-height: 1.35;
   }
 
-  .punch-lightbox-address-line {
-    margin-top: 4px;
-    color: rgb(71 85 105);
-    font-size: 13px;
-    font-weight: 500;
-    line-height: 1.35;
-  }
-
-  .punch-lightbox-location-line {
+  .punch-lightbox-header .punch-location-line {
     margin-top: 8px;
     color: rgb(15 23 42);
     font-size: 14px;
@@ -624,6 +652,10 @@ const PUNCH_LIST_STYLES = `
     .punch-org-line,
     .punch-flag-line span {
       white-space: normal;
+    }
+
+    .punch-property-line {
+      flex-wrap: wrap;
     }
 
     .punch-lightbox-summary {
@@ -820,15 +852,7 @@ function IssueRow({ row, selected, onSelect, onDownloadOriginal, downloadId, onP
           <IssueThumbnail row={row} onPreview={onPreview} />
         </div>
         <div className="punch-row-main">
-          <div className="punch-property-line">
-            {propertyIdentityLine(row.property)}
-          </div>
-          <div className="punch-org-line">
-            {orgDateTimeLine(row)}
-          </div>
-          <div className="punch-location-line">
-            {locationCodeLine(row) || "LOCATION NOT SET"}
-          </div>
+          <PunchMetadataHeader row={row} />
           <div className="punch-flag-line">
             <Flag className="h-3.5 w-3.5 shrink-0 fill-current" />
             <span>{flagNote}</span>
@@ -889,8 +913,6 @@ function IssueRow({ row, selected, onSelect, onDownloadOriginal, downloadId, onP
 
 function ImagePreviewModal({ row, onClose }) {
   if (!row?.preview?.previewUrl) return null;
-  const propertyTitle = propertyLine(row.property);
-  const propertyAddress = propertyAddressLine(row.property);
   const flagNote = row.title || row.reason || "Flagged observation";
   return (
     <div
@@ -903,14 +925,7 @@ function ImagePreviewModal({ row, onClose }) {
       <div className="punch-lightbox-panel" onClick={(event) => event.stopPropagation()}>
         <div className="punch-lightbox-header">
           <div className="punch-lightbox-property">
-            <div className="punch-lightbox-property-title">{propertyTitle}</div>
-            <div className="punch-lightbox-meta-line">{orgDateTimeLine(row)}</div>
-            {propertyAddress && propertyAddress !== propertyTitle && (
-              <div className="punch-lightbox-address-line">{propertyAddress}</div>
-            )}
-            <div className="punch-lightbox-location-line">
-              {locationCodeLine(row) || "LOCATION NOT SET"}
-            </div>
+            <PunchMetadataHeader row={row} />
           </div>
           <button
             type="button"
