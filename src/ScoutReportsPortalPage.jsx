@@ -1103,8 +1103,13 @@ export default function ScoutReportsPortalPage() {
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
-                        <div className="text-lg font-semibold tracking-tight text-foreground">
-                          {packageSubtitle(reportPackage)}
+                        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-lg tracking-tight">
+                          <span className="font-semibold text-foreground">
+                            {packageTitle(reportPackage)}
+                          </span>
+                          <span className="font-medium text-foreground/55">
+                            {packageDateTime(reportPackage)}
+                          </span>
                         </div>
                         <div className="mt-1 text-sm text-foreground/60">
                           {packageSummary(reportPackage)}
