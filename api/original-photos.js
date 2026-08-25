@@ -8,230 +8,17 @@ import {
   friendlyOriginalDownloadFilename,
   friendlyPhotoDisplayName,
   getQueryValue,
+  enrichPhotoRowWithSnapshotMetadata,
+  loadSnapshotPhotoMetadata as loadSharedSnapshotPhotoMetadata,
   methodAllowed,
   originalIsBrowserPreviewable,
   originalMimeType,
   originalNeedsJpgPreviewDerivative,
   originalPathIsExpected,
   sendJson,
+  sortPhotoRowsBySnapshot,
   stampedPhotoFilename,
 } from "./_reportPortalShared.js";
-
-function textValue(value) {
-  const text = String(value || "").trim();
-  return text || null;
-}
-
-function idValue(value) {
-  return textValue(value)?.toLowerCase() || "";
-}
-
-function boolValue(value) {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") return value !== 0;
-  const text = textValue(value)?.toLowerCase();
-  return ["true", "1", "yes", "y"].includes(text || "");
-}
-
-function safeAngleIndex(value) {
-  const number = Number.parseInt(String(value ?? ""), 10);
-  return Number.isFinite(number) && number > 0 ? number : null;
-}
-
-function snapshotShotId(shot) {
-  return idValue(shot?.shotID || shot?.shotId || shot?.id || shot?.uuid);
-}
-
-function snapshotIssueId(shot) {
-  return idValue(
-    shot?.issueID ||
-      shot?.issueId ||
-      shot?.flaggedIssueID ||
-      shot?.flaggedIssueId ||
-      shot?.activeIssueID ||
-      shot?.activeIssueId
-  );
-}
-
-function snapshotStoragePath(shot) {
-  return textValue(shot?.storagePath || shot?.storage_path);
-}
-
-function snapshotOriginalFilename(shot) {
-  return textValue(shot?.originalFilename || shot?.original_filename);
-}
-
-function snapshotCapturedAt(shot) {
-  return textValue(shot?.createdAt || shot?.capturedAt || shot?.captured_at);
-}
-
-function issueReason(issue) {
-  return textValue(issue?.currentReason || issue?.reason || issue?.detailNote || issue?.noteText);
-}
-
-function flaggedReasonFromSnapshot(shot, issuesById) {
-  const direct = textValue(shot?.flaggedReason || shot?.reason || shot?.noteText);
-  if (direct) return direct;
-  const issue = issuesById.get(snapshotIssueId(shot));
-  return issueReason(issue);
-}
-
-function snapshotResolvedInSession(shot, issuesById) {
-  if (
-    boolValue(
-      shot?.isResolvedInSession ||
-        shot?.is_resolved_in_session ||
-        shot?.resolvedInSession ||
-        shot?.resolved_in_session
-    )
-  ) {
-    return true;
-  }
-  const issue = issuesById.get(snapshotIssueId(shot));
-  const status = textValue(shot?.issueStatus || shot?.issue_status || issue?.status || issue?.issueStatus);
-  return String(status || "").toLowerCase() === "resolved";
-}
-
-function buildSnapshotPhotoMetadata(rawSession) {
-  const shots = Array.isArray(rawSession?.shots) ? rawSession.shots : [];
-  const issues = Array.isArray(rawSession?.issues)
-    ? rawSession.issues
-    : Array.isArray(rawSession?.flaggedIssues)
-      ? rawSession.flaggedIssues
-      : [];
-  const issuesById = new Map(
-    issues
-      .map((issue) => [idValue(issue?.id || issue?.issueID || issue?.issueId), issue])
-      .filter(([id]) => id)
-  );
-  const byShotId = new Map();
-  const byStoragePath = new Map();
-  const byFilename = new Map();
-
-  shots.forEach((shot, index) => {
-    const shotId = snapshotShotId(shot);
-    const storagePath = snapshotStoragePath(shot);
-    const filename = snapshotOriginalFilename(shot);
-    const metadata = {
-      building: textValue(shot?.building),
-      elevation: textValue(shot?.elevation || shot?.targetElevation),
-      detail_type: textValue(shot?.detailType || shot?.detail_type || shot?.type),
-      angle_index: safeAngleIndex(shot?.angleIndex || shot?.angle_index),
-      shot_key: textValue(shot?.shotKey || shot?.shot_key),
-      captured_at: snapshotCapturedAt(shot),
-      is_flagged: boolValue(shot?.isFlagged || shot?.is_flagged || shot?.flagged),
-      is_resolved_in_session: snapshotResolvedInSession(shot, issuesById),
-      reason: flaggedReasonFromSnapshot(shot, issuesById),
-      priority: textValue(shot?.priority),
-      snapshot_order: index,
-    };
-    if (shotId) byShotId.set(shotId, metadata);
-    if (storagePath) byStoragePath.set(storagePath.toLowerCase(), metadata);
-    if (filename) byFilename.set(filename.toLowerCase(), metadata);
-  });
-
-  return { byShotId, byStoragePath, byFilename };
-}
-
-async function loadSnapshotPhotoMetadata(service, reportPackage) {
-  if (!reportPackage.snapshot_id) return null;
-  const { data: snapshot, error } = await service
-    .from("session_snapshots")
-    .select(
-      "id,org_id,property_id,session_id,snapshot_kind,session_status,is_sealed,payload_storage_bucket,payload_storage_path,deleted_at"
-    )
-    .eq("id", reportPackage.snapshot_id)
-    .eq("org_id", reportPackage.org_id)
-    .eq("property_id", reportPackage.property_id)
-    .eq("session_id", reportPackage.session_id)
-    .eq("snapshot_kind", "completed")
-    .eq("session_status", "completed")
-    .eq("is_sealed", true)
-    .is("deleted_at", null)
-    .maybeSingle();
-
-  if (error || !snapshot?.payload_storage_bucket || !snapshot?.payload_storage_path) {
-    return null;
-  }
-
-  const { data: object, error: downloadError } = await service.storage
-    .from(snapshot.payload_storage_bucket)
-    .download(snapshot.payload_storage_path);
-
-  if (downloadError || !object) return null;
-
-  try {
-    const payload = JSON.parse(await object.text());
-    if (
-      idValue(payload.orgID || payload.orgId) !== idValue(reportPackage.org_id) ||
-      idValue(payload.propertyID || payload.propertyId) !== idValue(reportPackage.property_id) ||
-      idValue(payload.sessionID || payload.sessionId) !== idValue(reportPackage.session_id)
-    ) {
-      return null;
-    }
-    const raw =
-      typeof payload.rawSessionJSON === "string"
-        ? JSON.parse(payload.rawSessionJSON || "{}")
-        : payload.rawSessionJSON;
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-      return null;
-    }
-    return buildSnapshotPhotoMetadata(raw);
-  } catch {
-    return null;
-  }
-}
-
-function filenameFromPath(path) {
-  return textValue(
-    String(path || "")
-      .replace(/\\/g, "/")
-      .split("/")
-      .filter(Boolean)
-      .pop()
-  );
-}
-
-function metadataForRow(row, snapshotMetadata) {
-  if (!snapshotMetadata) return null;
-  return (
-    snapshotMetadata.byShotId.get(idValue(row.id)) ||
-    snapshotMetadata.byStoragePath.get(String(row.storage_path || "").toLowerCase()) ||
-    snapshotMetadata.byFilename.get(String(filenameFromPath(row.storage_path) || "").toLowerCase()) ||
-    null
-  );
-}
-
-function enrichPhotoRow(row, snapshotMetadata) {
-  const metadata = metadataForRow(row, snapshotMetadata);
-  if (!metadata) return row;
-  return {
-    ...row,
-    building: metadata.building || row.building,
-    elevation: metadata.elevation || row.elevation,
-    detail_type: metadata.detail_type || row.detail_type,
-    angle_index: metadata.angle_index || row.angle_index,
-    shot_key: metadata.shot_key || row.shot_key,
-    captured_at: metadata.captured_at || row.captured_at,
-    is_flagged: metadata.is_flagged,
-    is_resolved_in_session: metadata.is_resolved_in_session || row.is_resolved_in_session,
-    reason: metadata.reason || row.reason,
-    priority: metadata.priority || row.priority || null,
-    snapshot_order: metadata.snapshot_order,
-  };
-}
-
-function sortPhotoRows(rows) {
-  return [...rows].sort((a, b) => {
-    const aOrder = Number.isFinite(a.snapshot_order) ? a.snapshot_order : Number.POSITIVE_INFINITY;
-    const bOrder = Number.isFinite(b.snapshot_order) ? b.snapshot_order : Number.POSITIVE_INFINITY;
-    if (aOrder !== bOrder) return aOrder - bOrder;
-    const aPosition = Number.isFinite(Number(a.position)) ? Number(a.position) : Number.POSITIVE_INFINITY;
-    const bPosition = Number.isFinite(Number(b.position)) ? Number(b.position) : Number.POSITIVE_INFINITY;
-    if (aPosition !== bPosition) return aPosition - bPosition;
-    return String(a.captured_at || "").localeCompare(String(b.captured_at || ""));
-  });
-}
 
 async function deliverableObjectExists(service, path) {
   const parts = String(path || "").split("/").filter(Boolean);
@@ -342,8 +129,10 @@ export default async function handler(req, res) {
       .filter(originalPathIsExpected)
       .map((row) => ({ ...row, property_id: row.property_id || reportPackage.property_id }));
     const service = createServiceClient();
-    const snapshotMetadata = await loadSnapshotPhotoMetadata(service, reportPackage);
-    const enrichedRows = sortPhotoRows(safeRows.map((row) => enrichPhotoRow(row, snapshotMetadata)));
+    const snapshotMetadata = await loadSharedSnapshotPhotoMetadata(service, reportPackage);
+    const enrichedRows = sortPhotoRowsBySnapshot(
+      safeRows.map((row) => enrichPhotoRowWithSnapshotMetadata(row, snapshotMetadata))
+    );
     const photos = await Promise.all(
       enrichedRows.map(async (row) => publicPhoto(row, await signedPreviewUrlForPhoto(service, row)))
     );

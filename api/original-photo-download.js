@@ -3,8 +3,10 @@ import {
   SIGNED_URL_SECONDS,
   authenticateRequest,
   createServiceClient,
+  enrichPhotoRowWithSnapshotMetadata,
   friendlyOriginalDownloadFilename,
   getQueryValue,
+  loadSnapshotPhotoMetadata,
   methodAllowed,
   originalPathIsExpected,
   sendJson,
@@ -25,7 +27,7 @@ export default async function handler(req, res) {
 
     const { data: reportPackage, error: packageError } = await auth.client
       .from("report_packages")
-      .select("id,org_id,property_id,session_id,status")
+      .select("id,org_id,property_id,session_id,snapshot_id,status")
       .eq("id", packageId)
       .eq("status", "ready")
       .is("deleted_at", null)
@@ -41,7 +43,7 @@ export default async function handler(req, res) {
     const { data: shotRow, error: shotError } = await auth.client
       .from("shots")
       .select(
-        "id,org_id,property_id,session_id,building,elevation,detail_type,angle_index,storage_bucket,storage_path,upload_state,deleted_at"
+        "id,org_id,property_id,session_id,building,elevation,detail_type,angle_index,shot_key,storage_bucket,storage_path,upload_state,deleted_at,captured_at,is_flagged,reason,priority"
       )
       .eq("id", photoId)
       .eq("org_id", reportPackage.org_id)
@@ -62,8 +64,10 @@ export default async function handler(req, res) {
       return sendJson(res, 404, { error: "Original photo not found." });
     }
 
-    const filename = friendlyOriginalDownloadFilename(safeShotRow);
     const service = createServiceClient();
+    const snapshotMetadata = await loadSnapshotPhotoMetadata(service, reportPackage);
+    const enrichedShotRow = enrichPhotoRowWithSnapshotMetadata(safeShotRow, snapshotMetadata);
+    const filename = friendlyOriginalDownloadFilename(enrichedShotRow);
     const { data, error } = await service.storage
       .from(ORIGINALS_BUCKET)
       .createSignedUrl(safeShotRow.storage_path, SIGNED_URL_SECONDS, {

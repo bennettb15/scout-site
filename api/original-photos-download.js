@@ -4,11 +4,14 @@ import {
   ORIGINALS_BUCKET,
   authenticateRequest,
   createServiceClient,
+  enrichPhotoRowWithSnapshotMetadata,
   friendlyOriginalDownloadFilename,
   getQueryValue,
+  loadSnapshotPhotoMetadata,
   methodAllowed,
   originalPathIsExpected,
   sendJson,
+  sortPhotoRowsBySnapshot,
 } from "./_reportPortalShared.js";
 
 function parsePhotoIds(req) {
@@ -176,7 +179,7 @@ export default async function handler(req, res) {
 
     const { data: reportPackage, error: packageError } = await auth.client
       .from("report_packages")
-      .select("id,org_id,property_id,session_id,status,session_completed_at,completed_at,created_at")
+      .select("id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at,created_at")
       .eq("id", packageId)
       .eq("status", "ready")
       .is("deleted_at", null)
@@ -204,7 +207,7 @@ export default async function handler(req, res) {
     const { data: rows, error: shotsError } = await auth.client
       .from("shots")
       .select(
-        "id,org_id,property_id,session_id,building,elevation,detail_type,angle_index,storage_bucket,storage_path,upload_state,deleted_at,position,captured_at"
+        "id,org_id,property_id,session_id,building,elevation,detail_type,angle_index,shot_key,storage_bucket,storage_path,upload_state,deleted_at,position,captured_at,is_flagged,reason,priority"
       )
       .in("id", photoIds)
       .eq("org_id", reportPackage.org_id)
@@ -235,9 +238,13 @@ export default async function handler(req, res) {
     }
 
     const service = createServiceClient();
+    const snapshotMetadata = await loadSnapshotPhotoMetadata(service, reportPackage);
+    const enrichedRows = sortPhotoRowsBySnapshot(
+      safeRows.map((row) => enrichPhotoRowWithSnapshotMetadata(row, snapshotMetadata))
+    );
     const used = new Set();
     const entries = [];
-    for (const row of safeRows) {
+    for (const row of enrichedRows) {
       const { data, error } = await service.storage.from(ORIGINALS_BUCKET).download(row.storage_path);
       if (error || !data) {
         return sendJson(res, 500, { error: "Unable to prepare original photos download." });
