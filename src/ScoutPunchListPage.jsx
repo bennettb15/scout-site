@@ -114,6 +114,14 @@ function propertyLine(property) {
   return property.name || address || "Property";
 }
 
+function propertyAddressLine(property) {
+  if (!property) return "";
+  const cityState = [property.city, property.state].filter(Boolean).join(", ");
+  return [property.addressLine1, cityState, property.postalCode]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function propertyOptionLabel(property) {
   if (!property) return "Property";
   const cityState = [property.city, property.state].filter(Boolean).join(", ");
@@ -212,7 +220,7 @@ const PUNCH_LIST_STYLES = `
   .punch-row-body {
     position: relative;
     display: grid;
-    grid-template-columns: 104px minmax(0, 1fr) 196px;
+    grid-template-columns: 144px minmax(0, 1fr) 196px;
     align-items: stretch;
     gap: 16px;
     width: 100%;
@@ -220,9 +228,9 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-row-left {
-    width: 104px;
-    height: 154px;
-    min-height: 154px;
+    width: 144px;
+    height: 144px;
+    min-height: 144px;
   }
 
   .punch-thumbnail {
@@ -364,10 +372,37 @@ const PUNCH_LIST_STYLES = `
 
   .punch-lightbox-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
-    padding: 14px 16px 8px;
+    padding: 16px 16px 8px;
+  }
+
+  .punch-lightbox-property {
+    min-width: 0;
+  }
+
+  .punch-lightbox-property-title {
+    color: rgb(15 23 42);
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  .punch-lightbox-property-address {
+    margin-top: 3px;
+    color: rgb(71 85 105);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+
+  .punch-lightbox-meta-line {
+    padding: 0 16px 9px;
+    color: rgb(71 85 105);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.35;
   }
 
   .punch-lightbox-subheader {
@@ -379,43 +414,6 @@ const PUNCH_LIST_STYLES = `
     font-size: 14px;
     font-weight: 800;
     line-height: 1.3;
-  }
-
-  .punch-lightbox-meta-strip {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-    justify-content: space-between;
-    border-top: 1px solid rgb(241 245 249);
-    padding: 10px 16px 12px;
-    color: rgb(71 85 105);
-    font-size: 13px;
-    font-weight: 600;
-  }
-
-  .punch-lightbox-fields {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-
-  .punch-lightbox-field {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    color: rgb(15 23 42);
-    font-size: 12px;
-    font-weight: 800;
-    line-height: 1;
-  }
-
-  .punch-lightbox-field-value {
-    display: inline-flex;
-    align-items: center;
-    border: 1px solid;
-    border-radius: 999px;
-    padding: 3px 8px;
   }
 
   .punch-lightbox-media {
@@ -460,23 +458,23 @@ const PUNCH_LIST_STYLES = `
     }
 
     .punch-row-body {
-      grid-template-columns: 80px minmax(0, 1fr);
+      grid-template-columns: 96px minmax(0, 1fr);
       gap: 10px;
     }
 
     .punch-row-left {
-      width: 80px;
-      height: 126px;
-      min-height: 126px;
+      width: 96px;
+      height: 96px;
+      min-height: 96px;
     }
 
     .punch-thumbnail:not(.punch-thumbnail-large) {
-      width: 80px !important;
-      height: 126px !important;
-      min-width: 80px !important;
-      min-height: 126px !important;
-      max-width: 80px !important;
-      flex-basis: 80px !important;
+      width: 96px !important;
+      height: 96px !important;
+      min-width: 96px !important;
+      min-height: 96px !important;
+      max-width: 96px !important;
+      flex-basis: 96px !important;
     }
 
     .punch-row-controls {
@@ -512,12 +510,12 @@ function IssueThumbnail({ row, large = false, onPreview }) {
   const frameStyle = large
     ? { width: "100%", height: 176, minHeight: 176 }
     : {
-        width: 104,
-        height: "100%",
-        minWidth: 104,
-        maxWidth: 104,
-        flexBasis: 104,
-        minHeight: 154,
+        width: 144,
+        height: 144,
+        minWidth: 144,
+        maxWidth: 144,
+        flexBasis: 144,
+        minHeight: 144,
       };
   const label = locationLine(row) || row.title || "Punch list photo";
   const content = row.preview?.previewUrl ? (
@@ -761,8 +759,10 @@ function IssueRow({ row, selected, onSelect, onDownloadOriginal, downloadId, onP
 
 function ImagePreviewModal({ row, onClose }) {
   if (!row?.preview?.previewUrl) return null;
+  const propertyTitle = propertyLine(row.property);
+  const propertyAddress = propertyAddressLine(row.property);
   const metaLine = [
-    propertyLine(row.property),
+    locationCodeLine(row),
     row.org?.name,
     formatDateTime(row.capturedAt || row.updatedAt),
   ]
@@ -778,8 +778,11 @@ function ImagePreviewModal({ row, onClose }) {
     >
       <div className="punch-lightbox-panel" onClick={(event) => event.stopPropagation()}>
         <div className="punch-lightbox-header">
-          <div className="min-w-0 text-sm font-bold text-foreground">
-            {locationCodeLine(row) || "LOCATION NOT SET"}
+          <div className="punch-lightbox-property">
+            <div className="punch-lightbox-property-title">{propertyTitle}</div>
+            {propertyAddress && propertyAddress !== propertyTitle && (
+              <div className="punch-lightbox-property-address">{propertyAddress}</div>
+            )}
           </div>
           <button
             type="button"
@@ -790,26 +793,10 @@ function ImagePreviewModal({ row, onClose }) {
             <X className="h-5 w-5" />
           </button>
         </div>
+        <div className="punch-lightbox-meta-line">{metaLine}</div>
         <div className="punch-lightbox-subheader">
           <Flag className="h-3.5 w-3.5 shrink-0 fill-current" />
           <span>{row.title || row.reason || "Flagged observation"}</span>
-        </div>
-        <div className="punch-lightbox-meta-strip">
-          <div className="min-w-0">{metaLine}</div>
-          <div className="punch-lightbox-fields">
-            <span className="punch-lightbox-field">
-              Priority:
-              <span className="punch-lightbox-field-value" style={priorityStyle(row.priority)}>
-                {optionLabel(row.priority, PRIORITY_LABELS)}
-              </span>
-            </span>
-            <span className="punch-lightbox-field">
-              Status:
-              <span className="punch-lightbox-field-value" style={statusStyle(row.status)}>
-                {statusLabel(row.status)}
-              </span>
-            </span>
-          </div>
         </div>
         <div className="punch-lightbox-media">
           <img
