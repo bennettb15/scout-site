@@ -34,6 +34,10 @@ const REPORT_ORDER = {
   flagged_observations: 2,
 };
 
+const ALL_PROPERTIES = "all";
+const DATE_FILTER_LATEST = "latest";
+const DATE_FILTER_ALL = "all";
+
 function formatDate(value) {
   if (!value) return "Not dated";
   const date = new Date(value);
@@ -80,6 +84,16 @@ function propertyLine(property) {
   return property.name || address || "Property";
 }
 
+function propertyOptionLabel(property) {
+  if (!property) return "Property";
+  const cityState = [property.city, property.state].filter(Boolean).join(", ");
+  const address = [property.addressLine1, cityState, property.postalCode]
+    .filter(Boolean)
+    .join(" ");
+  if (property.name && address) return `${property.name} · ${address}`;
+  return property.name || address || "Property";
+}
+
 function packageDisplayTimestamp(reportPackage) {
   return (
     reportPackage.sessionCompletedAt ||
@@ -108,6 +122,10 @@ function packageSubtitle(reportPackage) {
 function packageTimestampMs(reportPackage) {
   const date = new Date(packageDisplayTimestamp(reportPackage));
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function packagePropertyKey(reportPackage) {
+  return reportPackage.property?.id || reportPackage.property?.name || "unknown-property";
 }
 
 function countLabel(count, singular, plural = `${singular}s`) {
@@ -157,6 +175,8 @@ export default function ScoutReportsPortalPage() {
   const [orgs, setOrgs] = useState([]);
   const [orgsLoading, setOrgsLoading] = useState(false);
   const [selectedOrgId, setSelectedOrgId] = useState("");
+  const [selectedPropertyId, setSelectedPropertyId] = useState(ALL_PROPERTIES);
+  const [dateFilter, setDateFilter] = useState(DATE_FILTER_LATEST);
   const [downloadId, setDownloadId] = useState("");
   const [exportActionId, setExportActionId] = useState("");
   const [expandedPackageIds, setExpandedPackageIds] = useState({});
@@ -251,6 +271,7 @@ export default function ScoutReportsPortalPage() {
       setPackages([]);
       setOrgs([]);
       setSelectedOrgId("");
+      setSelectedPropertyId(ALL_PROPERTIES);
       setReportsError("");
     }
   }, [session?.access_token]);
@@ -293,6 +314,7 @@ export default function ScoutReportsPortalPage() {
     setPackages([]);
     setOrgs([]);
     setSelectedOrgId("");
+    setSelectedPropertyId(ALL_PROPERTIES);
   }
 
   async function handleDownload(file) {
@@ -760,10 +782,68 @@ export default function ScoutReportsPortalPage() {
     [orgOptions, selectedOrgId]
   );
 
-  const filteredPackages = useMemo(() => {
+  const orgFilteredPackages = useMemo(() => {
     if (!selectedOrgId) return packages;
     return packages.filter((reportPackage) => reportPackage.org?.id === selectedOrgId);
   }, [packages, selectedOrgId]);
+
+  const propertyOptions = useMemo(() => {
+    const optionsById = new Map();
+    for (const reportPackage of orgFilteredPackages) {
+      const property = reportPackage.property;
+      const id = property?.id;
+      if (id && !optionsById.has(id)) {
+        optionsById.set(id, property);
+      }
+    }
+    return Array.from(optionsById.values()).sort((a, b) =>
+      propertyOptionLabel(a).localeCompare(propertyOptionLabel(b))
+    );
+  }, [orgFilteredPackages]);
+
+  useEffect(() => {
+    if (
+      selectedPropertyId !== ALL_PROPERTIES &&
+      !propertyOptions.some((property) => property.id === selectedPropertyId)
+    ) {
+      setSelectedPropertyId(ALL_PROPERTIES);
+    }
+  }, [propertyOptions, selectedPropertyId]);
+
+  const selectedProperty = useMemo(
+    () => propertyOptions.find((property) => property.id === selectedPropertyId) || null,
+    [propertyOptions, selectedPropertyId]
+  );
+
+  const propertyFilteredPackages = useMemo(() => {
+    if (selectedPropertyId === ALL_PROPERTIES) return orgFilteredPackages;
+    return orgFilteredPackages.filter(
+      (reportPackage) => reportPackage.property?.id === selectedPropertyId
+    );
+  }, [orgFilteredPackages, selectedPropertyId]);
+
+  const latestPackageIdsForPropertyFilter = useMemo(() => {
+    const newestByProperty = new Map();
+    for (const reportPackage of propertyFilteredPackages) {
+      const propertyId = packagePropertyKey(reportPackage);
+      const timestampMs = packageTimestampMs(reportPackage);
+      const current = newestByProperty.get(propertyId);
+      if (!current || timestampMs > current.timestampMs) {
+        newestByProperty.set(propertyId, {
+          id: reportPackage.id,
+          timestampMs,
+        });
+      }
+    }
+    return new Set(Array.from(newestByProperty.values()).map((entry) => entry.id));
+  }, [propertyFilteredPackages]);
+
+  const filteredPackages = useMemo(() => {
+    if (dateFilter === DATE_FILTER_ALL) return propertyFilteredPackages;
+    return propertyFilteredPackages.filter((reportPackage) =>
+      latestPackageIdsForPropertyFilter.has(reportPackage.id)
+    );
+  }, [dateFilter, latestPackageIdsForPropertyFilter, propertyFilteredPackages]);
 
   const packageCountLabel = useMemo(() => {
     if (filteredPackages.length === 1) return "1 ready package";
@@ -772,8 +852,8 @@ export default function ScoutReportsPortalPage() {
 
   const newestPackageIds = useMemo(() => {
     const newestByProperty = new Map();
-    for (const reportPackage of filteredPackages) {
-      const propertyId = reportPackage.property?.id || reportPackage.property?.name || "";
+    for (const reportPackage of orgFilteredPackages) {
+      const propertyId = packagePropertyKey(reportPackage);
       const timestampMs = packageTimestampMs(reportPackage);
       const current = newestByProperty.get(propertyId);
       if (!current || timestampMs > current.timestampMs) {
@@ -786,12 +866,12 @@ export default function ScoutReportsPortalPage() {
     return new Set(
       Array.from(newestByProperty.values()).map((entry) => entry.id)
     );
-  }, [filteredPackages]);
+  }, [orgFilteredPackages]);
 
   const propertyGroups = useMemo(() => {
     const groups = new Map();
     for (const reportPackage of filteredPackages) {
-      const propertyId = reportPackage.property?.id || "unknown-property";
+      const propertyId = packagePropertyKey(reportPackage);
       if (!groups.has(propertyId)) {
         groups.set(propertyId, {
           id: propertyId,
@@ -802,8 +882,38 @@ export default function ScoutReportsPortalPage() {
       }
       groups.get(propertyId).packages.push(reportPackage);
     }
-    return Array.from(groups.values());
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        packages: [...group.packages].sort(
+          (left, right) => packageTimestampMs(right) - packageTimestampMs(left)
+        ),
+      }))
+      .sort((left, right) =>
+        propertyLine(left.property).localeCompare(propertyLine(right.property))
+      );
   }, [filteredPackages]);
+
+  const emptyPackagesMessage = useMemo(() => {
+    if (orgFilteredPackages.length === 0) {
+      return selectedOrg?.name
+        ? `No ready PDF packages are available for ${selectedOrg.name}.`
+        : "No ready PDF packages are available for this account.";
+    }
+    if (propertyFilteredPackages.length === 0 && selectedProperty) {
+      return `No ready PDF packages are available for ${propertyLine(selectedProperty)}.`;
+    }
+    if (dateFilter === DATE_FILTER_LATEST) {
+      return "No packages match Latest Only for the selected property filter.";
+    }
+    return "No packages match the selected filters.";
+  }, [
+    dateFilter,
+    orgFilteredPackages.length,
+    propertyFilteredPackages.length,
+    selectedOrg,
+    selectedProperty,
+  ]);
 
   return (
     <div
@@ -842,22 +952,56 @@ export default function ScoutReportsPortalPage() {
             <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
               Reports
             </h1>
-            {session && orgOptions.length > 1 && (
-              <label className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-foreground/70">
-                Organization
-                <select
-                  value={selectedOrgId}
-                  onChange={(event) => setSelectedOrgId(event.target.value)}
-                  disabled={orgsLoading}
-                  className="h-9 rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
-                >
-                  {orgOptions.map((org) => (
-                    <option key={org.id} value={org.id}>
-                      {org.name || "Organization"}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            {session && (
+              <div className="mt-3 flex flex-wrap items-end gap-2">
+                {orgOptions.length > 1 && (
+                  <label className="grid gap-1 text-xs font-semibold text-foreground/60">
+                    Organization
+                    <select
+                      value={selectedOrgId}
+                      onChange={(event) => {
+                        setSelectedOrgId(event.target.value);
+                        setSelectedPropertyId(ALL_PROPERTIES);
+                      }}
+                      disabled={orgsLoading}
+                      className="h-9 max-w-[220px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                    >
+                      {orgOptions.map((org) => (
+                        <option key={org.id} value={org.id}>
+                          {org.name || "Organization"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <label className="grid gap-1 text-xs font-semibold text-foreground/60">
+                  Property
+                  <select
+                    value={selectedPropertyId}
+                    onChange={(event) => setSelectedPropertyId(event.target.value)}
+                    disabled={reportsLoading || propertyOptions.length === 0}
+                    className="h-9 max-w-[280px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                  >
+                    <option value={ALL_PROPERTIES}>All Properties</option>
+                    {propertyOptions.map((property) => (
+                      <option key={property.id} value={property.id}>
+                        {propertyOptionLabel(property)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grid gap-1 text-xs font-semibold text-foreground/60">
+                  Date
+                  <select
+                    value={dateFilter}
+                    onChange={(event) => setDateFilter(event.target.value)}
+                    className="h-9 rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                  >
+                    <option value={DATE_FILTER_LATEST}>Latest Only</option>
+                    <option value={DATE_FILTER_ALL}>All Dates</option>
+                  </select>
+                </label>
+              </div>
             )}
           </div>
           {session && (
@@ -946,7 +1090,7 @@ export default function ScoutReportsPortalPage() {
 
             {!reportsLoading && filteredPackages.length === 0 && (
               <div className="rounded-lg border border-border bg-background p-6 text-sm text-foreground/70 shadow-sm">
-                No ready PDF packages are available for this account.
+                {emptyPackagesMessage}
               </div>
             )}
 
