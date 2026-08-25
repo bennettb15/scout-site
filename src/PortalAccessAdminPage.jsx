@@ -18,6 +18,18 @@ const BRAND = {
   },
 };
 
+const ACCESS_TYPE_OPTIONS = [
+  { value: "viewer", label: "Client Viewer" },
+  { value: "field", label: "Field User" },
+];
+
+const ACCESS_ROLE_LABELS = {
+  field: "Field User",
+  manager: "Manager",
+  owner: "Owner",
+  viewer: "Client Viewer",
+};
+
 function formatDate(value) {
   if (!value) return "";
   const date = new Date(value);
@@ -45,7 +57,11 @@ function formatDateTime(value) {
 function accessLabel(row) {
   const role = row.role || "viewer";
   const scope = row.accessScope || "org";
-  return `${role} / ${scope}`;
+  return `${ACCESS_ROLE_LABELS[role] || role} / ${scope}`;
+}
+
+function selectedAccessTypeLabel(role) {
+  return ACCESS_ROLE_LABELS[role] || "Client Viewer";
 }
 
 function AccountStatus({ status }) {
@@ -98,6 +114,7 @@ export default function PortalAccessAdminPage() {
   const [orgs, setOrgs] = useState([]);
   const [accessRows, setAccessRows] = useState([]);
   const [selectedOrgId, setSelectedOrgId] = useState("");
+  const [selectedAccessRole, setSelectedAccessRole] = useState("viewer");
   const [clientEmail, setClientEmail] = useState("");
   const [setupLinkDetails, setSetupLinkDetails] = useState(null);
   const [copyMessage, setCopyMessage] = useState("");
@@ -203,6 +220,7 @@ export default function PortalAccessAdminPage() {
           action,
           email: clientEmail,
           orgId: selectedOrgId,
+          accessRole: selectedAccessRole,
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -212,8 +230,12 @@ export default function PortalAccessAdminPage() {
       setClientEmail("");
       setActionMessage(
         body.invited
-          ? `Invite email sent to ${body.user.email}; org-level access is granted for ${body.org.name}.`
-          : `Granted existing portal account ${body.user.email} access to ${body.org.name}.`
+          ? `Invite email sent to ${body.user.email}; ${selectedAccessTypeLabel(
+              body.membership?.role
+            )} org-level access is granted for ${body.org.name}.`
+          : `Granted existing portal account ${body.user.email} ${selectedAccessTypeLabel(
+              body.membership?.role
+            )} org-level access to ${body.org.name}.`
       );
       await loadAccess();
     } catch (error) {
@@ -242,6 +264,7 @@ export default function PortalAccessAdminPage() {
           action: "setupLink",
           email: clientEmail,
           orgId: selectedOrgId,
+          accessRole: selectedAccessRole,
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -256,7 +279,9 @@ export default function PortalAccessAdminPage() {
         setupPath: body.setupPath,
       });
       setActionMessage(
-        `Created fallback setup link for ${body.user.email}; org-level access is granted for ${body.org.name}.`
+        `Created fallback setup link for ${body.user.email}; ${selectedAccessTypeLabel(
+          body.membership?.role
+        )} org-level access is granted for ${body.org.name}.`
       );
       await loadAccess();
     } catch (error) {
@@ -450,7 +475,7 @@ export default function PortalAccessAdminPage() {
             )}
 
             <section className="rounded-lg border border-border bg-background p-5 shadow-sm">
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+              <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px_auto] lg:items-end">
                 <label className="grid gap-1.5 text-sm font-medium text-foreground">
                   Client Email
                   <input
@@ -479,7 +504,21 @@ export default function PortalAccessAdminPage() {
                     ))}
                   </select>
                 </label>
-                <div className="flex flex-col gap-2 sm:flex-row md:col-span-2 lg:col-span-1">
+                <label className="grid gap-1.5 text-sm font-medium text-foreground">
+                  Access Type
+                  <select
+                    value={selectedAccessRole}
+                    onChange={(event) => setSelectedAccessRole(event.target.value)}
+                    className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                  >
+                    {ACCESS_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="flex flex-col gap-2 sm:flex-row md:col-span-3 lg:col-span-1">
                   <button
                     type="button"
                     onClick={() => handleAccessSubmit("grantExisting")}
@@ -527,8 +566,9 @@ export default function PortalAccessAdminPage() {
               <p className="mt-3 text-sm leading-relaxed text-foreground/60">
                 Invite User is the normal first path for new clients. Grant
                 Access is for an existing portal account and does not send an
-                invite email. Use the fallback setup link only when invite email
-                delivery is delayed, missing, or rate-limited.
+                invite email. Access Type applies org-level Client Viewer or
+                Field User access. Use the fallback setup link only when invite
+                email delivery is delayed, missing, or rate-limited.
               </p>
               {setupLinkDetails?.setupUrl && (
                 <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">

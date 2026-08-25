@@ -13,6 +13,15 @@ import {
 } from "../_portalAdminShared.js";
 import { sendJson } from "../_reportPortalShared.js";
 
+const ORDINARY_ACCESS_ROLES = new Set(["viewer", "field"]);
+const ORDINARY_ACCESS_ONLY_ERROR =
+  "Only existing org-level Client Viewer or Field User access can be changed here.";
+
+function validateAccessRole(value) {
+  const role = String(value || "viewer").trim().toLowerCase();
+  return ORDINARY_ACCESS_ROLES.has(role) ? role : "";
+}
+
 function userSummary(user) {
   if (!user) return null;
   return {
@@ -100,7 +109,7 @@ function membershipSummary(row, profileById, orgById, authById, authStatusAvaila
     updatedAt: row.updated_at,
     accountStatus: accountStatusSummary(authUser, authStatusAvailable),
     canRevoke:
-      row.role === "viewer" &&
+      ORDINARY_ACCESS_ROLES.has(row.role) &&
       (row.access_scope || "org") === "org" &&
       row.deleted_at === null &&
       !isApprovedAdminEmail(email),
@@ -225,11 +234,12 @@ async function upsertOrgMembership(service, { orgId, userId, role, actorId }) {
 
   if (existingMembershipError) throw existingMembershipError;
   if (
-    existingMembership?.deleted_at === null &&
-    role === "viewer" &&
-    existingMembership.role !== "viewer"
+    existingMembership &&
+    ORDINARY_ACCESS_ROLES.has(role) &&
+    (!ORDINARY_ACCESS_ROLES.has(existingMembership.role) ||
+      (existingMembership.access_scope || "org") !== "org")
   ) {
-    throw new Error("Existing non-client org roles cannot be changed here.");
+    throw new Error(ORDINARY_ACCESS_ONLY_ERROR);
   }
 
   const { data: membership, error: membershipError } = await service
@@ -274,8 +284,14 @@ async function grantOrgAccess(req, res, context) {
 
   const email = validateEmail(body.email);
   const orgId = validateUuid(body.orgId);
+  const requestedRole = validateAccessRole(body.accessRole);
   if (!email) return sendJson(res, 400, { error: "Valid email is required." });
   if (!orgId) return sendJson(res, 400, { error: "Valid org ID is required." });
+  if (!requestedRole) {
+    return sendJson(res, 400, {
+      error: "Access type must be Client Viewer or Field User.",
+    });
+  }
 
   try {
     const org = await loadOrg(context.service, orgId);
@@ -284,7 +300,7 @@ async function grantOrgAccess(req, res, context) {
     const { user, invited } = await ensureInvitedUser(context.service, email, req);
     await ensureUserProfile(context.service, user, context.user.id);
 
-    const role = isApprovedAdminEmail(email) ? "owner" : "viewer";
+    const role = isApprovedAdminEmail(email) ? "owner" : requestedRole;
     const membership = await upsertOrgMembership(context.service, {
       orgId,
       userId: user.id,
@@ -299,7 +315,7 @@ async function grantOrgAccess(req, res, context) {
       membership: membershipResponse(membership),
     });
   } catch (error) {
-    const status = error.message === "Existing non-client org roles cannot be changed here."
+    const status = error.message === ORDINARY_ACCESS_ONLY_ERROR
       ? 400
       : 500;
     return sendJson(res, status, {
@@ -318,8 +334,14 @@ async function grantExistingOrgAccess(req, res, context) {
 
   const email = validateEmail(body.email);
   const orgId = validateUuid(body.orgId);
+  const requestedRole = validateAccessRole(body.accessRole);
   if (!email) return sendJson(res, 400, { error: "Valid email is required." });
   if (!orgId) return sendJson(res, 400, { error: "Valid org ID is required." });
+  if (!requestedRole) {
+    return sendJson(res, 400, {
+      error: "Access type must be Client Viewer or Field User.",
+    });
+  }
 
   try {
     const org = await loadOrg(context.service, orgId);
@@ -334,7 +356,7 @@ async function grantExistingOrgAccess(req, res, context) {
 
     await ensureUserProfile(context.service, user, context.user.id);
 
-    const role = isApprovedAdminEmail(email) ? "owner" : "viewer";
+    const role = isApprovedAdminEmail(email) ? "owner" : requestedRole;
     const membership = await upsertOrgMembership(context.service, {
       orgId,
       userId: user.id,
@@ -349,7 +371,7 @@ async function grantExistingOrgAccess(req, res, context) {
       membership: membershipResponse(membership),
     });
   } catch (error) {
-    const status = error.message === "Existing non-client org roles cannot be changed here."
+    const status = error.message === ORDINARY_ACCESS_ONLY_ERROR
       ? 400
       : 500;
     return sendJson(res, status, {
@@ -368,8 +390,14 @@ async function createSetupLink(req, res, context) {
 
   const email = validateEmail(body.email);
   const orgId = validateUuid(body.orgId);
+  const requestedRole = validateAccessRole(body.accessRole);
   if (!email) return sendJson(res, 400, { error: "Valid email is required." });
   if (!orgId) return sendJson(res, 400, { error: "Valid org ID is required." });
+  if (!requestedRole) {
+    return sendJson(res, 400, {
+      error: "Access type must be Client Viewer or Field User.",
+    });
+  }
   if (isApprovedAdminEmail(email)) {
     return sendJson(res, 400, {
       error: "Admin setup links cannot be generated here.",
@@ -390,7 +418,7 @@ async function createSetupLink(req, res, context) {
     const membership = await upsertOrgMembership(context.service, {
       orgId,
       userId: user.id,
-      role: "viewer",
+      role: requestedRole,
       actorId: context.user.id,
     });
 
@@ -403,7 +431,7 @@ async function createSetupLink(req, res, context) {
       setupType,
     });
   } catch (error) {
-    const status = error.message === "Existing non-client org roles cannot be changed here."
+    const status = error.message === ORDINARY_ACCESS_ONLY_ERROR
       ? 400
       : 500;
     return sendJson(res, status, {
@@ -448,9 +476,12 @@ async function revokeOrgAccess(req, res, context) {
     if (!membership) {
       return sendJson(res, 404, { error: "Active org access not found." });
     }
-    if (membership.role !== "viewer" || (membership.access_scope || "org") !== "org") {
+    if (
+      !ORDINARY_ACCESS_ROLES.has(membership.role) ||
+      (membership.access_scope || "org") !== "org"
+    ) {
       return sendJson(res, 400, {
-        error: "Only client viewer portal access can be revoked here.",
+        error: "Only ordinary org-level portal access can be revoked here.",
       });
     }
 
