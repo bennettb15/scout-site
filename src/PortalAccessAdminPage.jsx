@@ -29,10 +29,50 @@ function formatDate(value) {
   }).format(date);
 }
 
+function formatDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function accessLabel(row) {
   const role = row.role || "viewer";
   const scope = row.accessScope || "org";
   return `${role} / ${scope}`;
+}
+
+function AccountStatus({ status }) {
+  const accountStatus = status || {};
+  const state = accountStatus.state || "unknown";
+  const isConfirmed = state === "confirmed";
+  const isPending = state === "pending";
+  const badgeClass = isConfirmed
+    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+    : isPending
+      ? "border-amber-200 bg-amber-50 text-amber-900"
+      : "border-slate-200 bg-slate-50 text-foreground/65";
+
+  return (
+    <div className="grid gap-1">
+      <span
+        className={`inline-flex w-fit items-center rounded-lg border px-2 py-0.5 text-xs font-semibold ${badgeClass}`}
+      >
+        {accountStatus.label || "Status unavailable"}
+      </span>
+      <span className="text-xs leading-relaxed text-foreground/55">
+        {accountStatus.lastSignInAt
+          ? `Last sign-in ${formatDateTime(accountStatus.lastSignInAt)}`
+          : accountStatus.detail || "Last sign-in unavailable."}
+      </span>
+    </div>
+  );
 }
 
 export default function PortalAccessAdminPage() {
@@ -136,8 +176,7 @@ export default function PortalAccessAdminPage() {
     await supabase?.auth.signOut();
   }
 
-  async function handleGrant(event) {
-    event.preventDefault();
+  async function handleAccessSubmit(action) {
     if (!session?.access_token) return;
     setSubmitting(true);
     setActionMessage("");
@@ -153,6 +192,7 @@ export default function PortalAccessAdminPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          action,
           email: clientEmail,
           orgId: selectedOrgId,
         }),
@@ -164,8 +204,8 @@ export default function PortalAccessAdminPage() {
       setClientEmail("");
       setActionMessage(
         body.invited
-          ? `Invited ${body.user.email} and granted ${body.org.name}.`
-          : `Granted ${body.user.email} access to ${body.org.name}.`
+          ? `Invite email sent to ${body.user.email}; org-level access is granted for ${body.org.name}.`
+          : `Granted existing portal account ${body.user.email} access to ${body.org.name}.`
       );
       await loadAccess();
     } catch (error) {
@@ -208,7 +248,7 @@ export default function PortalAccessAdminPage() {
         setupPath: body.setupPath,
       });
       setActionMessage(
-        `Created manual setup link for ${body.user.email} and granted ${body.org.name}.`
+        `Created fallback setup link for ${body.user.email}; org-level access is granted for ${body.org.name}.`
       );
       await loadAccess();
     } catch (error) {
@@ -292,7 +332,7 @@ export default function PortalAccessAdminPage() {
                 href="/reports"
                 className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
               >
-                Reports
+                Back to Reports
               </a>
               <button
                 type="button"
@@ -402,8 +442,8 @@ export default function PortalAccessAdminPage() {
             )}
 
             <section className="rounded-lg border border-border bg-background p-5 shadow-sm">
-              <div className="flex flex-col gap-4 md:flex-row md:items-end">
-                <label className="grid flex-1 gap-1.5 text-sm font-medium text-foreground">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+                <label className="grid gap-1.5 text-sm font-medium text-foreground">
                   Client Email
                   <input
                     type="email"
@@ -417,7 +457,7 @@ export default function PortalAccessAdminPage() {
                     className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
                   />
                 </label>
-                <label className="grid flex-1 gap-1.5 text-sm font-medium text-foreground">
+                <label className="grid gap-1.5 text-sm font-medium text-foreground">
                   Organization
                   <select
                     value={selectedOrgId}
@@ -431,47 +471,64 @@ export default function PortalAccessAdminPage() {
                     ))}
                   </select>
                 </label>
-                <button
-                  type="button"
-                  onClick={handleGrant}
-                  disabled={
-                    submitting ||
-                    setupSubmitting ||
-                    !clientEmail ||
-                    !selectedOrgId
-                  }
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
-                >
-                  <UserPlus className="h-4 w-4" />
-                  Grant / Invite
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCreateSetupLink}
-                  disabled={
-                    submitting ||
-                    setupSubmitting ||
-                    !clientEmail ||
-                    !selectedOrgId
-                  }
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-semibold text-foreground/75 shadow-sm hover:text-foreground disabled:opacity-60"
-                >
-                  <KeyRound className="h-4 w-4" />
-                  {setupSubmitting ? "Creating..." : "Create Setup Link"}
-                </button>
+                <div className="flex flex-col gap-2 sm:flex-row md:col-span-2 lg:col-span-1">
+                  <button
+                    type="button"
+                    onClick={() => handleAccessSubmit("grantExisting")}
+                    disabled={
+                      submitting ||
+                      setupSubmitting ||
+                      !clientEmail ||
+                      !selectedOrgId
+                    }
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-semibold text-foreground/75 shadow-sm hover:text-foreground disabled:opacity-60"
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    Grant Access
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAccessSubmit(undefined)}
+                    disabled={
+                      submitting ||
+                      setupSubmitting ||
+                      !clientEmail ||
+                      !selectedOrgId
+                    }
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Invite User
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCreateSetupLink}
+                    disabled={
+                      submitting ||
+                      setupSubmitting ||
+                      !clientEmail ||
+                      !selectedOrgId
+                    }
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-100 disabled:opacity-60"
+                  >
+                    <KeyRound className="h-4 w-4" />
+                    {setupSubmitting ? "Creating..." : "Fallback Setup Link"}
+                  </button>
+                </div>
               </div>
               <p className="mt-3 text-sm leading-relaxed text-foreground/60">
-                Use the setup link only when invite email delivery is delayed or
-                rate-limited. It grants org-level access and creates a one-time
-                password setup link for manual delivery.
+                Invite User is the normal first path for new clients. Grant
+                Access is for an existing portal account and does not send an
+                invite email. Use the fallback setup link only when invite email
+                delivery is delayed, missing, or rate-limited.
               </p>
               {setupLinkDetails?.setupUrl && (
                 <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
                   <div className="text-sm font-semibold text-amber-950">
-                    Manual setup link for {setupLinkDetails.email}
+                    Fallback setup link for {setupLinkDetails.email}
                   </div>
                   <p className="mt-1 text-sm text-amber-900/80">
-                    Copy this link and send it directly to the client. It opens
+                    Copy this link only if the invite email did not arrive. It opens
                     {setupLinkDetails.setupPath === "/reset-password"
                       ? " the Client Portal password reset page."
                       : " the Client Portal invite setup page."}
@@ -490,7 +547,7 @@ export default function PortalAccessAdminPage() {
                       className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm"
                     >
                       <ClipboardList className="h-4 w-4" />
-                      Copy Setup Link
+                      Copy Fallback Link
                     </button>
                   </div>
                   {copyMessage && (
@@ -527,10 +584,11 @@ export default function PortalAccessAdminPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left text-sm">
+                <table className="w-full min-w-[920px] text-left text-sm">
                   <thead className="border-b border-border bg-slate-50 text-xs uppercase text-foreground/55">
                     <tr>
                       <th className="px-5 py-3 font-semibold">Email</th>
+                      <th className="px-5 py-3 font-semibold">Status</th>
                       <th className="px-5 py-3 font-semibold">Access</th>
                       <th className="px-5 py-3 font-semibold">Created</th>
                       <th className="px-5 py-3 text-right font-semibold">Action</th>
@@ -541,6 +599,9 @@ export default function PortalAccessAdminPage() {
                       <tr key={row.id} className="border-b border-border last:border-b-0">
                         <td className="px-5 py-3 font-medium text-foreground">
                           {row.email || row.userId}
+                        </td>
+                        <td className="px-5 py-3">
+                          <AccountStatus status={row.accountStatus} />
                         </td>
                         <td className="px-5 py-3 text-foreground/70">
                           {accessLabel(row)}
@@ -569,7 +630,7 @@ export default function PortalAccessAdminPage() {
                     {visibleRows.length === 0 && (
                       <tr>
                         <td
-                          colSpan={4}
+                          colSpan={5}
                           className="px-5 py-8 text-center text-sm text-foreground/60"
                         >
                           No active access rows.

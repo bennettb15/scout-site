@@ -20,13 +20,74 @@ function userSummary(user) {
     email: normalizeEmail(user.email),
     createdAt: user.created_at,
     emailConfirmedAt: user.email_confirmed_at || null,
+    invitedAt: user.invited_at || null,
+    confirmationSentAt: user.confirmation_sent_at || null,
     lastSignInAt: user.last_sign_in_at || null,
   };
 }
 
-function membershipSummary(row, profileById, orgById) {
+function accountStatusSummary(user, statusAvailable) {
+  if (!statusAvailable) {
+    return {
+      state: "unknown",
+      label: "Status unavailable",
+      detail: "Auth status could not be loaded.",
+      lastSignInAt: null,
+    };
+  }
+
+  if (!user) {
+    return {
+      state: "unknown",
+      label: "Status unavailable",
+      detail: "No matching auth account was found.",
+      lastSignInAt: null,
+    };
+  }
+
+  const confirmedAt = user.email_confirmed_at || user.confirmed_at || null;
+  const invitedAt = user.invited_at || user.confirmation_sent_at || null;
+  return {
+    state: confirmedAt ? "confirmed" : "pending",
+    label: confirmedAt ? "Confirmed" : "Invited / pending",
+    detail: confirmedAt
+      ? "Account email is confirmed."
+      : invitedAt
+        ? "Invite exists; user has not confirmed yet."
+        : "User has not confirmed yet.",
+    emailConfirmedAt: confirmedAt,
+    invitedAt,
+    lastSignInAt: user.last_sign_in_at || null,
+  };
+}
+
+async function loadAuthUsersById(service, targetIds) {
+  const remaining = new Set(targetIds);
+  const byId = new Map();
+
+  for (let page = 1; page <= 20 && remaining.size > 0; page += 1) {
+    const { data, error } = await service.auth.admin.listUsers({
+      page,
+      perPage: 1000,
+    });
+    if (error) throw error;
+
+    for (const user of data?.users || []) {
+      if (remaining.has(user.id)) {
+        byId.set(user.id, user);
+        remaining.delete(user.id);
+      }
+    }
+    if (!data?.users || data.users.length < 1000) break;
+  }
+
+  return byId;
+}
+
+function membershipSummary(row, profileById, orgById, authById, authStatusAvailable) {
   const profile = profileById.get(row.user_id) || {};
   const email = normalizeEmail(profile.email);
+  const authUser = authById.get(row.user_id) || null;
   return {
     id: row.id,
     orgId: row.org_id,
@@ -37,6 +98,7 @@ function membershipSummary(row, profileById, orgById) {
     accessScope: row.access_scope || "org",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    accountStatus: accountStatusSummary(authUser, authStatusAvailable),
     canRevoke:
       row.role === "viewer" &&
       (row.access_scope || "org") === "org" &&
@@ -76,10 +138,20 @@ async function loadPortalAccess(service) {
 
   if (profilesError) throw new Error("Unable to load portal users.");
 
+  let authById = new Map();
+  let authStatusAvailable = true;
+  try {
+    authById = userIds.length
+      ? await loadAuthUsersById(service, userIds)
+      : new Map();
+  } catch {
+    authStatusAvailable = false;
+  }
+
   const orgById = new Map((orgRows || []).map((row) => [row.id, row]));
   const profileById = new Map((profileRows || []).map((row) => [row.id, row]));
   const accessRows = (membershipRows || []).map((row) =>
-    membershipSummary(row, profileById, orgById)
+    membershipSummary(row, profileById, orgById, authById, authStatusAvailable)
   );
 
   return {
@@ -236,6 +308,56 @@ async function grantOrgAccess(req, res, context) {
   }
 }
 
+async function grantExistingOrgAccess(req, res, context) {
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body." });
+  }
+
+  const email = validateEmail(body.email);
+  const orgId = validateUuid(body.orgId);
+  if (!email) return sendJson(res, 400, { error: "Valid email is required." });
+  if (!orgId) return sendJson(res, 400, { error: "Valid org ID is required." });
+
+  try {
+    const org = await loadOrg(context.service, orgId);
+    if (!org) return sendJson(res, 404, { error: "Organization not found." });
+
+    const user = await findAuthUserByEmail(context.service, email);
+    if (!user) {
+      return sendJson(res, 404, {
+        error: "No portal account found. Use Invite user for new clients.",
+      });
+    }
+
+    await ensureUserProfile(context.service, user, context.user.id);
+
+    const role = isApprovedAdminEmail(email) ? "owner" : "viewer";
+    const membership = await upsertOrgMembership(context.service, {
+      orgId,
+      userId: user.id,
+      role,
+      actorId: context.user.id,
+    });
+
+    return sendJson(res, 200, {
+      user: userSummary(user),
+      invited: false,
+      org,
+      membership: membershipResponse(membership),
+    });
+  } catch (error) {
+    const status = error.message === "Existing non-client org roles cannot be changed here."
+      ? 400
+      : 500;
+    return sendJson(res, status, {
+      error: error.message || "Unable to grant portal access.",
+    });
+  }
+}
+
 async function createSetupLink(req, res, context) {
   let body = {};
   try {
@@ -370,6 +492,7 @@ export default async function handler(req, res) {
 
     req.body = body;
     if (body.action === "setupLink") return createSetupLink(req, res, context);
+    if (body.action === "grantExisting") return grantExistingOrgAccess(req, res, context);
     return grantOrgAccess(req, res, context);
   }
   if (req.method === "DELETE") return revokeOrgAccess(req, res, context);
