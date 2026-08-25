@@ -40,8 +40,44 @@ function unique(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
+function requestMode(req) {
+  if (typeof req.query?.mode === "string") return req.query.mode;
+  try {
+    return new URL(req.url || "", "https://scout.local").searchParams.get("mode") || "";
+  } catch {
+    return "";
+  }
+}
+
+async function handleReportOrgs(req, res) {
+  try {
+    const auth = await authenticateRequest(req);
+    if (auth.error) return sendJson(res, 401, { error: auth.error });
+
+    const { data, error } = await auth.client
+      .from("orgs")
+      .select("id,name")
+      .is("deleted_at", null)
+      .order("name", { ascending: true });
+
+    if (error) {
+      return sendJson(res, 500, { error: "Unable to load organizations." });
+    }
+
+    return sendJson(res, 200, {
+      orgs: (data || []).map((row) => ({
+        id: row.id,
+        name: row.name,
+      })),
+    });
+  } catch {
+    return sendJson(res, 500, { error: "Unable to load organizations." });
+  }
+}
+
 export default async function handler(req, res) {
   if (!methodAllowed(req, res, ["GET", "OPTIONS"])) return;
+  if (requestMode(req) === "orgs") return handleReportOrgs(req, res);
 
   try {
     const auth = await authenticateRequest(req);

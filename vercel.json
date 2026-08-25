@@ -22,6 +22,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/api/report-orgs",
+      "destination": "/api/report-packages?mode=orgs"
+    },
+    {
       "source": "/punch-list",
       "destination": "/index.html"
     },
