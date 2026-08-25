@@ -158,6 +158,13 @@ function priorityStyle(priority) {
   }
 }
 
+function statusStyle(status) {
+  if (status === "resolved") {
+    return { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0", color: "#15803d" };
+  }
+  return { backgroundColor: "#fef2f2", borderColor: "#fecaca", color: "#b91c1c" };
+}
+
 function statusLabel(status) {
   if (status === "resolved") return "Resolved";
   return "Active";
@@ -194,6 +201,7 @@ const PUNCH_LIST_STYLES = `
 
   .punch-refresh-button {
     flex: 0 0 auto;
+    margin-left: auto;
     width: auto;
   }
 
@@ -204,34 +212,16 @@ const PUNCH_LIST_STYLES = `
   .punch-row-body {
     position: relative;
     display: grid;
-    grid-template-columns: 96px minmax(0, 1fr) 168px;
-    align-items: start;
-    gap: 12px;
+    grid-template-columns: 104px minmax(0, 1fr) 196px;
+    align-items: stretch;
+    gap: 16px;
     width: 100%;
     cursor: pointer;
   }
 
   .punch-row-left {
-    display: grid;
-    gap: 6px;
-    justify-items: start;
-    width: 96px;
-  }
-
-  .punch-priority-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 88px;
-    min-height: 24px;
-    border: 1px solid;
-    border-radius: 7px;
-    padding: 3px 8px;
-    font-size: 11px;
-    font-weight: 800;
-    line-height: 1;
-    text-transform: none;
-    white-space: nowrap;
+    width: 104px;
+    min-height: 132px;
   }
 
   .punch-thumbnail {
@@ -260,7 +250,7 @@ const PUNCH_LIST_STYLES = `
 
   .punch-row-main {
     min-width: 0;
-    padding-top: 2px;
+    padding-top: 4px;
   }
 
   .punch-location-line {
@@ -293,20 +283,22 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-meta-line {
-    margin-top: 7px;
+    margin-top: 9px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     color: rgb(100 116 139);
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     line-height: 1.35;
   }
 
   .punch-row-controls {
     display: grid;
-    gap: 6px;
-    width: 168px;
+    align-content: start;
+    gap: 7px;
+    width: 196px;
+    padding-right: 8px;
   }
 
   .punch-row-chevron {
@@ -320,7 +312,7 @@ const PUNCH_LIST_STYLES = `
     grid-template-columns: 58px minmax(0, 1fr);
     align-items: center;
     gap: 8px;
-    min-height: 32px;
+    min-height: 28px;
   }
 
   .punch-control-label {
@@ -359,35 +351,87 @@ const PUNCH_LIST_STYLES = `
 
   .punch-lightbox-panel {
     position: relative;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
     width: min(980px, 100%);
-    max-height: min(760px, 92vh);
+    max-height: calc(100vh - 40px);
     border-radius: 10px;
     background: white;
     box-shadow: 0 24px 80px rgba(15, 23, 42, 0.35);
     overflow: hidden;
   }
 
-  .punch-lightbox-image {
-    display: block;
-    width: 100%;
-    max-height: 70vh;
-    object-fit: contain;
+  .punch-lightbox-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px 8px;
+  }
+
+  .punch-lightbox-subheader {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 16px 12px;
+    color: rgb(220 38 38);
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.3;
+  }
+
+  .punch-lightbox-media {
+    min-height: 0;
     background: rgb(15 23 42);
   }
 
+  .punch-lightbox-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-height: min(64vh, 620px);
+    object-fit: contain;
+  }
+
+  .punch-lightbox-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px 14px;
+    color: rgb(71 85 105);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .punch-lightbox-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .punch-lightbox-chip {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid;
+    border-radius: 999px;
+    padding: 4px 9px;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
   .punch-lightbox-close {
-    position: absolute;
-    top: 10px;
-    right: 10px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 36px;
     height: 36px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.45);
-    background: rgba(15, 23, 42, 0.7);
-    color: white;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252);
+    color: rgb(15 23 42);
   }
 
   @media (max-width: 767px) {
@@ -403,6 +447,7 @@ const PUNCH_LIST_STYLES = `
 
     .punch-refresh-button {
       align-self: flex-start;
+      margin-left: 0;
     }
 
     .punch-row-body {
@@ -412,26 +457,22 @@ const PUNCH_LIST_STYLES = `
 
     .punch-row-left {
       width: 80px;
-    }
-
-    .punch-priority-badge {
-      width: 76px;
-      min-height: 23px;
-      font-size: 10px;
+      min-height: 102px;
     }
 
     .punch-thumbnail:not(.punch-thumbnail-large) {
-      width: 76px !important;
-      height: 76px !important;
-      min-width: 76px !important;
-      max-width: 76px !important;
-      flex-basis: 76px !important;
+      width: 80px !important;
+      height: 102px !important;
+      min-width: 80px !important;
+      max-width: 80px !important;
+      flex-basis: 80px !important;
     }
 
     .punch-row-controls {
       grid-column: 1 / -1;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       width: 100%;
+      padding-right: 0;
       padding-top: 2px;
     }
 
@@ -461,12 +502,11 @@ function IssueThumbnail({ row, large = false, onPreview }) {
   const frameStyle = large
     ? { width: "100%", height: 176, minHeight: 176 }
     : {
-        width: 88,
-        height: 88,
-        minWidth: 88,
-        maxWidth: 88,
-        flexBasis: 88,
-        aspectRatio: "1 / 1",
+        width: 104,
+        height: 132,
+        minWidth: 104,
+        maxWidth: 104,
+        flexBasis: 104,
       };
   const label = locationLine(row) || row.title || "Punch list photo";
   const content = row.preview?.previewUrl ? (
@@ -506,11 +546,13 @@ function IssueThumbnail({ row, large = false, onPreview }) {
   );
 }
 
-function ReadOnlyControl({ label, value }) {
+function ReadOnlyControl({ label, value, style }) {
   return (
     <div className="punch-control" aria-readonly="true">
       <div className="punch-control-label">{label}</div>
-      <div className="punch-control-value">{value || "None"}</div>
+      <div className="punch-control-value" style={style}>
+        {value || "None"}
+      </div>
     </div>
   );
 }
@@ -550,7 +592,10 @@ function RowDetail({ row, onDownloadOriginal, downloadId, onPreview }) {
         >
           {optionLabel(row.priority, PRIORITY_LABELS)}
         </span>
-        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+        <span
+          className="inline-flex rounded-full border px-3 py-1 text-xs font-semibold"
+          style={statusStyle(row.status)}
+        >
           {statusLabel(row.status)}
         </span>
         <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800">
@@ -636,9 +681,6 @@ function IssueRow({ row, selected, onSelect, onDownloadOriginal, downloadId, onP
         aria-expanded={selected}
       >
         <div className="punch-row-left">
-          <span className="punch-priority-badge" style={priorityStyle(row.priority)}>
-            {optionLabel(row.priority, PRIORITY_LABELS)}
-          </span>
           <IssueThumbnail row={row} onPreview={onPreview} />
         </div>
         <div className="punch-row-main">
@@ -654,7 +696,16 @@ function IssueRow({ row, selected, onSelect, onDownloadOriginal, downloadId, onP
           </div>
         </div>
         <div className="punch-row-controls">
-          <ReadOnlyControl label="Status" value={statusLabel(row.status)} />
+          <ReadOnlyControl
+            label="Priority"
+            value={optionLabel(row.priority, PRIORITY_LABELS)}
+            style={priorityStyle(row.priority)}
+          />
+          <ReadOnlyControl
+            label="Status"
+            value={statusLabel(row.status)}
+            style={statusStyle(row.status)}
+          />
           <ReadOnlyControl label="Due Date" value={formatShortDate(row.dueDate || row.dueAt)} />
           <ReadOnlyControl label="Trade" value={optionLabel(row.trade, TRADE_LABELS)} />
         </div>
@@ -699,6 +750,13 @@ function IssueRow({ row, selected, onSelect, onDownloadOriginal, downloadId, onP
 
 function ImagePreviewModal({ row, onClose }) {
   if (!row?.preview?.previewUrl) return null;
+  const metaLine = [
+    propertyLine(row.property),
+    row.org?.name,
+    formatDateTime(row.capturedAt || row.updatedAt),
+  ]
+    .filter(Boolean)
+    .join(" | ");
   return (
     <div
       className="punch-lightbox"
@@ -708,26 +766,39 @@ function ImagePreviewModal({ row, onClose }) {
       onClick={onClose}
     >
       <div className="punch-lightbox-panel" onClick={(event) => event.stopPropagation()}>
-        <button
-          type="button"
-          className="punch-lightbox-close"
-          onClick={onClose}
-          aria-label="Close photo preview"
-        >
-          <X className="h-5 w-5" />
-        </button>
-        <img
-          src={row.preview.previewUrl}
-          alt={locationCodeLine(row) || row.title || "Punch list photo preview"}
-          className="punch-lightbox-image"
-        />
-        <div className="px-4 py-3">
-          <div className="text-sm font-bold text-foreground">
+        <div className="punch-lightbox-header">
+          <div className="min-w-0 text-sm font-bold text-foreground">
             {locationCodeLine(row) || "LOCATION NOT SET"}
           </div>
-          <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-red-600">
-            <Flag className="h-3.5 w-3.5 fill-current" />
-            <span>{row.title || row.reason || "Flagged observation"}</span>
+          <button
+            type="button"
+            className="punch-lightbox-close"
+            onClick={onClose}
+            aria-label="Close photo preview"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="punch-lightbox-subheader">
+          <Flag className="h-3.5 w-3.5 shrink-0 fill-current" />
+          <span>{row.title || row.reason || "Flagged observation"}</span>
+        </div>
+        <div className="punch-lightbox-media">
+          <img
+            src={row.preview.previewUrl}
+            alt={locationCodeLine(row) || row.title || "Punch list photo preview"}
+            className="punch-lightbox-image"
+          />
+        </div>
+        <div className="punch-lightbox-footer">
+          <div className="min-w-0">{metaLine}</div>
+          <div className="punch-lightbox-chips">
+            <span className="punch-lightbox-chip" style={priorityStyle(row.priority)}>
+              {optionLabel(row.priority, PRIORITY_LABELS)}
+            </span>
+            <span className="punch-lightbox-chip" style={statusStyle(row.status)}>
+              {statusLabel(row.status)}
+            </span>
           </div>
         </div>
       </div>
