@@ -221,7 +221,8 @@ const PUNCH_LIST_STYLES = `
 
   .punch-row-left {
     width: 104px;
-    min-height: 132px;
+    height: 154px;
+    min-height: 154px;
   }
 
   .punch-thumbnail {
@@ -352,7 +353,7 @@ const PUNCH_LIST_STYLES = `
   .punch-lightbox-panel {
     position: relative;
     display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
     width: min(980px, 100%);
     max-height: calc(100vh - 40px);
     border-radius: 10px;
@@ -380,26 +381,14 @@ const PUNCH_LIST_STYLES = `
     line-height: 1.3;
   }
 
-  .punch-lightbox-media {
-    min-height: 0;
-    background: rgb(15 23 42);
-  }
-
-  .punch-lightbox-image {
-    display: block;
-    width: 100%;
-    height: 100%;
-    max-height: min(64vh, 620px);
-    object-fit: contain;
-  }
-
-  .punch-lightbox-footer {
+  .punch-lightbox-meta-strip {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px 14px;
+    border-top: 1px solid rgb(241 245 249);
+    padding: 10px 16px 12px;
     color: rgb(71 85 105);
     font-size: 13px;
     font-weight: 600;
@@ -426,7 +415,20 @@ const PUNCH_LIST_STYLES = `
     align-items: center;
     border: 1px solid;
     border-radius: 999px;
-    padding: 4px 8px;
+    padding: 3px 8px;
+  }
+
+  .punch-lightbox-media {
+    min-height: 0;
+    background: rgb(15 23 42);
+  }
+
+  .punch-lightbox-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-height: min(66vh, 640px);
+    object-fit: contain;
   }
 
   .punch-lightbox-close {
@@ -464,13 +466,15 @@ const PUNCH_LIST_STYLES = `
 
     .punch-row-left {
       width: 80px;
-      min-height: 102px;
+      height: 126px;
+      min-height: 126px;
     }
 
     .punch-thumbnail:not(.punch-thumbnail-large) {
       width: 80px !important;
-      height: 102px !important;
+      height: 126px !important;
       min-width: 80px !important;
+      min-height: 126px !important;
       max-width: 80px !important;
       flex-basis: 80px !important;
     }
@@ -509,10 +513,11 @@ function IssueThumbnail({ row, large = false, onPreview }) {
     ? { width: "100%", height: 176, minHeight: 176 }
     : {
         width: 104,
-        height: 132,
+        height: "100%",
         minWidth: 104,
         maxWidth: 104,
         flexBasis: 104,
+        minHeight: 154,
       };
   const label = locationLine(row) || row.title || "Punch list photo";
   const content = row.preview?.previewUrl ? (
@@ -789,14 +794,7 @@ function ImagePreviewModal({ row, onClose }) {
           <Flag className="h-3.5 w-3.5 shrink-0 fill-current" />
           <span>{row.title || row.reason || "Flagged observation"}</span>
         </div>
-        <div className="punch-lightbox-media">
-          <img
-            src={row.preview.previewUrl}
-            alt={locationCodeLine(row) || row.title || "Punch list photo preview"}
-            className="punch-lightbox-image"
-          />
-        </div>
-        <div className="punch-lightbox-footer">
+        <div className="punch-lightbox-meta-strip">
           <div className="min-w-0">{metaLine}</div>
           <div className="punch-lightbox-fields">
             <span className="punch-lightbox-field">
@@ -812,6 +810,13 @@ function ImagePreviewModal({ row, onClose }) {
               </span>
             </span>
           </div>
+        </div>
+        <div className="punch-lightbox-media">
+          <img
+            src={row.preview.previewUrl}
+            alt={locationCodeLine(row) || row.title || "Punch list photo preview"}
+            className="punch-lightbox-image"
+          />
         </div>
       </div>
     </div>
