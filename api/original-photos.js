@@ -249,6 +249,7 @@ async function signedPreviewUrlForPhoto(service, row) {
 }
 
 function publicPhoto(row, previewUrl = null) {
+  const flaggedReason = String(row.reason || "").trim() || null;
   return {
     id: row.id,
     displayName: friendlyPhotoDisplayName(row),
@@ -257,7 +258,9 @@ function publicPhoto(row, previewUrl = null) {
     byteSize: row.byte_size,
     mimeType: originalMimeType(row),
     isFlagged: Boolean(row.is_flagged),
-    flaggedReason: String(row.reason || "").trim() || null,
+    flaggedReason,
+    flagReason: flaggedReason,
+    reason: flaggedReason,
     priority: String(row.priority || "").trim() || null,
     imageWidth: row.image_width,
     imageHeight: row.image_height,
