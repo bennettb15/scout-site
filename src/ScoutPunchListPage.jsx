@@ -9,6 +9,7 @@ import {
   Flag,
   LogOut,
   RefreshCw,
+  X,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 
@@ -81,6 +82,29 @@ function optionLabel(value, labels) {
   return labels[key] || textValue(value) || "General";
 }
 
+function readableToken(value) {
+  return textValue(value)
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function readableDetail(value) {
+  return textValue(value)
+    .replace(/[_-]+/g, " / ")
+    .replace(/\s*\/\s*/g, " / ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function uppercaseLine(parts) {
+  return parts
+    .map(textValue)
+    .filter(Boolean)
+    .join(" | ")
+    .toUpperCase();
+}
+
 function propertyLine(property) {
   if (!property) return "Property";
   const cityState = [property.city, property.state].filter(Boolean).join(", ");
@@ -102,36 +126,41 @@ function propertyOptionLabel(property) {
 
 function locationLine(row) {
   const angle = row.angleIndex ? `A${row.angleIndex}` : "";
-  return [row.building, row.elevation, row.detailType, angle]
-    .map(textValue)
-    .filter(Boolean)
-    .join(" | ");
+  return uppercaseLine([
+    readableToken(row.building),
+    readableToken(row.elevation),
+    readableDetail(row.detailType),
+    angle,
+  ]);
 }
 
 function issueCode(row) {
-  if (row.shotKey) return row.shotKey;
+  if (row.shotKey) return row.shotKey.toUpperCase();
   if (row.angleIndex) return `A${row.angleIndex}`;
   return row.shotId ? row.shotId.slice(0, 8).toUpperCase() : "ISSUE";
 }
 
-function priorityClasses(priority) {
+function locationCodeLine(row) {
+  return locationLine(row) || issueCode(row);
+}
+
+function priorityStyle(priority) {
   switch (String(priority || "").toLowerCase()) {
     case "critical":
-      return "border-red-200 bg-red-50 text-red-800";
+      return { backgroundColor: "#dc2626", borderColor: "#b91c1c", color: "#ffffff" };
     case "high":
-      return "border-orange-200 bg-orange-50 text-orange-800";
+      return { backgroundColor: "#f97316", borderColor: "#ea580c", color: "#ffffff" };
     case "low":
-      return "border-sky-200 bg-sky-50 text-sky-800";
+      return { backgroundColor: "#0ea5e9", borderColor: "#0284c7", color: "#ffffff" };
     case "medium":
     default:
-      return "border-amber-200 bg-amber-50 text-amber-900";
+      return { backgroundColor: "#facc15", borderColor: "#eab308", color: "#422006" };
   }
 }
 
 function statusLabel(status) {
   if (status === "resolved") return "Resolved";
-  if (status === "resolved_pending_verification") return "Pending";
-  return "Open";
+  return "Active";
 }
 
 function sourceLabel(source) {
@@ -158,7 +187,276 @@ function uniqueOptions(rows, getter, labeler) {
   return Array.from(byId.values()).sort((a, b) => a.label.localeCompare(b.label));
 }
 
-function IssueThumbnail({ row, large = false }) {
+const PUNCH_LIST_STYLES = `
+  .punch-filter-row {
+    align-items: end;
+  }
+
+  .punch-refresh-button {
+    flex: 0 0 auto;
+    width: auto;
+  }
+
+  .punch-row {
+    overflow: hidden;
+  }
+
+  .punch-row-body {
+    position: relative;
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr) 168px;
+    align-items: start;
+    gap: 12px;
+    width: 100%;
+    cursor: pointer;
+  }
+
+  .punch-row-left {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
+    width: 96px;
+  }
+
+  .punch-priority-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 88px;
+    min-height: 24px;
+    border: 1px solid;
+    border-radius: 7px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    text-transform: none;
+    white-space: nowrap;
+  }
+
+  .punch-thumbnail {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgb(241 245 249);
+    color: rgb(100 116 139);
+    appearance: none;
+    padding: 0;
+  }
+
+  .punch-thumbnail-button {
+    cursor: zoom-in;
+  }
+
+  .punch-thumbnail img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .punch-row-main {
+    min-width: 0;
+    padding-top: 2px;
+  }
+
+  .punch-location-line {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: rgb(15 23 42);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0;
+    line-height: 1.25;
+  }
+
+  .punch-flag-line {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 6px;
+    color: rgb(220 38 38);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  .punch-flag-line span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .punch-meta-line {
+    margin-top: 7px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: rgb(100 116 139);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+
+  .punch-row-controls {
+    display: grid;
+    gap: 6px;
+    width: 168px;
+  }
+
+  .punch-row-chevron {
+    position: absolute;
+    top: 2px;
+    right: 0;
+  }
+
+  .punch-control {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+  }
+
+  .punch-control-label {
+    color: rgb(100 116 139);
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .punch-control-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border-radius: 7px;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252);
+    padding: 6px 8px;
+    color: rgb(30 41 59);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+    text-align: center;
+  }
+
+  .punch-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.72);
+  }
+
+  .punch-lightbox-panel {
+    position: relative;
+    width: min(980px, 100%);
+    max-height: min(760px, 92vh);
+    border-radius: 10px;
+    background: white;
+    box-shadow: 0 24px 80px rgba(15, 23, 42, 0.35);
+    overflow: hidden;
+  }
+
+  .punch-lightbox-image {
+    display: block;
+    width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+    background: rgb(15 23 42);
+  }
+
+  .punch-lightbox-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    background: rgba(15, 23, 42, 0.7);
+    color: white;
+  }
+
+  @media (max-width: 767px) {
+    .punch-filter-row {
+      align-items: stretch;
+    }
+
+    .punch-filter-row label,
+    .punch-filter-row select {
+      width: 100%;
+      max-width: none;
+    }
+
+    .punch-refresh-button {
+      align-self: flex-start;
+    }
+
+    .punch-row-body {
+      grid-template-columns: 80px minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    .punch-row-left {
+      width: 80px;
+    }
+
+    .punch-priority-badge {
+      width: 76px;
+      min-height: 23px;
+      font-size: 10px;
+    }
+
+    .punch-thumbnail:not(.punch-thumbnail-large) {
+      width: 76px !important;
+      height: 76px !important;
+      min-width: 76px !important;
+      max-width: 76px !important;
+      flex-basis: 76px !important;
+    }
+
+    .punch-row-controls {
+      grid-column: 1 / -1;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      width: 100%;
+      padding-top: 2px;
+    }
+
+    .punch-control {
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
+
+    .punch-control-value {
+      text-align: left;
+    }
+
+    .punch-location-line {
+      font-size: 12px;
+      white-space: normal;
+    }
+
+    .punch-flag-line span,
+    .punch-meta-line {
+      white-space: normal;
+    }
+  }
+`;
+
+function IssueThumbnail({ row, large = false, onPreview }) {
   const sizeClass = large ? "w-full" : "";
   const frameStyle = large
     ? { width: "100%", height: 176, minHeight: 176 }
@@ -171,21 +469,48 @@ function IssueThumbnail({ row, large = false }) {
         aspectRatio: "1 / 1",
       };
   const label = locationLine(row) || row.title || "Punch list photo";
+  const content = row.preview?.previewUrl ? (
+    <img
+      src={row.preview.previewUrl}
+      alt={label}
+      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+    />
+  ) : (
+    <Camera className={large ? "h-8 w-8" : "h-5 w-5"} />
+  );
+  const className = `${sizeClass} punch-thumbnail ${
+    large ? "punch-thumbnail-large" : ""
+  } ${row.preview?.previewUrl && onPreview ? "punch-thumbnail-button" : ""}`;
+
+  if (row.preview?.previewUrl && onPreview) {
+    return (
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onPreview(row);
+        }}
+        className={className}
+        style={frameStyle}
+        aria-label="Open photo preview"
+      >
+        {content}
+      </button>
+    );
+  }
+
   return (
-    <div
-      className={`${sizeClass} flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-slate-100 text-foreground/45`}
-      style={frameStyle}
-    >
-      {row.preview?.previewUrl ? (
-        <img
-          src={row.preview.previewUrl}
-          alt={label}
-          className="h-full w-full object-cover"
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        />
-      ) : (
-        <Camera className={large ? "h-8 w-8" : "h-5 w-5"} />
-      )}
+    <div className={className} style={frameStyle}>
+      {content}
+    </div>
+  );
+}
+
+function ReadOnlyControl({ label, value }) {
+  return (
+    <div className="punch-control" aria-readonly="true">
+      <div className="punch-control-label">{label}</div>
+      <div className="punch-control-value">{value || "None"}</div>
     </div>
   );
 }
@@ -203,7 +528,7 @@ function ReadOnlyField({ label, value }) {
   );
 }
 
-function RowDetail({ row, onDownloadOriginal, downloadId }) {
+function RowDetail({ row, onDownloadOriginal, downloadId, onPreview }) {
   if (!row) {
     return (
       <div className="rounded-lg border border-border bg-background p-5 text-sm text-foreground/60 shadow-sm">
@@ -217,12 +542,11 @@ function RowDetail({ row, onDownloadOriginal, downloadId }) {
 
   return (
     <aside className="rounded-lg border border-border bg-background p-4 shadow-sm">
-      <IssueThumbnail row={row} large />
+      <IssueThumbnail row={row} large onPreview={onPreview} />
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <span
-          className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${priorityClasses(
-            row.priority
-          )}`}
+          className="inline-flex rounded-full border px-3 py-1 text-xs font-semibold"
+          style={priorityStyle(row.priority)}
         >
           {optionLabel(row.priority, PRIORITY_LABELS)}
         </span>
@@ -242,7 +566,7 @@ function RowDetail({ row, onDownloadOriginal, downloadId }) {
       )}
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-        <ReadOnlyField label="Location" value={locationLine(row)} />
+        <ReadOnlyField label="Location" value={locationCodeLine(row)} />
         <ReadOnlyField label="Code" value={issueCode(row)} />
         <ReadOnlyField label="Property" value={propertyLine(row.property)} />
         <ReadOnlyField label="Organization" value={row.org?.name} />
@@ -281,7 +605,7 @@ function RowDetail({ row, onDownloadOriginal, downloadId }) {
   );
 }
 
-function IssueRow({ row, selected, onSelect, onDownloadOriginal, downloadId }) {
+function IssueRow({ row, selected, onSelect, onDownloadOriginal, downloadId, onPreview }) {
   const originalDownload = row.preview?.originalDownload || {};
   const metaLine = [
     propertyLine(row.property),
@@ -290,59 +614,61 @@ function IssueRow({ row, selected, onSelect, onDownloadOriginal, downloadId }) {
   ]
     .filter(Boolean)
     .join(" | ");
+  const flagNote = row.title || row.reason || "Flagged observation";
 
   return (
     <article
-      className={`rounded-lg border bg-background p-3 shadow-sm transition ${
+      className={`punch-row rounded-lg border bg-background p-3 shadow-sm transition ${
         selected ? "border-[var(--brand)] ring-2 ring-[var(--brand)]/10" : "border-border"
       }`}
     >
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onSelect}
-        className="flex w-full gap-3 text-left"
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onSelect();
+          }
+        }}
+        className="punch-row-body text-left outline-none"
         aria-expanded={selected}
       >
-        <IssueThumbnail row={row} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-semibold ${priorityClasses(
-                row.priority
-              )}`}
-            >
-              {optionLabel(row.priority, PRIORITY_LABELS)}
-            </span>
-            <span className="text-xs font-semibold text-foreground/50">
-              {statusLabel(row.status)}
-            </span>
+        <div className="punch-row-left">
+          <span className="punch-priority-badge" style={priorityStyle(row.priority)}>
+            {optionLabel(row.priority, PRIORITY_LABELS)}
+          </span>
+          <IssueThumbnail row={row} onPreview={onPreview} />
+        </div>
+        <div className="punch-row-main">
+          <div className="punch-location-line">
+            {locationCodeLine(row) || "LOCATION NOT SET"}
           </div>
-          <div className="mt-2 truncate text-sm font-bold uppercase tracking-normal text-foreground">
-            {locationLine(row) || "Location not set"} | {issueCode(row)}
+          <div className="punch-flag-line">
+            <Flag className="h-3.5 w-3.5 shrink-0 fill-current" />
+            <span>{flagNote}</span>
           </div>
-          <div className="mt-1 line-clamp-2 text-sm font-semibold text-foreground">
-            <Flag className="mr-1 inline h-3.5 w-3.5 fill-red-600 text-red-600" />
-            {row.title || row.reason || "Flagged observation"}
-          </div>
-          <div className="mt-1 truncate text-xs font-medium text-foreground/55">
+          <div className="punch-meta-line">
             {metaLine}
           </div>
         </div>
+        <div className="punch-row-controls">
+          <ReadOnlyControl label="Status" value={statusLabel(row.status)} />
+          <ReadOnlyControl label="Due Date" value={formatShortDate(row.dueDate || row.dueAt)} />
+          <ReadOnlyControl label="Trade" value={optionLabel(row.trade, TRADE_LABELS)} />
+        </div>
         <ChevronDown
-          className={`mt-1 h-4 w-4 shrink-0 text-foreground/40 transition md:hidden ${
+          className={`punch-row-chevron h-4 w-4 shrink-0 text-foreground/40 transition md:hidden ${
             selected ? "rotate-180" : ""
           }`}
         />
-      </button>
+      </div>
       {selected && (
         <div className="mt-3 grid gap-3 border-t border-border pt-3 md:hidden">
           {row.reason && row.reason !== row.title && (
             <p className="text-sm leading-6 text-foreground/70">{row.reason}</p>
           )}
-          <div className="grid grid-cols-2 gap-2">
-            <ReadOnlyField label="Trade" value={optionLabel(row.trade, TRADE_LABELS)} />
-            <ReadOnlyField label="Updated" value={formatShortDate(row.resolvedAt || row.updatedAt)} />
-          </div>
           <div className="flex flex-wrap gap-2">
             {originalDownload.available && (
               <button
@@ -371,6 +697,44 @@ function IssueRow({ row, selected, onSelect, onDownloadOriginal, downloadId }) {
   );
 }
 
+function ImagePreviewModal({ row, onClose }) {
+  if (!row?.preview?.previewUrl) return null;
+  return (
+    <div
+      className="punch-lightbox"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Punch list photo preview"
+      onClick={onClose}
+    >
+      <div className="punch-lightbox-panel" onClick={(event) => event.stopPropagation()}>
+        <button
+          type="button"
+          className="punch-lightbox-close"
+          onClick={onClose}
+          aria-label="Close photo preview"
+        >
+          <X className="h-5 w-5" />
+        </button>
+        <img
+          src={row.preview.previewUrl}
+          alt={locationCodeLine(row) || row.title || "Punch list photo preview"}
+          className="punch-lightbox-image"
+        />
+        <div className="px-4 py-3">
+          <div className="text-sm font-bold text-foreground">
+            {locationCodeLine(row) || "LOCATION NOT SET"}
+          </div>
+          <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-red-600">
+            <Flag className="h-3.5 w-3.5 fill-current" />
+            <span>{row.title || row.reason || "Flagged observation"}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ScoutPunchListPage() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -387,6 +751,7 @@ export default function ScoutPunchListPage() {
   const [selectedTrade, setSelectedTrade] = useState(ALL);
   const [selectedRowId, setSelectedRowId] = useState("");
   const [downloadId, setDownloadId] = useState("");
+  const [previewRow, setPreviewRow] = useState(null);
 
   useEffect(() => {
     document.title = BRAND.siteTitle;
@@ -452,6 +817,15 @@ export default function ScoutPunchListPage() {
       setPunchListError("");
     }
   }, [session?.access_token]);
+
+  useEffect(() => {
+    if (!previewRow) return undefined;
+    function handleKeyDown(event) {
+      if (event.key === "Escape") setPreviewRow(null);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [previewRow]);
 
   async function handleSignIn(event) {
     event.preventDefault();
@@ -591,6 +965,7 @@ export default function ScoutPunchListPage() {
       style={{ "--brand": BRAND.brandNavy, "--brand-ink": "#23243A" }}
       className="min-h-screen bg-slate-50 text-foreground"
     >
+      <style>{PUNCH_LIST_STYLES}</style>
       <header className="border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 md:px-6">
           <a href="/" className="inline-flex items-center">
@@ -624,7 +999,7 @@ export default function ScoutPunchListPage() {
       </header>
 
       <main className="mx-auto w-full max-w-6xl px-4 py-8 md:px-6">
-        <div className="mb-6 flex flex-col justify-between gap-3 lg:flex-row lg:items-end">
+        <div className="mb-6">
           <div>
             <div className="text-sm font-medium text-[var(--brand)]">
               Client Portal
@@ -633,7 +1008,7 @@ export default function ScoutPunchListPage() {
               Punch List
             </h1>
             {session && (
-              <div className="mt-3 flex flex-wrap items-end gap-2">
+              <div className="punch-filter-row mt-3 flex flex-wrap gap-2">
                 {orgOptions.length > 1 && (
                   <label className="grid gap-1 text-xs font-semibold text-foreground/60">
                     Organization
@@ -699,22 +1074,20 @@ export default function ScoutPunchListPage() {
                     ))}
                   </select>
                 </label>
+                <button
+                  type="button"
+                  onClick={() => loadPunchList()}
+                  disabled={punchListLoading}
+                  className="punch-refresh-button inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 ${punchListLoading ? "animate-spin" : ""}`}
+                  />
+                  Refresh
+                </button>
               </div>
             )}
           </div>
-          {session && (
-            <button
-              type="button"
-              onClick={() => loadPunchList()}
-              disabled={punchListLoading}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${punchListLoading ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </button>
-          )}
         </div>
 
         {authLoading && (
@@ -844,6 +1217,7 @@ export default function ScoutPunchListPage() {
                       onSelect={() => setSelectedRowId(row.id)}
                       onDownloadOriginal={handleDownloadOriginal}
                       downloadId={downloadId}
+                      onPreview={setPreviewRow}
                     />
                   ))}
                 </div>
@@ -853,6 +1227,7 @@ export default function ScoutPunchListPage() {
                       row={selectedRow}
                       onDownloadOriginal={handleDownloadOriginal}
                       downloadId={downloadId}
+                      onPreview={setPreviewRow}
                     />
                   </div>
                 </div>
@@ -861,6 +1236,7 @@ export default function ScoutPunchListPage() {
           </section>
         )}
       </main>
+      <ImagePreviewModal row={previewRow} onClose={() => setPreviewRow(null)} />
     </div>
   );
 }
