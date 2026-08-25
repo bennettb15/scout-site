@@ -225,14 +225,22 @@ export default function PortalAccessAdminPage() {
             />
           </a>
           {session && (
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign Out
-            </button>
+            <div className="flex items-center gap-2">
+              <a
+                href="/reports"
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
+              >
+                Reports
+              </a>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign Out
+              </button>
+            </div>
           )}
         </div>
       </header>
