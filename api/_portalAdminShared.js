@@ -14,6 +14,7 @@ export const DEFAULT_ADMIN_EMAILS = [
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const DEFAULT_INVITE_REDIRECT_URL = "https://www.scoutclear.com/accept-invite";
 
 export function adminEmailSet() {
   const configured = [
@@ -97,13 +98,19 @@ export function inviteRedirectTo(req) {
   const siteUrl = process.env.SCOUT_SITE_URL || process.env.VITE_SITE_URL;
   if (siteUrl) return `${String(siteUrl).replace(/\/$/, "")}/accept-invite`;
 
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}/accept-invite`;
+  if (process.env.VERCEL_ENV === "production") {
+    return DEFAULT_INVITE_REDIRECT_URL;
   }
 
   const proto = req.headers["x-forwarded-proto"] || "https";
   const host = req.headers["x-forwarded-host"] || req.headers.host;
-  return host ? `${proto}://${host}/accept-invite` : undefined;
+  if (host) return `${proto}://${host}/accept-invite`;
+
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}/accept-invite`;
+  }
+
+  return DEFAULT_INVITE_REDIRECT_URL;
 }
 
 export async function findAuthUserByEmail(service, email) {
