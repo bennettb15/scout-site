@@ -154,5 +154,20 @@ export const ShieldCheck = createIcon(
   </>
 );
 export const Sparkles = createIcon(<path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM5 17l.8 2.2L8 20l-2.2.8L5 23l-.8-2.2L2 20l2.2-.8zM19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z" />);
+export const Trash2 = createIcon(
+  <>
+    <path d="M3 6h18" />
+    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    <path d="M10 11v6M14 11v6" />
+  </>
+);
+export const UserPlus = createIcon(
+  <>
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M19 8v6M22 11h-6" />
+  </>
+);
 export const X = createIcon(<path d="M18 6 6 18M6 6l12 12" />);
 export const Zap = createIcon(<path d="M13 2 3 14h8l-1 8 10-12h-8z" />);

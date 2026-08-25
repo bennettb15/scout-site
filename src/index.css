@@ -2,6 +2,8 @@
 
 @source "../index.html";
 @source "./App.jsx";
+@source "./ForgotPasswordPage.jsx";
+@source "./PortalAccessAdminPage.jsx";
 @source "./ResetPasswordPage.jsx";
 @source "./ScoutMarketingSite.jsx";
 @source "./ScoutReportsPortalPage.jsx";

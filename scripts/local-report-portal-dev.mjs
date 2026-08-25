@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import originalPhotoDownloadHandler from "../api/original-photo-download.js";
 import originalPhotosDownloadHandler from "../api/original-photos-download.js";
 import originalPhotosHandler from "../api/original-photos.js";
+import portalAccessAdminHandler from "../api/admin/portal-access.js";
 import reportDownloadHandler from "../api/report-download.js";
 import reportOrgsHandler from "../api/report-orgs.js";
 import reportPackagesHandler from "../api/report-packages.js";
@@ -49,13 +50,10 @@ function loadServiceRoleKey() {
 
 function makeRequest(url, req) {
   const parsed = new URL(url, `http://${req.headers.host || `${HOST}:${API_PORT}`}`);
-  return {
-    ...req,
-    method: req.method,
-    headers: req.headers,
+  return Object.assign(req, {
     query: Object.fromEntries(parsed.searchParams.entries()),
     url: parsed.pathname + parsed.search,
-  };
+  });
 }
 
 function makeResponse(res) {
@@ -142,6 +140,10 @@ const server = createServer(async (req, res) => {
   try {
     if (req.url?.startsWith("/api/report-packages")) {
       await reportPackagesHandler(makeRequest(req.url, req), makeResponse(res));
+      return;
+    }
+    if (req.url?.startsWith("/api/admin/portal-access")) {
+      await portalAccessAdminHandler(makeRequest(req.url, req), makeResponse(res));
       return;
     }
     if (req.url?.startsWith("/api/report-orgs")) {

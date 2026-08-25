@@ -20,13 +20,25 @@ export async function exchangeRecoveryCode(code) {
   return data.session;
 }
 
-export async function verifyRecoveryTokenHash(tokenHash) {
+export async function verifyEmailTokenHash(tokenHash, type = "recovery") {
   const { data, error } = await supabase.auth.verifyOtp({
     token_hash: tokenHash,
-    type: "recovery",
+    type,
   });
   if (error) throw error;
   return data.session;
+}
+
+export async function verifyRecoveryTokenHash(tokenHash) {
+  return verifyEmailTokenHash(tokenHash, "recovery");
+}
+
+export async function requestPasswordReset(email, redirectTo) {
+  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo,
+  });
+  if (error) throw error;
+  return data;
 }
 
 export async function setRecoverySession(accessToken, refreshToken) {

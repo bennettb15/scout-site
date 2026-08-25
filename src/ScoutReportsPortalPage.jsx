@@ -1076,6 +1076,12 @@ export default function ScoutReportsPortalPage() {
             >
               Sign In
             </button>
+            <a
+              href="/forgot-password"
+              className="mt-3 block text-center text-sm font-semibold text-[var(--brand)] hover:underline"
+            >
+              Forgot password?
+            </a>
           </form>
         )}
 

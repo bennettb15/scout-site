@@ -1,0 +1,455 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  LogOut,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
+import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
+
+const BRAND = {
+  siteTitle: "Portal Access Admin | SCOUT",
+  brandNavy: "#1C2742",
+  logos: {
+    wordmarkOnly: "/Scout Only Logo Navy Dark NEW.png",
+  },
+};
+
+function formatDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+function accessLabel(row) {
+  const role = row.role || "viewer";
+  const scope = row.accessScope || "org";
+  return `${role} / ${scope}`;
+}
+
+export default function PortalAccessAdminPage() {
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [adminEmails, setAdminEmails] = useState([]);
+  const [orgs, setOrgs] = useState([]);
+  const [accessRows, setAccessRows] = useState([]);
+  const [selectedOrgId, setSelectedOrgId] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [revokeId, setRevokeId] = useState("");
+
+  useEffect(() => {
+    document.title = BRAND.siteTitle;
+    document.documentElement.style.setProperty("--brand", BRAND.brandNavy);
+    document.documentElement.style.setProperty("--brand-ink", "#23243A");
+  }, []);
+
+  useEffect(() => {
+    if (!hasSupabaseConfig || !supabase) {
+      setAuthLoading(false);
+      return;
+    }
+
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      setSession(data.session || null);
+      setAuthLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession || null);
+    });
+
+    return () => {
+      active = false;
+      subscription?.unsubscribe();
+    };
+  }, []);
+
+  async function loadAccess(activeSession = session) {
+    if (!activeSession?.access_token) return;
+    setLoading(true);
+    setLoadError("");
+    try {
+      const response = await fetch("/api/admin/portal-access", {
+        headers: {
+          Authorization: `Bearer ${activeSession.access_token}`,
+        },
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body.error || "Unable to load portal access.");
+      }
+      setAdminEmails(body.adminEmails || []);
+      setOrgs(body.orgs || []);
+      setAccessRows(body.access || []);
+      if (!selectedOrgId && body.orgs?.[0]?.id) {
+        setSelectedOrgId(body.orgs[0].id);
+      }
+    } catch (error) {
+      setLoadError(error.message || "Unable to load portal access.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (session?.access_token) loadAccess(session);
+  }, [session]);
+
+  async function handleSignIn(event) {
+    event.preventDefault();
+    setAuthError("");
+    if (!hasSupabaseConfig || !supabase) {
+      setAuthError("Supabase is not configured.");
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) setAuthError(error.message || "Unable to sign in.");
+  }
+
+  async function handleSignOut() {
+    await supabase?.auth.signOut();
+  }
+
+  async function handleGrant(event) {
+    event.preventDefault();
+    if (!session?.access_token) return;
+    setSubmitting(true);
+    setActionMessage("");
+    setLoadError("");
+
+    try {
+      const response = await fetch("/api/admin/portal-access", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: clientEmail,
+          orgId: selectedOrgId,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body.error || "Unable to grant portal access.");
+      }
+      setClientEmail("");
+      setActionMessage(
+        body.invited
+          ? `Invited ${body.user.email} and granted ${body.org.name}.`
+          : `Granted ${body.user.email} access to ${body.org.name}.`
+      );
+      await loadAccess();
+    } catch (error) {
+      setLoadError(error.message || "Unable to grant portal access.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRevoke(row) {
+    if (!session?.access_token || !row?.canRevoke) return;
+    setRevokeId(row.id);
+    setActionMessage("");
+    setLoadError("");
+
+    try {
+      const response = await fetch("/api/admin/portal-access", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          orgId: row.orgId,
+          userId: row.userId,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body.error || "Unable to revoke portal access.");
+      }
+      setActionMessage(`Revoked ${row.email} access to ${row.orgName}.`);
+      await loadAccess();
+    } catch (error) {
+      setLoadError(error.message || "Unable to revoke portal access.");
+    } finally {
+      setRevokeId("");
+    }
+  }
+
+  const selectedOrg = useMemo(
+    () => orgs.find((org) => org.id === selectedOrgId) || null,
+    [orgs, selectedOrgId]
+  );
+
+  const visibleRows = useMemo(() => {
+    if (!selectedOrgId) return accessRows;
+    return accessRows.filter((row) => row.orgId === selectedOrgId);
+  }, [accessRows, selectedOrgId]);
+
+  return (
+    <div
+      style={{ "--brand": BRAND.brandNavy, "--brand-ink": "#23243A" }}
+      className="min-h-screen bg-slate-50 text-foreground"
+    >
+      <header className="border-b border-border bg-background/95 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 md:px-6">
+          <a href="/" className="inline-flex items-center">
+            <img
+              src={BRAND.logos.wordmarkOnly}
+              alt="SCOUT"
+              className="h-10 w-auto object-contain md:h-11"
+              loading="eager"
+            />
+          </a>
+          {session && (
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
+            >
+              <LogOut className="h-4 w-4" />
+              Sign Out
+            </button>
+          )}
+        </div>
+      </header>
+
+      <main className="mx-auto w-full max-w-6xl px-4 py-8 md:px-6">
+        <div className="mb-6 flex flex-col justify-between gap-3 md:flex-row md:items-end">
+          <div>
+            <div className="text-sm font-medium text-[var(--brand)]">
+              Admin
+            </div>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
+              Portal Access
+            </h1>
+          </div>
+          {session && (
+            <button
+              type="button"
+              onClick={() => loadAccess()}
+              disabled={loading}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          )}
+        </div>
+
+        {authLoading && (
+          <div className="rounded-lg border border-border bg-background p-6 text-sm text-foreground/70 shadow-sm">
+            Checking session...
+          </div>
+        )}
+
+        {!authLoading && !session && (
+          <form
+            onSubmit={handleSignIn}
+            className="max-w-md rounded-lg border border-border bg-background p-5 shadow-sm"
+          >
+            <div className="text-base font-semibold text-foreground">
+              Sign in
+            </div>
+            <div className="mt-4 grid gap-3">
+              <label className="grid gap-1.5 text-sm font-medium text-foreground">
+                Email
+                <input
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-medium text-foreground">
+                Password
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                />
+              </label>
+            </div>
+            {authError && (
+              <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+                {authError}
+              </p>
+            )}
+            <button
+              type="submit"
+              className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm"
+            >
+              Sign In
+            </button>
+          </form>
+        )}
+
+        {session && (
+          <div className="grid gap-4">
+            <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm text-foreground/70 shadow-sm">
+              Signed in as{" "}
+              <span className="font-semibold text-foreground">
+                {session.user?.email || "authenticated user"}
+              </span>
+              .
+            </div>
+
+            {loadError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                {loadError}
+              </div>
+            )}
+            {actionMessage && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                {actionMessage}
+              </div>
+            )}
+
+            <section className="rounded-lg border border-border bg-background p-5 shadow-sm">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end">
+                <label className="grid flex-1 gap-1.5 text-sm font-medium text-foreground">
+                  Client Email
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    value={clientEmail}
+                    onChange={(event) => setClientEmail(event.target.value)}
+                    className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                  />
+                </label>
+                <label className="grid flex-1 gap-1.5 text-sm font-medium text-foreground">
+                  Organization
+                  <select
+                    value={selectedOrgId}
+                    onChange={(event) => setSelectedOrgId(event.target.value)}
+                    className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                  >
+                    {orgs.map((org) => (
+                      <option key={org.id} value={org.id}>
+                        {org.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleGrant}
+                  disabled={submitting || !clientEmail || !selectedOrgId}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Grant / Invite
+                </button>
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-border bg-background shadow-sm">
+              <div className="flex flex-col justify-between gap-3 border-b border-border px-5 py-4 md:flex-row md:items-center">
+                <div>
+                  <h2 className="text-base font-semibold text-foreground">
+                    {selectedOrg?.name || "Organization"} Access
+                  </h2>
+                  <p className="mt-1 text-sm text-foreground/60">
+                    {visibleRows.length} active user
+                    {visibleRows.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {adminEmails.map((adminEmail) => (
+                    <span
+                      key={adminEmail}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-slate-50 px-2.5 py-1 text-xs font-semibold text-foreground/70"
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5 text-[var(--brand)]" />
+                      {adminEmail}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left text-sm">
+                  <thead className="border-b border-border bg-slate-50 text-xs uppercase text-foreground/55">
+                    <tr>
+                      <th className="px-5 py-3 font-semibold">Email</th>
+                      <th className="px-5 py-3 font-semibold">Access</th>
+                      <th className="px-5 py-3 font-semibold">Created</th>
+                      <th className="px-5 py-3 text-right font-semibold">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleRows.map((row) => (
+                      <tr key={row.id} className="border-b border-border last:border-b-0">
+                        <td className="px-5 py-3 font-medium text-foreground">
+                          {row.email || row.userId}
+                        </td>
+                        <td className="px-5 py-3 text-foreground/70">
+                          {accessLabel(row)}
+                        </td>
+                        <td className="px-5 py-3 text-foreground/70">
+                          {formatDate(row.createdAt)}
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleRevoke(row)}
+                            disabled={!row.canRevoke || revokeId === row.id}
+                            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-red-700 disabled:opacity-45"
+                            title={
+                              row.canRevoke
+                                ? "Revoke access"
+                                : "This access cannot be revoked here"
+                            }
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Revoke
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {visibleRows.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="px-5 py-8 text-center text-sm text-foreground/60"
+                        >
+                          No active access rows.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}

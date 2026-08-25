@@ -1,0 +1,270 @@
+import {
+  adminEmailSet,
+  findAuthUserByEmail,
+  inviteRedirectTo,
+  isApprovedAdminEmail,
+  loadOrg,
+  normalizeEmail,
+  readJsonBody,
+  requirePortalAdmin,
+  validateEmail,
+  validateUuid,
+  ensureUserProfile,
+} from "../_portalAdminShared.js";
+import { sendJson } from "../_reportPortalShared.js";
+
+function userSummary(user) {
+  if (!user) return null;
+  return {
+    id: user.id,
+    email: normalizeEmail(user.email),
+    createdAt: user.created_at,
+    emailConfirmedAt: user.email_confirmed_at || null,
+    lastSignInAt: user.last_sign_in_at || null,
+  };
+}
+
+function membershipSummary(row, profileById, orgById) {
+  const profile = profileById.get(row.user_id) || {};
+  const email = normalizeEmail(profile.email);
+  return {
+    id: row.id,
+    orgId: row.org_id,
+    orgName: orgById.get(row.org_id)?.name || "Organization",
+    userId: row.user_id,
+    email,
+    role: row.role,
+    accessScope: row.access_scope || "org",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    canRevoke:
+      row.role === "viewer" &&
+      (row.access_scope || "org") === "org" &&
+      row.deleted_at === null &&
+      !isApprovedAdminEmail(email),
+  };
+}
+
+async function loadPortalAccess(service) {
+  const [
+    { data: orgRows, error: orgsError },
+    { data: membershipRows, error: membershipsError },
+  ] = await Promise.all([
+    service
+      .from("orgs")
+      .select("id,name")
+      .is("deleted_at", null)
+      .order("name", { ascending: true }),
+    service
+      .from("org_memberships")
+      .select("id,org_id,user_id,role,access_scope,created_at,updated_at,deleted_at")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  if (orgsError || membershipsError) {
+    throw new Error("Unable to load portal access.");
+  }
+
+  const userIds = [...new Set((membershipRows || []).map((row) => row.user_id))];
+  const { data: profileRows, error: profilesError } = userIds.length
+    ? await service
+        .from("users_profile")
+        .select("id,email,full_name,deleted_at")
+        .in("id", userIds)
+    : { data: [], error: null };
+
+  if (profilesError) throw new Error("Unable to load portal users.");
+
+  const orgById = new Map((orgRows || []).map((row) => [row.id, row]));
+  const profileById = new Map((profileRows || []).map((row) => [row.id, row]));
+  const accessRows = (membershipRows || []).map((row) =>
+    membershipSummary(row, profileById, orgById)
+  );
+
+  return {
+    adminEmails: [...adminEmailSet()].sort(),
+    orgs: (orgRows || []).map((row) => ({
+      id: row.id,
+      name: row.name,
+    })),
+    access: accessRows,
+  };
+}
+
+async function handleGet(req, res, context) {
+  try {
+    return sendJson(res, 200, await loadPortalAccess(context.service));
+  } catch {
+    return sendJson(res, 500, { error: "Unable to load portal access." });
+  }
+}
+
+async function ensureInvitedUser(service, email, req) {
+  const existing = await findAuthUserByEmail(service, email);
+  if (existing) {
+    return { user: existing, invited: false };
+  }
+
+  const { data, error } = await service.auth.admin.inviteUserByEmail(email, {
+    redirectTo: inviteRedirectTo(req),
+  });
+  if (error) throw error;
+  if (!data?.user?.id) {
+    throw new Error("Supabase did not return an invited user.");
+  }
+  return { user: data.user, invited: true };
+}
+
+async function grantOrgAccess(req, res, context) {
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body." });
+  }
+
+  const email = validateEmail(body.email);
+  const orgId = validateUuid(body.orgId);
+  if (!email) return sendJson(res, 400, { error: "Valid email is required." });
+  if (!orgId) return sendJson(res, 400, { error: "Valid org ID is required." });
+
+  try {
+    const org = await loadOrg(context.service, orgId);
+    if (!org) return sendJson(res, 404, { error: "Organization not found." });
+
+    const { user, invited } = await ensureInvitedUser(context.service, email, req);
+    await ensureUserProfile(context.service, user, context.user.id);
+
+    const role = isApprovedAdminEmail(email) ? "owner" : "viewer";
+    const { data: existingMembership, error: existingMembershipError } =
+      await context.service
+        .from("org_memberships")
+        .select("id,role,access_scope,deleted_at")
+        .eq("org_id", orgId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+    if (existingMembershipError) throw existingMembershipError;
+    if (
+      existingMembership?.deleted_at === null &&
+      role === "viewer" &&
+      existingMembership.role !== "viewer"
+    ) {
+      return sendJson(res, 400, {
+        error: "Existing non-client org roles cannot be changed here.",
+      });
+    }
+
+    const { data: membership, error: membershipError } = await context.service
+      .from("org_memberships")
+      .upsert(
+        {
+          org_id: orgId,
+          user_id: user.id,
+          role,
+          access_scope: "org",
+          updated_by: context.user.id,
+          deleted_at: null,
+        },
+        { onConflict: "org_id,user_id" }
+      )
+      .select("id,org_id,user_id,role,access_scope,created_at,updated_at,deleted_at")
+      .single();
+
+    if (membershipError) throw membershipError;
+
+    return sendJson(res, 200, {
+      user: userSummary(user),
+      invited,
+      org,
+      membership: {
+        id: membership.id,
+        orgId: membership.org_id,
+        userId: membership.user_id,
+        role: membership.role,
+        accessScope: membership.access_scope || "org",
+        createdAt: membership.created_at,
+        updatedAt: membership.updated_at,
+      },
+    });
+  } catch (error) {
+    return sendJson(res, 500, {
+      error: error.message || "Unable to grant portal access.",
+    });
+  }
+}
+
+async function revokeOrgAccess(req, res, context) {
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body." });
+  }
+
+  const orgId = validateUuid(body.orgId);
+  const userId = validateUuid(body.userId);
+  if (!orgId) return sendJson(res, 400, { error: "Valid org ID is required." });
+  if (!userId) return sendJson(res, 400, { error: "Valid user ID is required." });
+
+  try {
+    const { data: profile, error: profileError } = await context.service
+      .from("users_profile")
+      .select("id,email")
+      .eq("id", userId)
+      .maybeSingle();
+    if (profileError) throw profileError;
+    if (isApprovedAdminEmail(profile?.email)) {
+      return sendJson(res, 400, { error: "Approved admin access cannot be revoked here." });
+    }
+
+    const { data: membership, error: membershipError } = await context.service
+      .from("org_memberships")
+      .select("id,role,access_scope,deleted_at")
+      .eq("org_id", orgId)
+      .eq("user_id", userId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (membershipError) throw membershipError;
+    if (!membership) {
+      return sendJson(res, 404, { error: "Active org access not found." });
+    }
+    if (membership.role !== "viewer" || (membership.access_scope || "org") !== "org") {
+      return sendJson(res, 400, {
+        error: "Only client viewer portal access can be revoked here.",
+      });
+    }
+
+    const { error: revokeError } = await context.service
+      .from("org_memberships")
+      .update({
+        deleted_at: new Date().toISOString(),
+        updated_by: context.user.id,
+      })
+      .eq("id", membership.id)
+      .is("deleted_at", null);
+
+    if (revokeError) throw revokeError;
+    return sendJson(res, 200, { revoked: true });
+  } catch (error) {
+    return sendJson(res, 500, {
+      error: error.message || "Unable to revoke portal access.",
+    });
+  }
+}
+
+export default async function handler(req, res) {
+  const context = await requirePortalAdmin(req, res, [
+    "GET",
+    "POST",
+    "DELETE",
+    "OPTIONS",
+  ]);
+  if (!context) return;
+
+  if (req.method === "GET") return handleGet(req, res, context);
+  if (req.method === "POST") return grantOrgAccess(req, res, context);
+  if (req.method === "DELETE") return revokeOrgAccess(req, res, context);
+}

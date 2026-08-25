@@ -5,11 +5,11 @@ import {
   setRecoverySession,
   supabase,
   updateRecoveryPassword,
-  verifyRecoveryTokenHash,
+  verifyEmailTokenHash,
 } from "./lib/supabaseClient";
 
 const BRAND = {
-  siteTitle: "Reset Password | SCOUT",
+  siteTitle: "Client Portal Password | SCOUT",
   brandNavy: "#1C2742",
   logos: {
     wordmarkOnly: "/Scout Only Logo Navy Dark NEW.png",
@@ -17,6 +17,7 @@ const BRAND = {
 };
 
 const MIN_PASSWORD_LENGTH = 6;
+const REDIRECT_DELAY_MS = 700;
 
 function getRecoveryLinkValues() {
   const query = new URLSearchParams(window.location.search);
@@ -37,17 +38,50 @@ function getRecoveryLinkValues() {
 }
 
 export default function ResetPasswordPage() {
+  const isInvite = window.location.pathname === "/accept-invite";
   const [linkStatus, setLinkStatus] = useState("checking");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const pageCopy = useMemo(
+    () =>
+      isInvite
+        ? {
+            checkingTitle: "Checking Invite Link",
+            checkingBody: "Please wait while we prepare your Client Portal setup.",
+            invalidTitle: "This invite link is no longer valid.",
+            invalidBody: "Ask your SCOUT contact for a new Client Portal invite.",
+            readyTitle: "Set your Client Portal password",
+            readyBody: "Choose a password to finish setting up your report portal account.",
+            button: "Set Password",
+            submitting: "Setting Password...",
+            updatedTitle: "Password Set",
+            updatedBody: "Your Client Portal password is ready.",
+          }
+        : {
+            checkingTitle: "Checking Reset Link",
+            checkingBody: "Please wait while we prepare your password reset.",
+            invalidTitle: "This password reset link is no longer valid.",
+            invalidBody: "Request a new Client Portal password reset link.",
+            readyTitle: "Reset Client Portal password",
+            readyBody: "Choose a new password for your report portal account.",
+            button: "Update Password",
+            submitting: "Updating Password...",
+            updatedTitle: "Password Updated",
+            updatedBody: "Your Client Portal password has been updated.",
+          },
+    [isInvite]
+  );
+
   useEffect(() => {
-    document.title = BRAND.siteTitle;
+    document.title = isInvite
+      ? "Set Client Portal Password | SCOUT"
+      : "Reset Client Portal Password | SCOUT";
     document.documentElement.style.setProperty("--brand", BRAND.brandNavy);
     document.documentElement.style.setProperty("--brand-ink", "#23243A");
-  }, []);
+  }, [isInvite]);
 
   useEffect(() => {
     let isActive = true;
@@ -76,10 +110,12 @@ export default function ResetPasswordPage() {
         let session = null;
 
         if (tokenHash) {
-          if (type !== "recovery") {
-            throw new Error("Unsupported recovery token type.");
+          const expectedType = isInvite ? "invite" : "recovery";
+          const tokenType = type || expectedType;
+          if (tokenType !== expectedType) {
+            throw new Error("Unsupported password token type.");
           }
-          session = await verifyRecoveryTokenHash(tokenHash);
+          session = await verifyEmailTokenHash(tokenHash, tokenType);
         } else if (hashAccessToken && refreshToken) {
           session = await setRecoverySession(hashAccessToken, refreshToken);
         } else if (code) {
@@ -90,7 +126,11 @@ export default function ResetPasswordPage() {
           throw new Error("Missing recovery session.");
         }
 
-        window.history.replaceState(null, "", "/reset-password");
+        window.history.replaceState(
+          null,
+          "",
+          isInvite ? "/accept-invite" : "/reset-password"
+        );
         if (isActive) setLinkStatus("ready");
       } catch {
         if (isActive) setLinkStatus("invalid");
@@ -100,9 +140,13 @@ export default function ResetPasswordPage() {
     const {
       data: { subscription },
     } = supabase?.auth.onAuthStateChange((event, session) => {
-      if (!isActive || event !== "PASSWORD_RECOVERY") return;
+      if (!isActive || !["PASSWORD_RECOVERY", "SIGNED_IN"].includes(event)) return;
       if (session?.access_token) {
-        window.history.replaceState(null, "", "/reset-password");
+        window.history.replaceState(
+          null,
+          "",
+          isInvite ? "/accept-invite" : "/reset-password"
+        );
         setLinkStatus("ready");
       }
     }) || { data: { subscription: null } };
@@ -113,7 +157,7 @@ export default function ResetPasswordPage() {
       isActive = false;
       subscription?.unsubscribe();
     };
-  }, []);
+  }, [isInvite]);
 
   const canSubmit = useMemo(
     () =>
@@ -154,6 +198,9 @@ export default function ResetPasswordPage() {
     try {
       await updateRecoveryPassword(newPassword);
       setLinkStatus("updated");
+      window.setTimeout(() => {
+        window.location.assign("/reports");
+      }, REDIRECT_DELAY_MS);
     } catch (error) {
       setFormError(error.message || "Unable to update your password.");
     } finally {
@@ -194,10 +241,10 @@ export default function ResetPasswordPage() {
               <>
                 <div className="mx-auto mb-5 h-12 w-12 animate-pulse rounded-2xl bg-[var(--brand)]" />
                 <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-                  Checking Reset Link
+                  {pageCopy.checkingTitle}
                 </h1>
                 <p className="mt-4 text-base leading-relaxed text-foreground/75 md:text-lg">
-                  Please wait while we prepare your password reset.
+                  {pageCopy.checkingBody}
                 </p>
               </>
             )}
@@ -205,16 +252,16 @@ export default function ResetPasswordPage() {
             {linkStatus === "missing-config" && (
               <MessageState
                 icon="!"
-                title="Password Reset Is Not Configured"
-                body="This page needs the public ScoutCapture Supabase settings before password resets can be completed."
+                title="Client Portal Password Setup Is Not Configured"
+                body="This page needs the public SCOUT portal settings before passwords can be completed."
               />
             )}
 
             {linkStatus === "invalid" && (
               <MessageState
                 icon="!"
-                title="This password reset link is no longer valid."
-                body="Return to ScoutCapture and request a new password reset email."
+                title={pageCopy.invalidTitle}
+                body={pageCopy.invalidBody}
               />
             )}
 
@@ -225,11 +272,11 @@ export default function ResetPasswordPage() {
                 </div>
 
                 <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-                  Reset Password
+                  {pageCopy.readyTitle}
                 </h1>
 
                 <p className="mt-4 text-base leading-relaxed text-foreground/75 md:text-lg">
-                  Choose a new password for your ScoutCapture account.
+                  {pageCopy.readyBody}
                 </p>
 
                 <form
@@ -271,7 +318,7 @@ export default function ResetPasswordPage() {
                     disabled={!canSubmit}
                     className="mt-1 inline-flex h-12 items-center justify-center rounded-xl bg-[var(--brand)] px-5 text-base font-semibold text-white shadow-sm transition hover:bg-[var(--brand)]/92 disabled:cursor-not-allowed disabled:opacity-55"
                   >
-                    {isSubmitting ? "Updating Password..." : "Update Password"}
+                    {isSubmitting ? pageCopy.submitting : pageCopy.button}
                   </button>
                 </form>
               </>
@@ -280,9 +327,9 @@ export default function ResetPasswordPage() {
             {linkStatus === "updated" && (
               <MessageState
                 icon="✓"
-                title="Password Updated"
-                body="Your ScoutCapture password has been updated successfully."
-                secondaryBody="You can now return to ScoutCapture and sign in with your new password."
+                title={pageCopy.updatedTitle}
+                body={pageCopy.updatedBody}
+                secondaryBody="Opening your reports..."
               />
             )}
           </div>
