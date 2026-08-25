@@ -1096,19 +1096,6 @@ export default function ScoutReportsPortalPage() {
 
             {propertyGroups.map((group) => (
               <div key={group.id} className="grid gap-3">
-                {propertyGroups.length > 1 && (
-                  <div className="px-1">
-                    <div className="text-sm font-semibold text-foreground">
-                      {propertyLine(group.property)}
-                    </div>
-                    {group.org?.name && (
-                      <div className="mt-0.5 text-xs text-foreground/55">
-                        {group.org.name}
-                      </div>
-                    )}
-                  </div>
-                )}
-
                 {group.packages.map((reportPackage) => (
                   <article
                     key={reportPackage.id}
