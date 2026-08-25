@@ -261,12 +261,18 @@ function buildSnapshotPhotoMetadata(rawSession) {
   const byShotId = new Map();
   const byStoragePath = new Map();
   const byFilename = new Map();
+  const rows = [];
 
   shots.forEach((shot, index) => {
     const shotId = snapshotShotId(shot);
+    const issueId = snapshotIssueId(shot);
     const storagePath = snapshotStoragePath(shot);
     const filename = snapshotOriginalFilename(shot);
     const metadata = {
+      shot_id: shotId || null,
+      issue_id: issueId || null,
+      storage_path: storagePath,
+      original_filename: filename,
       building: textValue(shot?.building),
       elevation: textValue(shot?.elevation || shot?.targetElevation),
       detail_type: textValue(shot?.detailType || shot?.detail_type || shot?.type),
@@ -282,9 +288,10 @@ function buildSnapshotPhotoMetadata(rawSession) {
     if (shotId) byShotId.set(shotId, metadata);
     if (storagePath) byStoragePath.set(storagePath.toLowerCase(), metadata);
     if (filename) byFilename.set(filename.toLowerCase(), metadata);
+    rows.push(metadata);
   });
 
-  return { byShotId, byStoragePath, byFilename };
+  return { byShotId, byStoragePath, byFilename, rows };
 }
 
 export async function loadSnapshotPhotoMetadata(service, reportPackage) {

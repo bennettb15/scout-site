@@ -22,6 +22,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/punch-list",
+      "destination": "/index.html"
+    },
+    {
       "source": "/admin/portal-access",
       "destination": "/index.html"
     }

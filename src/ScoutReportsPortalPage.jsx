@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   Download,
   Flag,
   FileText,
@@ -971,6 +972,13 @@ export default function ScoutReportsPortalPage() {
           </a>
           {session && (
             <div className="flex items-center gap-2">
+              <a
+                href="/punch-list"
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
+              >
+                <ClipboardList className="h-4 w-4" />
+                Punch List
+              </a>
               {canOpenAdmin && (
                 <a
                   href="/admin/portal-access"
