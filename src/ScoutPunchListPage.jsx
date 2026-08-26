@@ -123,6 +123,14 @@ const TRADE_LABELS = {
   sitework: "Sitework",
   steel: "Steel",
 };
+const ELEVATION_ORDER = ["interior", "north", "south", "east", "west"];
+const ELEVATION_LABELS = {
+  interior: "Interior",
+  north: "North",
+  south: "South",
+  east: "East",
+  west: "West",
+};
 
 function formatDateTime(value) {
   if (!value) return "";
@@ -199,6 +207,29 @@ function readableDetail(value) {
     .replace(/\s*\/\s*/g, " / ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizedOptionId(value) {
+  return readableToken(value).toLowerCase();
+}
+
+function readableDetailLabel(value) {
+  return readableDetail(value).toUpperCase();
+}
+
+function elevationLabel(value) {
+  const key = normalizedOptionId(value);
+  return ELEVATION_LABELS[key] || readableToken(value);
+}
+
+function elevationOptionCompare(left, right) {
+  const leftIndex = ELEVATION_ORDER.indexOf(left.id);
+  const rightIndex = ELEVATION_ORDER.indexOf(right.id);
+  const leftKnown = leftIndex >= 0;
+  const rightKnown = rightIndex >= 0;
+  if (leftKnown && rightKnown && leftIndex !== rightIndex) return leftIndex - rightIndex;
+  if (leftKnown !== rightKnown) return leftKnown ? -1 : 1;
+  return left.label.localeCompare(right.label);
 }
 
 function uppercaseLine(parts) {
@@ -348,6 +379,22 @@ function uniqueOptions(rows, getter, labeler) {
   return Array.from(byId.values()).sort((a, b) => a.label.localeCompare(b.label));
 }
 
+function uniqueNormalizedOptions(rows, getter, labeler, sorter) {
+  const byId = new Map();
+  for (const row of rows) {
+    const rawValue = getter(row);
+    const id = normalizedOptionId(rawValue);
+    if (id && !byId.has(id)) {
+      byId.set(id, {
+        id,
+        label: labeler ? labeler(rawValue) : readableToken(rawValue),
+        value: rawValue,
+      });
+    }
+  }
+  return Array.from(byId.values()).sort(sorter || ((a, b) => a.label.localeCompare(b.label)));
+}
+
 function orgOption(org) {
   return {
     id: org.id,
@@ -378,15 +425,36 @@ const PUNCH_LIST_STYLES = `
     align-items: end;
   }
 
+  .punch-filter-control {
+    flex: 0 1 142px;
+    min-width: 124px;
+  }
+
+  .punch-filter-property {
+    flex: 1 1 260px;
+    min-width: 220px;
+    max-width: 360px;
+  }
+
+  .punch-filter-detail {
+    flex: 0 1 176px;
+    min-width: 148px;
+  }
+
+  .punch-filter-row select {
+    width: 100%;
+  }
+
   .punch-refresh-button {
     flex: 0 0 auto;
-    min-width: 122px;
+    min-width: 144px;
     width: auto;
   }
 
   .punch-refresh-cluster {
     display: flex;
     align-items: center;
+    align-self: end;
     gap: 8px;
     margin-left: auto;
   }
@@ -1129,6 +1197,8 @@ export default function ScoutPunchListPage() {
   const [selectedPropertyId, setSelectedPropertyId] = useState(ALL);
   const [selectedPriority, setSelectedPriority] = useState(ALL);
   const [selectedTrade, setSelectedTrade] = useState(ALL);
+  const [selectedElevation, setSelectedElevation] = useState(ALL);
+  const [selectedDetail, setSelectedDetail] = useState(ALL);
   const [selectedRowId, setSelectedRowId] = useState("");
   const [downloadId, setDownloadId] = useState("");
   const [previewRow, setPreviewRow] = useState(null);
@@ -1334,6 +1404,8 @@ export default function ScoutPunchListPage() {
       setAllPropertyOptions([]);
       setSelectedOrgId("");
       setSelectedPropertyId("");
+      setSelectedElevation(ALL);
+      setSelectedDetail(ALL);
       setLoadedRowsScope({ orgId: "", propertyId: "" });
       setLastRefreshedAt(null);
       setPunchListError("");
@@ -1388,6 +1460,8 @@ export default function ScoutPunchListPage() {
     setAllPropertyOptions([]);
     setSelectedOrgId("");
     setSelectedPropertyId("");
+    setSelectedElevation(ALL);
+    setSelectedDetail(ALL);
     setLoadedRowsScope({ orgId: "", propertyId: "" });
     setLastRefreshedAt(null);
     setManualRefreshing(false);
@@ -1506,6 +1580,39 @@ export default function ScoutPunchListPage() {
     [orgFilteredRows]
   );
 
+  const elevationOptions = useMemo(
+    () =>
+      uniqueNormalizedOptions(
+        orgFilteredRows,
+        (row) => row.elevation,
+        elevationLabel,
+        elevationOptionCompare
+      ),
+    [orgFilteredRows]
+  );
+
+  const detailOptions = useMemo(
+    () =>
+      uniqueNormalizedOptions(
+        orgFilteredRows,
+        (row) => row.detailType,
+        readableDetailLabel
+      ),
+    [orgFilteredRows]
+  );
+
+  useEffect(() => {
+    if (selectedElevation !== ALL && !elevationOptions.some((option) => option.id === selectedElevation)) {
+      setSelectedElevation(ALL);
+    }
+  }, [elevationOptions, selectedElevation]);
+
+  useEffect(() => {
+    if (selectedDetail !== ALL && !detailOptions.some((option) => option.id === selectedDetail)) {
+      setSelectedDetail(ALL);
+    }
+  }, [detailOptions, selectedDetail]);
+
   const tabRows = useMemo(() => {
     const wantsResolved = selectedTab === TAB_RESOLVED;
     return orgFilteredRows.filter((row) =>
@@ -1518,9 +1625,11 @@ export default function ScoutPunchListPage() {
       if (displayedPropertyId !== ALL && row.property?.id !== displayedPropertyId) return false;
       if (selectedPriority !== ALL && row.priority !== selectedPriority) return false;
       if (selectedTrade !== ALL && row.trade !== selectedTrade) return false;
+      if (selectedElevation !== ALL && normalizedOptionId(row.elevation) !== selectedElevation) return false;
+      if (selectedDetail !== ALL && normalizedOptionId(row.detailType) !== selectedDetail) return false;
       return true;
     });
-  }, [displayedPropertyId, selectedPriority, selectedTrade, tabRows]);
+  }, [displayedPropertyId, selectedDetail, selectedElevation, selectedPriority, selectedTrade, tabRows]);
 
   useEffect(() => {
     if (filteredRows.length === 0) {
@@ -1601,7 +1710,7 @@ export default function ScoutPunchListPage() {
             {session && (
               <div className="punch-filter-row mt-3 flex flex-wrap gap-2">
                 {orgOptions.length > 1 && (
-                  <label className="grid gap-1 text-xs font-semibold text-foreground/60">
+                  <label className="punch-filter-control grid gap-1 text-xs font-semibold text-foreground/60">
                     Organization
                     <select
                       value={selectedOrgId}
@@ -1611,6 +1720,8 @@ export default function ScoutPunchListPage() {
                         prepareRowsForScope(nextOrgId, nextPropertyId);
                         setSelectedOrgId(nextOrgId);
                         setSelectedPropertyId(nextPropertyId);
+                        setSelectedElevation(ALL);
+                        setSelectedDetail(ALL);
                       }}
                       className="h-9 max-w-[220px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
                     >
@@ -1622,7 +1733,7 @@ export default function ScoutPunchListPage() {
                     </select>
                   </label>
                 )}
-                <label className="grid gap-1 text-xs font-semibold text-foreground/60">
+                <label className="punch-filter-property grid gap-1 text-xs font-semibold text-foreground/60">
                   Property
                   <select
                     value={propertySelectValue}
@@ -1630,6 +1741,8 @@ export default function ScoutPunchListPage() {
                       const nextPropertyId = event.target.value;
                       prepareRowsForScope(selectedOrgId, nextPropertyId);
                       setSelectedPropertyId(nextPropertyId);
+                      setSelectedElevation(ALL);
+                      setSelectedDetail(ALL);
                     }}
                     disabled={filtersLoading || propertyOptions.length === 0}
                     className="h-9 max-w-[280px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
@@ -1647,7 +1760,37 @@ export default function ScoutPunchListPage() {
                     ))}
                   </select>
                 </label>
-                <label className="grid gap-1 text-xs font-semibold text-foreground/60">
+                <label className="punch-filter-control grid gap-1 text-xs font-semibold text-foreground/60">
+                  Elevation
+                  <select
+                    value={selectedElevation}
+                    onChange={(event) => setSelectedElevation(event.target.value)}
+                    className="h-9 rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                  >
+                    <option value={ALL}>All Elevations</option>
+                    {elevationOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="punch-filter-detail grid gap-1 text-xs font-semibold text-foreground/60">
+                  Detail
+                  <select
+                    value={selectedDetail}
+                    onChange={(event) => setSelectedDetail(event.target.value)}
+                    className="h-9 rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                  >
+                    <option value={ALL}>All Details</option>
+                    {detailOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="punch-filter-control grid gap-1 text-xs font-semibold text-foreground/60">
                   Priority
                   <select
                     value={selectedPriority}
@@ -1662,7 +1805,7 @@ export default function ScoutPunchListPage() {
                     ))}
                   </select>
                 </label>
-                <label className="grid gap-1 text-xs font-semibold text-foreground/60">
+                <label className="punch-filter-control grid gap-1 text-xs font-semibold text-foreground/60">
                   Trade
                   <select
                     value={selectedTrade}
