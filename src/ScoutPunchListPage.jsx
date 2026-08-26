@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Camera,
   ChevronDown,
@@ -24,6 +24,81 @@ const BRAND = {
 const ALL = "all";
 const TAB_OPEN = "open";
 const TAB_RESOLVED = "resolved";
+const PUNCH_CACHE_TTL_MS = 3 * 60 * 1000;
+
+const punchListFilterCache = new Map();
+const punchListRowsCache = new Map();
+const punchListViewCache = new Map();
+
+function cacheGet(cache, key) {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function cacheSet(cache, key, value) {
+  cache.set(key, {
+    value,
+    expiresAt: Date.now() + PUNCH_CACHE_TTL_MS,
+  });
+}
+
+function clearPunchListCaches() {
+  punchListFilterCache.clear();
+  punchListRowsCache.clear();
+  punchListViewCache.clear();
+}
+
+function sessionCacheScope(session) {
+  return session?.user?.id || session?.user?.email || "anonymous";
+}
+
+function normalizedCacheValue(value) {
+  return value || ALL;
+}
+
+function buildFilterCacheKey(session) {
+  return [sessionCacheScope(session), "filters"].join("|");
+}
+
+function buildRowsScopeKey(session, orgId, propertyId) {
+  return [
+    sessionCacheScope(session),
+    "rows",
+    normalizedCacheValue(orgId),
+    normalizedCacheValue(propertyId),
+  ].join("|");
+}
+
+function buildRowsFilterKey(session, orgId, propertyId, tab, priority, trade) {
+  return [
+    sessionCacheScope(session),
+    "view",
+    normalizedCacheValue(orgId),
+    normalizedCacheValue(propertyId),
+    normalizedCacheValue(tab),
+    normalizedCacheValue(priority),
+    normalizedCacheValue(trade),
+  ].join("|");
+}
+
+function clearViewCacheForRowsScope(session, orgId, propertyId) {
+  const prefix = [
+    sessionCacheScope(session),
+    "view",
+    normalizedCacheValue(orgId),
+    normalizedCacheValue(propertyId),
+  ].join("|");
+  for (const key of punchListViewCache.keys()) {
+    if (key === prefix || key.startsWith(`${prefix}|`)) {
+      punchListViewCache.delete(key);
+    }
+  }
+}
 
 const PRIORITY_LABELS = {
   critical: "Critical",
@@ -1029,6 +1104,8 @@ export default function ScoutPunchListPage() {
   const [selectedRowId, setSelectedRowId] = useState("");
   const [downloadId, setDownloadId] = useState("");
   const [previewRow, setPreviewRow] = useState(null);
+  const [loadedFromCache, setLoadedFromCache] = useState(false);
+  const sessionScopeRef = useRef("");
 
   useEffect(() => {
     document.title = BRAND.siteTitle;
@@ -1061,8 +1138,42 @@ export default function ScoutPunchListPage() {
     };
   }, []);
 
-  async function loadPunchListFilters(activeSession = session) {
+  function applyPunchListFilterBody(body) {
+    const nextOrgOptions = body.orgs.map(orgOption);
+    const nextPropertyOptions = body.properties
+      .map(propertyOption)
+      .sort((left, right) => left.label.localeCompare(right.label));
+    const nextOrgId = nextOrgOptions.some((option) => option.id === selectedOrgId)
+      ? selectedOrgId
+      : nextOrgOptions[0]?.id || "";
+    const orgProperties = propertyOptionsForOrg(nextPropertyOptions, nextOrgId);
+    const selectedPropertyStillAvailable =
+      selectedPropertyId !== ALL &&
+      orgProperties.some((option) => option.id === selectedPropertyId);
+    const nextPropertyId = selectedPropertyStillAvailable
+      ? selectedPropertyId
+      : defaultPropertyIdForOrg(nextPropertyOptions, nextOrgId);
+
+    setOrgOptions(nextOrgOptions);
+    setAllPropertyOptions(nextPropertyOptions);
+    setSelectedOrgId(nextOrgId);
+    setSelectedPropertyId(nextPropertyId);
+    setFiltersReady(true);
+  }
+
+  async function loadPunchListFilters(activeSession = session, { force = false } = {}) {
     if (!activeSession?.access_token) return;
+    const cacheKey = buildFilterCacheKey(activeSession);
+    if (!force) {
+      const cachedFilters = cacheGet(punchListFilterCache, cacheKey);
+      if (cachedFilters) {
+        setPunchListError("");
+        setFiltersLoading(false);
+        setFiltersReady(false);
+        applyPunchListFilterBody(cachedFilters);
+        return;
+      }
+    }
     setFiltersLoading(true);
     setFiltersReady(false);
     setPunchListError("");
@@ -1077,26 +1188,12 @@ export default function ScoutPunchListPage() {
         throw new Error(body.error || "Unable to load punch list filters.");
       }
 
-      const nextOrgOptions = body.orgs.map(orgOption);
-      const nextPropertyOptions = body.properties
-        .map(propertyOption)
-        .sort((left, right) => left.label.localeCompare(right.label));
-      const nextOrgId = nextOrgOptions.some((option) => option.id === selectedOrgId)
-        ? selectedOrgId
-        : nextOrgOptions[0]?.id || "";
-      const orgProperties = propertyOptionsForOrg(nextPropertyOptions, nextOrgId);
-      const selectedPropertyStillAvailable =
-        selectedPropertyId !== ALL &&
-        orgProperties.some((option) => option.id === selectedPropertyId);
-      const nextPropertyId = selectedPropertyStillAvailable
-        ? selectedPropertyId
-        : defaultPropertyIdForOrg(nextPropertyOptions, nextOrgId);
-
-      setOrgOptions(nextOrgOptions);
-      setAllPropertyOptions(nextPropertyOptions);
-      setSelectedOrgId(nextOrgId);
-      setSelectedPropertyId(nextPropertyId);
-      setFiltersReady(true);
+      const filterBody = {
+        orgs: body.orgs,
+        properties: body.properties,
+      };
+      cacheSet(punchListFilterCache, cacheKey, filterBody);
+      applyPunchListFilterBody(filterBody);
     } catch (error) {
       setPunchListError(error.message || "Unable to load punch list filters.");
       setOrgOptions([]);
@@ -1110,16 +1207,48 @@ export default function ScoutPunchListPage() {
     }
   }
 
-  async function loadPunchList(activeSession = session) {
+  async function loadPunchList(activeSession = session, { force = false } = {}) {
     if (!activeSession?.access_token) return;
     if (!selectedOrgId) {
       setRows([]);
+      setLoadedFromCache(false);
       return;
     }
     const selectedOrgProperties = propertyOptionsForOrg(allPropertyOptions, selectedOrgId);
     if (filtersReady && selectedOrgProperties.length === 0) {
       setRows([]);
+      setLoadedFromCache(false);
       return;
+    }
+    const propertyScope = selectedPropertyId && selectedPropertyId !== ALL ? selectedPropertyId : ALL;
+    const rowsScopeKey = buildRowsScopeKey(activeSession, selectedOrgId, propertyScope);
+    const rowsFilterKey = buildRowsFilterKey(
+      activeSession,
+      selectedOrgId,
+      propertyScope,
+      selectedTab,
+      selectedPriority,
+      selectedTrade
+    );
+    if (!force) {
+      const cachedViewRows = cacheGet(punchListViewCache, rowsFilterKey);
+      if (cachedViewRows) {
+        setPunchListError("");
+        setPunchListLoading(false);
+        setLoadedFromCache(true);
+        setRows(cachedViewRows);
+        return;
+      }
+
+      const cachedRows = cacheGet(punchListRowsCache, rowsScopeKey);
+      if (cachedRows) {
+        cacheSet(punchListViewCache, rowsFilterKey, cachedRows);
+        setPunchListError("");
+        setPunchListLoading(false);
+        setLoadedFromCache(true);
+        setRows(cachedRows);
+        return;
+      }
     }
     setPunchListLoading(true);
     setPunchListError("");
@@ -1137,14 +1266,32 @@ export default function ScoutPunchListPage() {
       if (!response.ok || !Array.isArray(body.rows)) {
         throw new Error(body.error || "Unable to load punch list.");
       }
+      clearViewCacheForRowsScope(activeSession, selectedOrgId, propertyScope);
+      cacheSet(punchListRowsCache, rowsScopeKey, body.rows);
+      cacheSet(punchListViewCache, rowsFilterKey, body.rows);
+      setLoadedFromCache(false);
       setRows(body.rows);
     } catch (error) {
       setPunchListError(error.message || "Unable to load punch list.");
       setRows([]);
+      setLoadedFromCache(false);
     } finally {
       setPunchListLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (!session?.access_token) {
+      clearPunchListCaches();
+      sessionScopeRef.current = "";
+      return;
+    }
+    const nextScope = sessionCacheScope(session);
+    if (sessionScopeRef.current && sessionScopeRef.current !== nextScope) {
+      clearPunchListCaches();
+    }
+    sessionScopeRef.current = nextScope;
+  }, [session?.access_token, session?.user?.email, session?.user?.id]);
 
   useEffect(() => {
     if (session?.access_token) {
@@ -1157,13 +1304,23 @@ export default function ScoutPunchListPage() {
       setSelectedPropertyId("");
       setPunchListError("");
       setFiltersReady(false);
+      setLoadedFromCache(false);
     }
   }, [session?.access_token]);
 
   useEffect(() => {
     if (!session?.access_token || !filtersReady || filtersLoading) return;
     loadPunchList(session);
-  }, [session?.access_token, filtersReady, filtersLoading, selectedOrgId, selectedPropertyId]);
+  }, [
+    session?.access_token,
+    filtersReady,
+    filtersLoading,
+    selectedOrgId,
+    selectedPropertyId,
+    selectedTab,
+    selectedPriority,
+    selectedTrade,
+  ]);
 
   useEffect(() => {
     if (!previewRow) return undefined;
@@ -1191,12 +1348,14 @@ export default function ScoutPunchListPage() {
   }
 
   async function handleSignOut() {
+    clearPunchListCaches();
     await supabase?.auth.signOut();
     setRows([]);
     setOrgOptions([]);
     setAllPropertyOptions([]);
     setSelectedOrgId("");
     setSelectedPropertyId("");
+    setLoadedFromCache(false);
   }
 
   async function handleDownloadOriginal(row) {
@@ -1370,6 +1529,7 @@ export default function ScoutPunchListPage() {
                         setSelectedOrgId(nextOrgId);
                         setSelectedPropertyId(defaultPropertyIdForOrg(allPropertyOptions, nextOrgId));
                         setRows([]);
+                        setLoadedFromCache(false);
                       }}
                       className="h-9 max-w-[220px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
                     >
@@ -1388,6 +1548,7 @@ export default function ScoutPunchListPage() {
                     onChange={(event) => {
                       setSelectedPropertyId(event.target.value);
                       setRows([]);
+                      setLoadedFromCache(false);
                     }}
                     disabled={filtersLoading || propertyOptions.length === 0}
                     className="h-9 max-w-[280px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
@@ -1437,7 +1598,7 @@ export default function ScoutPunchListPage() {
                 </label>
                 <button
                   type="button"
-                  onClick={() => loadPunchList()}
+                  onClick={() => loadPunchList(session, { force: true })}
                   disabled={punchListLoading || filtersLoading || !selectedOrgId}
                   className="punch-refresh-button inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
                 >
@@ -1516,6 +1677,9 @@ export default function ScoutPunchListPage() {
                   {session.user?.email || "authenticated user"}
                 </span>
                 . {compactCount(filteredRows.length, "visible issue")}.
+                {loadedFromCache && (
+                  <span className="text-foreground/50"> Cached briefly; Refresh gets latest.</span>
+                )}
               </div>
               <div className="inline-flex w-fit rounded-lg border border-border bg-slate-50 p-1">
                 <button
