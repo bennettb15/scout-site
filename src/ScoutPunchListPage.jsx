@@ -660,6 +660,31 @@ const PUNCH_LIST_STYLES = `
     white-space: nowrap;
   }
 
+  .punch-row-note-button {
+    display: inline-flex;
+    height: 26px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    margin-left: 6px;
+    border-radius: 7px;
+    border: 1px solid rgb(203 213 225);
+    background: white;
+    padding: 0 8px;
+    color: rgb(28 39 66);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  }
+
+  .punch-row-note-area {
+    border-top: 1px solid rgb(226 232 240);
+    margin-top: 12px;
+    padding-top: 12px;
+  }
+
   .punch-row-controls {
     display: grid;
     align-content: start;
@@ -1076,6 +1101,7 @@ const PUNCH_LIST_STYLES = `
     .punch-flag-line {
       margin-top: 10px;
       margin-bottom: 0;
+      flex-wrap: wrap;
     }
 
     .punch-property-line,
@@ -1334,12 +1360,22 @@ function IssueRow({
   selected,
   onSelect,
   onPreview,
+  notePanelOpen,
+  onToggleNotePanel,
   noteDraft,
   onNoteDraftChange,
   onAddNote,
   noteSaving,
 }) {
   const flagNote = row.title || row.reason || "Flagged observation";
+  const notes = activityNotes(row);
+  const canAddNote = Boolean(row.permissions?.canAddNote);
+  const showNoteButton = canAddNote || notes.length > 0;
+  const noteButtonLabel = canAddNote
+    ? notes.length > 0
+      ? `Add Note (${notes.length})`
+      : "Add Note"
+    : `Notes (${notes.length})`;
 
   return (
     <article
@@ -1368,6 +1404,19 @@ function IssueRow({
           <div className="punch-flag-line">
             <Flag className="h-3.5 w-3.5 shrink-0 fill-current" />
             <span>{flagNote}</span>
+            {showNoteButton && (
+              <button
+                type="button"
+                className="punch-row-note-button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggleNotePanel(row.id);
+                }}
+              >
+                <FileText className="h-3.5 w-3.5" />
+                {noteButtonLabel}
+              </button>
+            )}
           </div>
         </div>
         <div className="punch-row-controls">
@@ -1385,8 +1434,8 @@ function IssueRow({
           <ReadOnlyControl label="Trade" value={optionLabel(row.trade, TRADE_LABELS)} />
         </div>
       </div>
-      {selected && (
-        <div className="mt-3 grid gap-3 border-t border-border pt-3 md:hidden">
+      {(selected || notePanelOpen) && (
+        <div className={`punch-row-note-area grid gap-3 ${notePanelOpen ? "" : "md:hidden"}`}>
           {row.reason && row.reason !== row.title && (
             <p className="text-sm leading-6 text-foreground/70">{row.reason}</p>
           )}
@@ -1481,6 +1530,7 @@ export default function ScoutPunchListPage() {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [noteDrafts, setNoteDrafts] = useState({});
   const [noteSavingId, setNoteSavingId] = useState("");
+  const [activeNoteRowId, setActiveNoteRowId] = useState("");
   const sessionScopeRef = useRef("");
   const filterRequestRef = useRef(0);
   const bootstrapTokenRef = useRef("");
@@ -1706,6 +1756,7 @@ export default function ScoutPunchListPage() {
         setPunchListError("");
         setNoteDrafts({});
         setNoteSavingId("");
+        setActiveNoteRowId("");
         setFiltersReady(false);
       }
       bootstrapTokenRef.current = nextBootstrapScope;
@@ -1725,6 +1776,7 @@ export default function ScoutPunchListPage() {
       setPunchListError("");
       setNoteDrafts({});
       setNoteSavingId("");
+      setActiveNoteRowId("");
       setFiltersReady(false);
     }
   }, [session?.access_token]);
@@ -1790,6 +1842,7 @@ export default function ScoutPunchListPage() {
     setManualRefreshing(false);
     setNoteDrafts({});
     setNoteSavingId("");
+    setActiveNoteRowId("");
   }
 
   async function handleRefresh() {
@@ -1806,6 +1859,11 @@ export default function ScoutPunchListPage() {
       ...current,
       [rowId]: value,
     }));
+  }
+
+  function handleToggleNotePanel(rowId) {
+    setSelectedRowId(rowId);
+    setActiveNoteRowId((current) => (current === rowId ? "" : rowId));
   }
 
   async function handleAddNote(row, note) {
@@ -2002,12 +2060,16 @@ export default function ScoutPunchListPage() {
   useEffect(() => {
     if (filteredRows.length === 0) {
       if (selectedRowId) setSelectedRowId("");
+      if (activeNoteRowId) setActiveNoteRowId("");
       return;
     }
     if (!selectedRowId || !filteredRows.some((row) => row.id === selectedRowId)) {
       setSelectedRowId(filteredRows[0].id);
     }
-  }, [filteredRows, selectedRowId]);
+    if (activeNoteRowId && !filteredRows.some((row) => row.id === activeNoteRowId)) {
+      setActiveNoteRowId("");
+    }
+  }, [activeNoteRowId, filteredRows, selectedRowId]);
 
   const selectedRow = useMemo(
     () => filteredRows.find((row) => row.id === selectedRowId) || null,
@@ -2385,6 +2447,8 @@ export default function ScoutPunchListPage() {
                       selected={row.id === selectedRowId}
                       onSelect={() => setSelectedRowId(row.id)}
                       onPreview={setPreviewRow}
+                      notePanelOpen={activeNoteRowId === row.id}
+                      onToggleNotePanel={handleToggleNotePanel}
                       noteDraft={noteDrafts[row.id] || ""}
                       onNoteDraftChange={handleNoteDraftChange}
                       onAddNote={handleAddNote}
