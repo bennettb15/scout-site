@@ -107,6 +107,16 @@ const PRIORITY_LABELS = {
   medium: "Medium",
   low: "Low",
 };
+const PRIORITY_OPTIONS = [
+  { id: "critical", label: "Critical" },
+  { id: "high", label: "High" },
+  { id: "medium", label: "Medium" },
+  { id: "low", label: "Low" },
+];
+const STATUS_OPTIONS = [
+  { id: "active", label: "Active" },
+  { id: "resolved", label: "Resolved" },
+];
 
 const TRADE_LABELS = {
   carpentry: "Carpentry",
@@ -153,6 +163,30 @@ function formatShortDate(value) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
+  }).format(date);
+}
+
+function localDateFromDateOnly(value) {
+  const match = textValue(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function todayDateOnly() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDueDate(value) {
+  const date = localDateFromDateOnly(value);
+  if (!date || Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   }).format(date);
 }
 
@@ -351,6 +385,19 @@ function statusStyle(status) {
   return { backgroundColor: "#fef2f2", borderColor: "#fecaca", color: "#b91c1c" };
 }
 
+function dueDateStyle(value, status) {
+  const dateOnly = textValue(value);
+  if (!dateOnly || status === "resolved") return undefined;
+  const today = todayDateOnly();
+  if (dateOnly < today) {
+    return { backgroundColor: "#fef2f2", borderColor: "#fecaca", color: "#b91c1c" };
+  }
+  if (dateOnly === today) {
+    return { backgroundColor: "#fffbeb", borderColor: "#fde68a", color: "#92400e" };
+  }
+  return undefined;
+}
+
 function statusLabel(status) {
   if (status === "resolved") return "Resolved";
   return "Active";
@@ -436,6 +483,26 @@ function canAddNoteToRow(row) {
   if (row?.source === "observation") return Boolean(row?.observationId && rowAllowsNotes);
   if (row?.source === "flagged_shot") return Boolean(row?.shotId && rowAllowsNotes);
   return false;
+}
+
+function canEditWorkflowForRow(row) {
+  const rowAllowsWorkflow = Boolean(row?.permissions?.canEditWorkflow || row?.canEditWorkflow);
+  if (row?.source === "observation") return Boolean(row?.observationId && rowAllowsWorkflow);
+  if (row?.source === "flagged_shot") return Boolean(row?.shotId && rowAllowsWorkflow);
+  return false;
+}
+
+function tradeOptionsForRow(row, options) {
+  const byId = new Map();
+  byId.set("general", { id: "general", label: "General" });
+  for (const option of options || []) {
+    if (option?.id) byId.set(option.id, option);
+  }
+  const rowTrade = textValue(row?.trade);
+  if (rowTrade && !byId.has(rowTrade)) {
+    byId.set(rowTrade, { id: rowTrade, label: optionLabel(rowTrade, TRADE_LABELS) });
+  }
+  return Array.from(byId.values()).sort((left, right) => left.label.localeCompare(right.label));
 }
 
 function noteUnavailableMessage(row) {
@@ -747,6 +814,81 @@ const PUNCH_LIST_STYLES = `
     font-weight: 800;
     line-height: 1;
     text-align: center;
+  }
+
+  .punch-control-input {
+    width: 100%;
+    min-width: 0;
+    height: 28px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border-radius: 7px;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252);
+    padding: 0 8px;
+    color: rgb(30 41 59);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+    text-align: center;
+    outline: none;
+  }
+
+  .punch-control-input:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 2px rgba(28, 39, 66, 0.12);
+  }
+
+  .punch-control-input:disabled {
+    cursor: wait;
+    opacity: 0.65;
+  }
+
+  .punch-date-control {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 26px;
+    gap: 4px;
+  }
+
+  .punch-date-control.is-empty {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .punch-date-control.is-empty::after {
+    content: "None";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    color: rgb(30 41 59);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .punch-date-control.is-empty .punch-control-input {
+    color: transparent;
+  }
+
+  .punch-date-clear {
+    display: inline-flex;
+    height: 28px;
+    width: 26px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    border: 1px solid rgb(226 232 240);
+    background: white;
+    color: rgb(71 85 105);
+  }
+
+  .punch-date-clear:hover {
+    border-color: rgb(248 113 113);
+    color: rgb(185 28 28);
   }
 
   .punch-notes-panel {
@@ -1241,6 +1383,89 @@ function ReadOnlyControl({ label, value, style }) {
   );
 }
 
+function WorkflowControl({
+  row,
+  field,
+  label,
+  value,
+  displayValue,
+  style,
+  type = "select",
+  options = [],
+  canEdit,
+  saving,
+  onChange,
+}) {
+  if (!canEdit) {
+    return <ReadOnlyControl label={label} value={displayValue || value} style={style} />;
+  }
+
+  function handleChange(nextValue) {
+    if (saving) return;
+    onChange(row, field, nextValue);
+  }
+
+  if (type === "date") {
+    const dateValue = textValue(value);
+    const isEmpty = !dateValue;
+    return (
+      <div className="punch-control">
+        <div className="punch-control-label">{label}</div>
+        <div className={`punch-date-control ${isEmpty ? "is-empty" : ""}`}>
+          <input
+            type="date"
+            value={dateValue}
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+            onChange={(event) => handleChange(event.target.value)}
+            disabled={saving}
+            className="punch-control-input"
+            style={style}
+            aria-label={`Set ${label}`}
+          />
+          {!isEmpty && (
+            <button
+              type="button"
+              className="punch-date-clear"
+              onClick={(event) => {
+                event.stopPropagation();
+                handleChange(null);
+              }}
+              disabled={saving}
+              aria-label={`Clear ${label}`}
+              title={`Clear ${label}`}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <label className="punch-control">
+      <span className="punch-control-label">{label}</span>
+      <select
+        value={value}
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+        onChange={(event) => handleChange(event.target.value)}
+        disabled={saving}
+        className="punch-control-input"
+        style={style}
+        aria-label={label}
+      >
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function ReadOnlyField({ label, value }) {
   return (
     <div className="rounded-lg border border-border bg-slate-50 px-3 py-2">
@@ -1439,6 +1664,9 @@ function IssueRow({
   selected,
   onSelect,
   onPreview,
+  tradeOptions,
+  onWorkflowChange,
+  workflowSavingKey,
   notePanelOpen,
   onToggleNotePanel,
   noteDraft,
@@ -1451,8 +1679,12 @@ function IssueRow({
   const flagNote = row.title || row.reason || "Flagged observation";
   const notes = activityNotes(row);
   const canAddNote = canAddNoteToRow(row);
+  const canEditWorkflow = canEditWorkflowForRow(row);
   const showNoteButton = canAddNote || notes.length > 0;
   const noteButtonLabel = notes.length > 0 ? `Notes (${notes.length})` : "Add Note";
+  const tradeValue = row.trade || "general";
+  const dueDateValue = row.dueDate || "";
+  const workflowTradeOptions = tradeOptionsForRow(row, tradeOptions);
 
   return (
     <article
@@ -1497,18 +1729,53 @@ function IssueRow({
           </div>
         </div>
         <div className="punch-row-controls">
-          <ReadOnlyControl
+          <WorkflowControl
+            row={row}
+            field="priority"
             label="Priority"
-            value={optionLabel(row.priority, PRIORITY_LABELS)}
+            value={row.priority || "medium"}
+            displayValue={optionLabel(row.priority, PRIORITY_LABELS)}
+            options={PRIORITY_OPTIONS}
             style={priorityStyle(row.priority)}
+            canEdit={canEditWorkflow}
+            saving={workflowSavingKey === `${row.id}:priority`}
+            onChange={onWorkflowChange}
           />
-          <ReadOnlyControl
+          <WorkflowControl
+            row={row}
+            field="status"
             label="Status"
-            value={statusLabel(row.status)}
+            value={row.status === "resolved" ? "resolved" : "active"}
+            displayValue={statusLabel(row.status)}
+            options={STATUS_OPTIONS}
             style={statusStyle(row.status)}
+            canEdit={canEditWorkflow}
+            saving={workflowSavingKey === `${row.id}:status`}
+            onChange={onWorkflowChange}
           />
-          <ReadOnlyControl label="Due Date" value={formatShortDate(row.dueDate || row.dueAt)} />
-          <ReadOnlyControl label="Trade" value={optionLabel(row.trade, TRADE_LABELS)} />
+          <WorkflowControl
+            row={row}
+            field="dueDate"
+            label="Due Date"
+            value={dueDateValue}
+            displayValue={formatDueDate(dueDateValue) || "None"}
+            type="date"
+            style={dueDateStyle(dueDateValue, row.status)}
+            canEdit={canEditWorkflow}
+            saving={workflowSavingKey === `${row.id}:dueDate`}
+            onChange={onWorkflowChange}
+          />
+          <WorkflowControl
+            row={row}
+            field="trade"
+            label="Trade"
+            value={tradeValue}
+            displayValue={optionLabel(row.trade, TRADE_LABELS)}
+            options={workflowTradeOptions}
+            canEdit={canEditWorkflow}
+            saving={workflowSavingKey === `${row.id}:trade`}
+            onChange={onWorkflowChange}
+          />
         </div>
       </div>
       {(selected || notePanelOpen) && (
@@ -1610,6 +1877,7 @@ export default function ScoutPunchListPage() {
   const [noteDrafts, setNoteDrafts] = useState({});
   const [noteSavingId, setNoteSavingId] = useState("");
   const [noteDeletingId, setNoteDeletingId] = useState("");
+  const [workflowSavingKey, setWorkflowSavingKey] = useState("");
   const [activeNoteRowId, setActiveNoteRowId] = useState("");
   const sessionScopeRef = useRef("");
   const filterRequestRef = useRef(0);
@@ -1837,6 +2105,7 @@ export default function ScoutPunchListPage() {
         setNoteDrafts({});
         setNoteSavingId("");
         setNoteDeletingId("");
+        setWorkflowSavingKey("");
         setActiveNoteRowId("");
         setFiltersReady(false);
       }
@@ -1858,6 +2127,7 @@ export default function ScoutPunchListPage() {
       setNoteDrafts({});
       setNoteSavingId("");
       setNoteDeletingId("");
+      setWorkflowSavingKey("");
       setActiveNoteRowId("");
       setFiltersReady(false);
     }
@@ -1925,6 +2195,7 @@ export default function ScoutPunchListPage() {
     setNoteDrafts({});
     setNoteSavingId("");
     setNoteDeletingId("");
+    setWorkflowSavingKey("");
     setActiveNoteRowId("");
   }
 
@@ -1947,6 +2218,39 @@ export default function ScoutPunchListPage() {
   function handleToggleNotePanel(rowId) {
     setSelectedRowId(rowId);
     setActiveNoteRowId((current) => (current === rowId ? "" : rowId));
+  }
+
+  async function handleWorkflowChange(row, field, value) {
+    if (!session?.access_token || !canEditWorkflowForRow(row)) return;
+    const saveKey = `${row.id}:${field}`;
+    setWorkflowSavingKey(saveKey);
+    setPunchListError("");
+    try {
+      const response = await fetch("/api/punch-list", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          observationId: row.observationId,
+          shotId: row.observationId ? null : row.shotId,
+          packageId: row.observationId ? null : row.packageId,
+          field,
+          value,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.updated) {
+        throw new Error(body.error || "Unable to update punch list field.");
+      }
+      clearPunchListCaches();
+      await loadPunchList(session, { force: true });
+    } catch (error) {
+      setPunchListError(error.message || "Unable to update punch list field.");
+    } finally {
+      setWorkflowSavingKey("");
+    }
   }
 
   async function handleAddNote(row, note) {
@@ -2563,6 +2867,9 @@ export default function ScoutPunchListPage() {
                       selected={row.id === selectedRowId}
                       onSelect={() => setSelectedRowId(row.id)}
                       onPreview={setPreviewRow}
+                      tradeOptions={tradeOptions}
+                      onWorkflowChange={handleWorkflowChange}
+                      workflowSavingKey={workflowSavingKey}
                       notePanelOpen={activeNoteRowId === row.id}
                       onToggleNotePanel={handleToggleNotePanel}
                       noteDraft={noteDrafts[row.id] || ""}

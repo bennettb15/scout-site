@@ -31,6 +31,19 @@ const MAX_ACTIVITY_ROWS = 1000;
 const MAX_NOTE_LENGTH = 1000;
 const ALL_VALUE = "all";
 const NOTE_WRITER_ROLES = ["viewer", "field"];
+const WORKFLOW_EDITOR_ROLES = ["field"];
+const WORKFLOW_ACTIVITY_FIELD_BY_TYPE = {
+  priority_changed: "priority",
+  status_changed: "status",
+  due_date_changed: "dueDate",
+  trade_changed: "trade",
+};
+const WORKFLOW_ACTIVITY_TYPE_BY_FIELD = {
+  priority: "priority_changed",
+  status: "status_changed",
+  dueDate: "due_date_changed",
+  trade: "trade_changed",
+};
 const FIELD_REVIEW_ELEVATION_ORDER = ["front", "north", "east", "south", "west", "rear"];
 const NATURAL_COLLATOR = new Intl.Collator("en-US", {
   numeric: true,
@@ -123,9 +136,6 @@ function unique(values) {
 function normalizedStatus(value) {
   const text = keyValue(value);
   if (text === "resolved" || text === "closed") return "resolved";
-  if (text === "resolved_pending_verification" || text === "pending") {
-    return "resolved_pending_verification";
-  }
   return "active";
 }
 
@@ -137,6 +147,25 @@ function normalizedPriority(value) {
 
 function normalizedTrade(value) {
   return keyValue(value) || "general";
+}
+
+function normalizedDateOnly(value) {
+  const text = compactText(value);
+  if (!text) return null;
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return text;
 }
 
 function scopeId(req, name) {
@@ -364,6 +393,40 @@ function activityRowsForObservation(activityByObservationId, observationId) {
   return activityByObservationId.get(observationId) || [];
 }
 
+function workflowStateFromActivity(rows) {
+  const state = {};
+  for (const row of rows || []) {
+    const field = WORKFLOW_ACTIVITY_FIELD_BY_TYPE[row?.activity_type];
+    if (!field || Object.prototype.hasOwnProperty.call(state, field)) continue;
+    if (field === "priority") {
+      state[field] = normalizedPriority(row.to_value);
+    } else if (field === "status") {
+      state[field] = normalizedStatus(row.to_value);
+    } else if (field === "dueDate") {
+      state[field] = normalizedDateOnly(row.to_value);
+    } else if (field === "trade") {
+      state[field] = normalizedTrade(row.to_value);
+    }
+  }
+  return state;
+}
+
+function baseWorkflowState({ observation, update, shot }) {
+  return {
+    priority: normalizedPriority(observation?.priority || update?.priority || shot?.priority),
+    status: normalizedStatus(update?.status || observation?.status || shot?.issue_status),
+    dueDate: null,
+    trade: normalizedTrade(observation?.trade || update?.trade || shot?.trade),
+  };
+}
+
+function workflowOverride(workflowState, field, fallback) {
+  if (workflowState && Object.prototype.hasOwnProperty.call(workflowState, field)) {
+    return workflowState[field];
+  }
+  return fallback;
+}
+
 function rowTitle(...values) {
   return values.map(compactText).find(Boolean) || "Flagged observation";
 }
@@ -373,6 +436,8 @@ function publicObservationRow({
   update,
   activity,
   canAddNote,
+  canEditWorkflow,
+  workflowState,
   shot,
   org,
   property,
@@ -380,15 +445,18 @@ function publicObservationRow({
   reportPackage,
   previewUrl,
 }) {
-  const status = normalizedStatus(update?.status || observation.status || shot?.issue_status);
+  const baseState = baseWorkflowState({ observation, update, shot });
+  const status = workflowOverride(workflowState, "status", baseState.status);
   const title = rowTitle(observation.title, update?.message, shot?.reason, observation.detail);
   const noteEditable = Boolean(canAddNote);
+  const workflowEditable = Boolean(canEditWorkflow);
   return {
     id: `observation:${observation.id}`,
     source: "observation",
     observationId: observation.id,
     canAddNote: noteEditable,
-    isEditable: noteEditable,
+    canEditWorkflow: workflowEditable,
+    isEditable: noteEditable || workflowEditable,
     issueId: shot?.issue_id || null,
     org,
     property,
@@ -396,8 +464,9 @@ function publicObservationRow({
     shotId: shot?.id || observation.shot_id || null,
     packageId: reportPackage?.id || null,
     status,
-    priority: normalizedPriority(observation.priority || update?.priority || shot?.priority),
-    trade: normalizedTrade(observation.trade || update?.trade || shot?.trade),
+    priority: workflowOverride(workflowState, "priority", baseState.priority),
+    trade: workflowOverride(workflowState, "trade", baseState.trade),
+    dueDate: workflowOverride(workflowState, "dueDate", baseState.dueDate),
     title,
     reason: compactText(observation.detail || update?.note || shot?.reason) || title,
     building: compactText(shot?.building),
@@ -413,20 +482,23 @@ function publicObservationRow({
     activity,
     permissions: {
       canAddNote: noteEditable,
+      canEditWorkflow: workflowEditable,
     },
   };
 }
 
-function publicShotRow({ shot, org, property, session, reportPackage, previewUrl, canAddNote }) {
+function publicShotRow({ shot, org, property, session, reportPackage, previewUrl, canAddNote, canEditWorkflow }) {
   const status = normalizedStatus(shot.issue_status);
   const title = rowTitle(shot.reason);
   const noteEditable = Boolean(canAddNote);
+  const workflowEditable = Boolean(canEditWorkflow);
   return {
     id: `shot:${shot.id}`,
     source: "flagged_shot",
     observationId: null,
     canAddNote: noteEditable,
-    isEditable: noteEditable,
+    canEditWorkflow: workflowEditable,
+    isEditable: noteEditable || workflowEditable,
     issueId: shot.issue_id || null,
     org,
     property,
@@ -436,6 +508,7 @@ function publicShotRow({ shot, org, property, session, reportPackage, previewUrl
     status,
     priority: normalizedPriority(shot.priority),
     trade: normalizedTrade(shot.trade),
+    dueDate: null,
     title,
     reason: compactText(shot.reason) || title,
     building: compactText(shot.building),
@@ -451,6 +524,7 @@ function publicShotRow({ shot, org, property, session, reportPackage, previewUrl
     activity: [],
     permissions: {
       canAddNote: noteEditable,
+      canEditWorkflow: workflowEditable,
     },
   };
 }
@@ -489,6 +563,40 @@ async function noteWriterOrgIdSet(auth, orgIds) {
   );
 }
 
+async function loadWorkflowEditorMembership(auth, orgId) {
+  const { data, error } = await auth.client
+    .from("org_memberships")
+    .select("id,role,access_scope,deleted_at")
+    .eq("org_id", orgId)
+    .eq("user_id", auth.user.id)
+    .in("role", WORKFLOW_EDITOR_ROLES)
+    .is("deleted_at", null);
+
+  if (error) return null;
+  return (data || []).find((row) => (row.access_scope || "org") === "org") || null;
+}
+
+async function workflowEditorOrgIdSet(auth, orgIds) {
+  const ids = unique(orgIds).filter(Boolean);
+  if (ids.length === 0) return new Set();
+  if (isApprovedAdminEmail(auth.user?.email)) return new Set(ids);
+
+  const { data, error } = await auth.client
+    .from("org_memberships")
+    .select("org_id,role,access_scope,deleted_at")
+    .in("org_id", ids)
+    .eq("user_id", auth.user.id)
+    .in("role", WORKFLOW_EDITOR_ROLES)
+    .is("deleted_at", null);
+
+  if (error) return new Set();
+  return new Set(
+    (data || [])
+      .filter((row) => (row.access_scope || "org") === "org")
+      .map((row) => row.org_id)
+  );
+}
+
 function validateNoteText(value) {
   const note = compactText(value);
   if (!note) {
@@ -502,6 +610,52 @@ function validateNoteText(value) {
     throw error;
   }
   return note;
+}
+
+function workflowFieldName(value) {
+  const text = String(value || "").trim();
+  if (text === "dueDate" || text === "due_date") return "dueDate";
+  if (["priority", "status", "trade"].includes(text)) return text;
+  return "";
+}
+
+function validateWorkflowValue(field, value) {
+  if (field === "priority") {
+    const priority = keyValue(value);
+    if (["critical", "high", "medium", "low"].includes(priority)) return priority;
+    const error = new Error("Priority must be Critical, High, Medium, or Low.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (field === "status") {
+    const status = keyValue(value);
+    if (["active", "resolved"].includes(status)) return status;
+    const error = new Error("Status must be Active or Resolved.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (field === "dueDate") {
+    if (value == null || compactText(value) === "") return null;
+    const dueDate = normalizedDateOnly(value);
+    if (dueDate) return dueDate;
+    const error = new Error("Due date must be a valid date.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (field === "trade") {
+    const trade = normalizedTrade(value);
+    if (/^[a-z0-9][a-z0-9 _/-]{0,60}$/.test(trade)) return trade;
+    const error = new Error("Trade is not valid.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const error = new Error("Editable punch list field is required.");
+  error.statusCode = 400;
+  throw error;
 }
 
 function isFlaggedShot(row) {
@@ -619,6 +773,11 @@ async function canWritePunchListNotes(auth, orgId) {
   return Boolean(await loadNoteWriterMembership(auth, orgId));
 }
 
+async function canEditPunchListWorkflow(auth, orgId) {
+  if (isApprovedAdminEmail(auth.user?.email)) return true;
+  return Boolean(await loadWorkflowEditorMembership(auth, orgId));
+}
+
 async function resolveNoteObservation(auth, service, { observationId, shotId, packageId }) {
   if (observationId) {
     const { data: observation, error: observationError } = await auth.client
@@ -666,6 +825,74 @@ async function resolveNoteObservation(auth, service, { observationId, shotId, pa
 
   const existing = await findExistingObservationForShot(service, shot);
   return existing || createObservationForFallbackShot(service, auth, shot);
+}
+
+async function resolveWorkflowObservation(auth, service, { observationId, shotId, packageId }) {
+  if (observationId) {
+    const { data: observation, error: observationError } = await auth.client
+      .from("observations")
+      .select(safeObservationSelect())
+      .eq("id", observationId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (observationError) {
+      const error = new Error("Unable to load punch list item.");
+      error.statusCode = 500;
+      throw error;
+    }
+    if (!observation) {
+      const error = new Error("Punch list item not found.");
+      error.statusCode = 404;
+      throw error;
+    }
+    if (!(await canEditPunchListWorkflow(auth, observation.org_id))) {
+      const error = new Error("Field User access is required to edit workflow fields.");
+      error.statusCode = 403;
+      throw error;
+    }
+    return observation;
+  }
+
+  if (!shotId) {
+    const error = new Error("Valid observation or shot ID is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const shot = await loadAccessibleFallbackShot(auth, service, shotId, packageId);
+  if (!shot) {
+    const error = new Error("Punch list photo not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+  if (!(await canEditPunchListWorkflow(auth, shot.org_id))) {
+    const error = new Error("Field User access is required to edit workflow fields.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const existing = await findExistingObservationForShot(service, shot);
+  return existing || createObservationForFallbackShot(service, auth, shot);
+}
+
+async function workflowStateForObservation(service, observationId) {
+  const { data, error } = await service
+    .from("punchlist_activity")
+    .select("activity_type,to_value,created_at,deleted_at")
+    .eq("observation_id", observationId)
+    .in("activity_type", Object.keys(WORKFLOW_ACTIVITY_FIELD_BY_TYPE))
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) return {};
+  return workflowStateFromActivity(data || []);
+}
+
+function workflowValueForField({ observation, workflowState }, field) {
+  const baseState = baseWorkflowState({ observation, update: null, shot: null });
+  return workflowOverride(workflowState, field, baseState[field]) || null;
 }
 
 async function handleAddNote(req, res) {
@@ -727,6 +954,85 @@ async function handleAddNote(req, res) {
     });
   } catch (error) {
     return sendJson(res, error.statusCode || 500, { error: error.message || "Unable to add note." });
+  }
+}
+
+async function handleUpdateWorkflowField(req, res) {
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body." });
+  }
+
+  const observationId = validateUuid(body.observationId);
+  const shotId = validateUuid(body.shotId);
+  const packageId = validateUuid(body.packageId);
+  const field = workflowFieldName(body.field);
+  if (!observationId && !shotId) {
+    return sendJson(res, 400, { error: "Valid observation or shot ID is required." });
+  }
+  if (!field) {
+    return sendJson(res, 400, { error: "Editable punch list field is required." });
+  }
+
+  let nextValue;
+  try {
+    nextValue = validateWorkflowValue(field, body.value);
+  } catch (error) {
+    return sendJson(res, error.statusCode || 400, { error: error.message });
+  }
+
+  try {
+    const auth = await authenticateRequest(req);
+    if (auth.error) return sendJson(res, 401, { error: auth.error });
+
+    const service = createServiceClient();
+    await ensureUserProfile(service, auth.user, auth.user.id);
+    const observation = await resolveWorkflowObservation(auth, service, { observationId, shotId, packageId });
+    const workflowState = await workflowStateForObservation(service, observation.id);
+    const currentValue = workflowValueForField({ observation, workflowState }, field);
+    if ((currentValue || null) === (nextValue || null)) {
+      return sendJson(res, 200, {
+        updated: true,
+        unchanged: true,
+        observationId: observation.id,
+      });
+    }
+
+    const activityType = WORKFLOW_ACTIVITY_TYPE_BY_FIELD[field];
+    const { data: activity, error: activityError } = await service
+      .from("punchlist_activity")
+      .insert({
+        org_id: observation.org_id,
+        property_id: observation.property_id,
+        observation_id: observation.id,
+        shot_id: observation.shot_id || null,
+        activity_type: activityType,
+        from_value: currentValue || null,
+        to_value: nextValue || null,
+        note: null,
+        created_by: auth.user.id,
+        deleted_at: null,
+      })
+      .select("id,activity_type,from_value,to_value,note,created_by,created_at")
+      .single();
+
+    if (activityError) {
+      return sendJson(res, 500, {
+        error: "Unable to update workflow field. Punch list activity may need to be configured.",
+      });
+    }
+
+    return sendJson(res, 200, {
+      updated: true,
+      activity: publicActivityRow(activity),
+      observationId: observation.id,
+    });
+  } catch (error) {
+    return sendJson(res, error.statusCode || 500, {
+      error: error.message || "Unable to update workflow field.",
+    });
   }
 }
 
@@ -852,10 +1158,13 @@ async function handleFilters(req, res) {
 }
 
 export default async function handler(req, res) {
-  if (!methodAllowed(req, res, ["GET", "POST", "DELETE", "OPTIONS"])) return;
+  if (!methodAllowed(req, res, ["GET", "POST", "PATCH", "DELETE", "OPTIONS"])) return;
 
   if (req.method === "POST") {
     return handleAddNote(req, res);
+  }
+  if (req.method === "PATCH") {
+    return handleUpdateWorkflowField(req, res);
   }
   if (req.method === "DELETE") {
     return handleDeleteNote(req, res);
@@ -1025,6 +1334,7 @@ export default async function handler(req, res) {
     const propertyById = new Map((propertyRows || []).map((row) => [row.id, toProperty(row)]));
     const sessionById = new Map((sessionRows || []).map((row) => [row.id, toSession(row)]));
     const noteWriterOrgIds = await noteWriterOrgIdSet(auth, orgIds);
+    const workflowEditorOrgIds = await workflowEditorOrgIdSet(auth, orgIds);
     const adminAllowed = isApprovedAdminEmail(auth.user?.email);
     const latestUpdateByObservationId = new Map();
     for (const update of observationUpdates) {
@@ -1033,7 +1343,15 @@ export default async function handler(req, res) {
       }
     }
     const activityByObservationId = new Map();
+    const workflowActivityByObservationId = new Map();
     for (const activityRow of punchListActivity) {
+      const workflowField = WORKFLOW_ACTIVITY_FIELD_BY_TYPE[activityRow.activity_type];
+      if (workflowField) {
+        const rows = workflowActivityByObservationId.get(activityRow.observation_id) || [];
+        rows.push(activityRow);
+        workflowActivityByObservationId.set(activityRow.observation_id, rows);
+        continue;
+      }
       if (activityRow.activity_type !== "note_added") continue;
       const publicRow = publicActivityRow(activityRow, {
         canDelete:
@@ -1066,6 +1384,10 @@ export default async function handler(req, res) {
         update: latestUpdateByObservationId.get(observation.id) || null,
         activity: activityRowsForObservation(activityByObservationId, observation.id),
         canAddNote: noteWriterOrgIds.has(observation.org_id),
+        canEditWorkflow: workflowEditorOrgIds.has(observation.org_id),
+        workflowState: workflowStateFromActivity(
+          activityRowsForObservation(workflowActivityByObservationId, observation.id)
+        ),
         shot,
         org: orgById.get(observation.org_id) || null,
         property: propertyById.get(observation.property_id || shot?.property_id) || null,
@@ -1106,6 +1428,7 @@ export default async function handler(req, res) {
         reportPackage,
         previewUrl: await previewForShot(shot),
         canAddNote: noteWriterOrgIds.has(shot.org_id),
+        canEditWorkflow: workflowEditorOrgIds.has(shot.org_id),
       });
       addDedupKeys(dedupKeys, row);
       rows.push(row);
