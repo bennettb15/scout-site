@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Camera,
   ChevronDown,
@@ -366,8 +366,16 @@ function defaultPropertyIdForOrg(options, orgId) {
 }
 
 const PUNCH_LIST_STYLES = `
+  .punch-page-shell {
+    min-height: 100vh;
+  }
+
   .punch-filter-row {
     align-items: end;
+  }
+
+  .punch-results {
+    min-height: max(420px, calc(100vh - 260px));
   }
 
   .punch-refresh-button {
@@ -1107,6 +1115,15 @@ export default function ScoutPunchListPage() {
   const [loadedFromCache, setLoadedFromCache] = useState(false);
   const sessionScopeRef = useRef("");
 
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const previousScrollbarGutter = root.style.scrollbarGutter;
+    root.style.scrollbarGutter = "stable";
+    return () => {
+      root.style.scrollbarGutter = previousScrollbarGutter;
+    };
+  }, []);
+
   useEffect(() => {
     document.title = BRAND.siteTitle;
     document.documentElement.style.setProperty("--brand", BRAND.brandNavy);
@@ -1473,7 +1490,7 @@ export default function ScoutPunchListPage() {
   return (
     <div
       style={{ "--brand": BRAND.brandNavy, "--brand-ink": "#23243A" }}
-      className="min-h-screen bg-slate-50 text-foreground"
+      className="punch-page-shell bg-slate-50 text-foreground"
     >
       <style>{PUNCH_LIST_STYLES}</style>
       <header className="border-b border-border bg-background/95 backdrop-blur">
@@ -1669,7 +1686,7 @@ export default function ScoutPunchListPage() {
         )}
 
         {session && (
-          <section className="grid gap-4">
+          <section className="punch-results grid gap-4">
             <div className="flex flex-col gap-3 rounded-lg border border-border bg-background px-4 py-3 shadow-sm md:flex-row md:items-center md:justify-between">
               <div className="text-sm text-foreground/70">
                 Signed in as{" "}
