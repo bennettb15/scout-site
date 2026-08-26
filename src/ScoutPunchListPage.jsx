@@ -481,6 +481,14 @@ const PUNCH_LIST_STYLES = `
     width: 100%;
   }
 
+  .punch-mobile-filter-actions {
+    display: none;
+  }
+
+  .punch-filter-advanced {
+    display: contents;
+  }
+
   .punch-row {
     overflow: hidden;
     cursor: default;
@@ -636,12 +644,6 @@ const PUNCH_LIST_STYLES = `
     gap: 7px;
     width: 196px;
     padding: 10px 12px 10px 0;
-  }
-
-  .punch-row-chevron {
-    position: absolute;
-    top: 2px;
-    right: 0;
   }
 
   .punch-control {
@@ -807,6 +809,7 @@ const PUNCH_LIST_STYLES = `
     .punch-filter-row {
       align-items: stretch;
       padding-top: 0;
+      gap: 10px;
     }
 
     .punch-filter-row label,
@@ -815,14 +818,67 @@ const PUNCH_LIST_STYLES = `
       max-width: none;
     }
 
+    .punch-mobile-filter-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .punch-mobile-filter-button {
+      display: inline-flex;
+      height: 36px;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: white;
+      padding: 0 12px;
+      color: rgb(15 23 42);
+      font-size: 14px;
+      font-weight: 700;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+
     .punch-refresh-button {
       align-self: flex-start;
+      min-width: 126px;
     }
 
     .punch-refresh-cluster {
       position: static;
       justify-content: flex-start;
+      width: auto;
+    }
+
+    .punch-refresh-desktop {
+      display: none;
+    }
+
+    .punch-refresh-mobile {
+      justify-content: flex-end;
+      min-width: 0;
+    }
+
+    .punch-filter-advanced {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
       width: 100%;
+    }
+
+    .punch-filter-advanced:not(.is-open) {
+      display: none;
+    }
+
+    .punch-filter-advanced .punch-filter-control,
+    .punch-filter-advanced .punch-filter-detail,
+    .punch-filter-advanced .punch-trade-refresh-stack {
+      min-width: 0;
+      width: 100%;
+      max-width: none;
     }
 
     .punch-trade-refresh-stack {
@@ -1072,8 +1128,7 @@ function RowDetail({ row, onDownloadOriginal, downloadId, onPreview }) {
   );
 }
 
-function IssueRow({ row, selected, onSelect, onDownloadOriginal, downloadId, onPreview }) {
-  const originalDownload = row.preview?.originalDownload || {};
+function IssueRow({ row, selected, onSelect, onPreview }) {
   const flagNote = row.title || row.reason || "Flagged observation";
 
   return (
@@ -1119,39 +1174,10 @@ function IssueRow({ row, selected, onSelect, onDownloadOriginal, downloadId, onP
           <ReadOnlyControl label="Due Date" value={formatShortDate(row.dueDate || row.dueAt)} />
           <ReadOnlyControl label="Trade" value={optionLabel(row.trade, TRADE_LABELS)} />
         </div>
-        <ChevronDown
-          className={`punch-row-chevron h-4 w-4 shrink-0 text-foreground/40 transition md:hidden ${
-            selected ? "rotate-180" : ""
-          }`}
-        />
       </div>
-      {selected && (
+      {selected && row.reason && row.reason !== row.title && (
         <div className="mt-3 grid gap-3 border-t border-border pt-3 md:hidden">
-          {row.reason && row.reason !== row.title && (
-            <p className="text-sm leading-6 text-foreground/70">{row.reason}</p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            {originalDownload.available && (
-              <button
-                type="button"
-                onClick={() => onDownloadOriginal(row)}
-                disabled={downloadId === row.id}
-                className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--brand)] px-3 text-sm font-semibold text-white shadow-sm disabled:opacity-50"
-              >
-                <Download className="h-4 w-4" />
-                Original
-              </button>
-            )}
-            {row.packageId && (
-              <a
-                href="/reports"
-                className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/70 shadow-sm"
-              >
-                <FileText className="h-4 w-4" />
-                Reports
-              </a>
-            )}
-          </div>
+          <p className="text-sm leading-6 text-foreground/70">{row.reason}</p>
         </div>
       )}
     </article>
@@ -1233,6 +1259,7 @@ export default function ScoutPunchListPage() {
   const [loadedRowsScope, setLoadedRowsScope] = useState({ orgId: "", propertyId: "" });
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const sessionScopeRef = useRef("");
   const filterRequestRef = useRef(0);
   const bootstrapTokenRef = useRef("");
@@ -1833,53 +1860,87 @@ export default function ScoutPunchListPage() {
                     ))}
                   </select>
                 </label>
-                <label className="punch-filter-control grid gap-1 text-xs font-semibold text-foreground/60">
-                  Elevation
-                  <select
-                    value={selectedElevation}
-                    onChange={(event) => setSelectedElevation(event.target.value)}
-                    className="h-9 rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                <div className="punch-mobile-filter-actions">
+                  <button
+                    type="button"
+                    className="punch-mobile-filter-button"
+                    onClick={() => setMobileFiltersOpen((isOpen) => !isOpen)}
+                    aria-expanded={mobileFiltersOpen}
                   >
-                    <option value={ALL}>All Elevations</option>
-                    {elevationOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="punch-filter-detail grid gap-1 text-xs font-semibold text-foreground/60">
-                  Detail
-                  <select
-                    value={selectedDetail}
-                    onChange={(event) => setSelectedDetail(event.target.value)}
-                    className="h-9 rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
-                  >
-                    <option value={ALL}>All Details</option>
-                    {detailOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="punch-filter-control grid gap-1 text-xs font-semibold text-foreground/60">
-                  Priority
-                  <select
-                    value={selectedPriority}
-                    onChange={(event) => setSelectedPriority(event.target.value)}
-                    className="h-9 rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
-                  >
-                    <option value={ALL}>All Priorities</option>
-                    {priorityOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    Filters
+                    <ChevronDown
+                      className={`h-4 w-4 transition ${
+                        mobileFiltersOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  <div className="punch-refresh-cluster punch-refresh-mobile">
+                    {lastRefreshedAt && (
+                      <span className="punch-refresh-status">
+                        Last refreshed {formatRefreshTime(lastRefreshedAt)}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleRefresh}
+                      disabled={manualRefreshing || punchListLoading || filtersLoading || !selectedOrgId}
+                      className="punch-refresh-button inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+                    >
+                      <RefreshCw
+                        className={`h-4 w-4 ${punchListLoading ? "animate-spin" : ""}`}
+                      />
+                      {manualRefreshing ? "Refreshing..." : "Refresh"}
+                    </button>
+                  </div>
+                </div>
+                <div className={`punch-filter-advanced ${mobileFiltersOpen ? "is-open" : ""}`}>
+                  <label className="punch-filter-control grid gap-1 text-xs font-semibold text-foreground/60">
+                    Elevation
+                    <select
+                      value={selectedElevation}
+                      onChange={(event) => setSelectedElevation(event.target.value)}
+                      className="h-9 rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                    >
+                      <option value={ALL}>All Elevations</option>
+                      {elevationOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="punch-filter-detail grid gap-1 text-xs font-semibold text-foreground/60">
+                    Detail
+                    <select
+                      value={selectedDetail}
+                      onChange={(event) => setSelectedDetail(event.target.value)}
+                      className="h-9 rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                    >
+                      <option value={ALL}>All Details</option>
+                      {detailOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="punch-filter-control grid gap-1 text-xs font-semibold text-foreground/60">
+                    Priority
+                    <select
+                      value={selectedPriority}
+                      onChange={(event) => setSelectedPriority(event.target.value)}
+                      className="h-9 rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                    >
+                      <option value={ALL}>All Priorities</option>
+                      {priorityOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 <div className="punch-trade-refresh-stack">
-                  <div className="punch-refresh-cluster">
+                  <div className="punch-refresh-cluster punch-refresh-desktop">
                     {lastRefreshedAt && (
                       <span className="punch-refresh-status">
                         Last refreshed {formatRefreshTime(lastRefreshedAt)}
@@ -1912,6 +1973,7 @@ export default function ScoutPunchListPage() {
                       ))}
                     </select>
                   </label>
+                </div>
                 </div>
               </div>
             )}
@@ -2017,11 +2079,6 @@ export default function ScoutPunchListPage() {
               </div>
             )}
 
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase text-foreground/45 md:hidden">
-              <ClipboardList className="h-3.5 w-3.5" />
-              Filters are above
-            </div>
-
             {(filtersLoading || (punchListLoading && rows.length === 0)) && (
               <div className="rounded-lg border border-border bg-background p-6 text-sm text-foreground/70 shadow-sm">
                 Loading punch list...
@@ -2059,8 +2116,6 @@ export default function ScoutPunchListPage() {
                       row={row}
                       selected={row.id === selectedRowId}
                       onSelect={() => setSelectedRowId(row.id)}
-                      onDownloadOriginal={handleDownloadOriginal}
-                      downloadId={downloadId}
                       onPreview={setPreviewRow}
                     />
                   ))}
