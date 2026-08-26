@@ -1359,6 +1359,10 @@ const PUNCH_LIST_STYLES = `
       gap: 10px;
     }
 
+    .punch-row {
+      padding: 10px !important;
+    }
+
     .punch-row-left {
       width: 96px;
       height: 96px;
@@ -1385,12 +1389,26 @@ const PUNCH_LIST_STYLES = `
       grid-column: 1 / -1;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       width: 100%;
-      padding: 8px 8px 2px;
+      gap: 7px 10px;
+      padding: 7px 6px 0;
     }
 
     .punch-control {
       grid-template-columns: 1fr;
-      gap: 4px;
+      gap: 3px;
+      min-height: 0;
+    }
+
+    .punch-control-label {
+      font-size: 10.5px;
+    }
+
+    .punch-control-value,
+    .punch-control-input {
+      height: 27px;
+      font-size: 11.5px;
+      padding-left: 7px;
+      padding-right: 7px;
     }
 
     .punch-control-value {
@@ -1398,7 +1416,8 @@ const PUNCH_LIST_STYLES = `
     }
 
     .punch-location-line {
-      font-size: 13px;
+      margin-top: 6px;
+      font-size: 12.5px;
       white-space: normal;
     }
 
@@ -1407,9 +1426,10 @@ const PUNCH_LIST_STYLES = `
     }
 
     .punch-flag-line {
-      margin-top: 10px;
+      margin-top: 8px;
       margin-bottom: 0;
       flex-wrap: wrap;
+      font-size: 13px;
     }
 
     .punch-property-line,
@@ -1420,6 +1440,28 @@ const PUNCH_LIST_STYLES = `
 
     .punch-property-line {
       flex-wrap: wrap;
+      font-size: 15px;
+      line-height: 1.2;
+    }
+
+    .punch-org-line {
+      margin-top: 3px;
+      font-size: 12.5px;
+      line-height: 1.25;
+    }
+
+    .punch-date-clear,
+    .punch-control-add {
+      height: 27px;
+      width: 27px;
+    }
+
+    .punch-date-control {
+      grid-template-columns: minmax(0, 1fr) 27px;
+    }
+
+    .punch-select-control.has-action {
+      grid-template-columns: minmax(0, 1fr) 27px;
     }
 
     .punch-lightbox-summary {
@@ -1803,6 +1845,7 @@ function IssueRow({
   onSelect,
   onPreview,
   tradeOptions,
+  canAddTradeOption,
   onWorkflowChange,
   onAddTrade,
   workflowSavingKey,
@@ -1914,7 +1957,7 @@ function IssueRow({
             canEdit={canEditWorkflow}
             saving={workflowSavingKey === `${row.id}:trade`}
             onChange={onWorkflowChange}
-            onAddOption={canEditWorkflow ? onAddTrade : null}
+            onAddOption={canEditWorkflow && canAddTradeOption ? onAddTrade : null}
             addOptionLabel="Add Trade"
           />
         </div>
@@ -1998,6 +2041,7 @@ export default function ScoutPunchListPage() {
   const [orgOptions, setOrgOptions] = useState([]);
   const [allPropertyOptions, setAllPropertyOptions] = useState([]);
   const [masterTradeOptions, setMasterTradeOptions] = useState([]);
+  const [canAddTradeOption, setCanAddTradeOption] = useState(false);
   const [punchListError, setPunchListError] = useState("");
   const [filtersLoading, setFiltersLoading] = useState(false);
   const [filtersReady, setFiltersReady] = useState(false);
@@ -2089,6 +2133,7 @@ export default function ScoutPunchListPage() {
     setOrgOptions(nextOrgOptions);
     setAllPropertyOptions(nextPropertyOptions);
     setMasterTradeOptions(nextTradeOptions);
+    setCanAddTradeOption(Boolean(body.permissions?.canAddTradeOption));
     setSelectedOrgId(nextOrgId);
     setSelectedPropertyId(nextPropertyId);
     setFiltersReady(true);
@@ -2129,6 +2174,7 @@ export default function ScoutPunchListPage() {
         orgs: body.orgs,
         properties: body.properties,
         tradeOptions: Array.isArray(body.tradeOptions) ? body.tradeOptions : [],
+        permissions: body.permissions || {},
       };
       if (!isLatestRequest()) return;
       cacheSet(punchListFilterCache, cacheKey, filterBody);
@@ -2139,6 +2185,7 @@ export default function ScoutPunchListPage() {
       setOrgOptions([]);
       setAllPropertyOptions([]);
       setMasterTradeOptions([]);
+      setCanAddTradeOption(false);
       setRows([]);
       setSelectedOrgId("");
       setSelectedPropertyId("");
@@ -2246,6 +2293,7 @@ export default function ScoutPunchListPage() {
         setOrgOptions([]);
         setAllPropertyOptions([]);
         setMasterTradeOptions([]);
+        setCanAddTradeOption(false);
         setSelectedOrgId("");
         setSelectedPropertyId("");
         setSelectedElevation(ALL);
@@ -2270,6 +2318,7 @@ export default function ScoutPunchListPage() {
       setOrgOptions([]);
       setAllPropertyOptions([]);
       setMasterTradeOptions([]);
+      setCanAddTradeOption(false);
       setSelectedOrgId("");
       setSelectedPropertyId("");
       setSelectedElevation(ALL);
@@ -2339,6 +2388,7 @@ export default function ScoutPunchListPage() {
     setOrgOptions([]);
     setAllPropertyOptions([]);
     setMasterTradeOptions([]);
+    setCanAddTradeOption(false);
     setSelectedOrgId("");
     setSelectedPropertyId("");
     setSelectedElevation(ALL);
@@ -2421,7 +2471,7 @@ export default function ScoutPunchListPage() {
   }
 
   async function handleAddTrade(row) {
-    if (!session?.access_token || !canEditWorkflowForRow(row)) return;
+    if (!session?.access_token || !canEditWorkflowForRow(row) || !canAddTradeOption) return;
     const name = window.prompt("New trade name");
     const tradeName = textValue(name).replace(/\s+/g, " ");
     if (!tradeName) return;
@@ -3079,6 +3129,7 @@ export default function ScoutPunchListPage() {
                       onSelect={() => setSelectedRowId(row.id)}
                       onPreview={setPreviewRow}
                       tradeOptions={tradeOptions}
+                      canAddTradeOption={canAddTradeOption}
                       onWorkflowChange={handleWorkflowChange}
                       onAddTrade={handleAddTrade}
                       workflowSavingKey={workflowSavingKey}

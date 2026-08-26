@@ -31,7 +31,7 @@ const MAX_ACTIVITY_ROWS = 1000;
 const MAX_NOTE_LENGTH = 1000;
 const ALL_VALUE = "all";
 const NOTE_WRITER_ROLES = ["viewer", "field"];
-const WORKFLOW_EDITOR_ROLES = ["field"];
+const WORKFLOW_EDITOR_ROLES = ["viewer", "field"];
 const WORKFLOW_ACTIVITY_FIELD_BY_TYPE = {
   priority_changed: "priority",
   status_changed: "status",
@@ -868,7 +868,7 @@ async function resolveWorkflowObservation(auth, service, { observationId, shotId
       throw error;
     }
     if (!(await canEditPunchListWorkflow(auth, observation.org_id))) {
-      const error = new Error("Field User access is required to edit workflow fields.");
+      const error = new Error("Client Viewer or Field User access is required to edit workflow fields.");
       error.statusCode = 403;
       throw error;
     }
@@ -888,7 +888,7 @@ async function resolveWorkflowObservation(auth, service, { observationId, shotId
     throw error;
   }
   if (!(await canEditPunchListWorkflow(auth, shot.org_id))) {
-    const error = new Error("Field User access is required to edit workflow fields.");
+    const error = new Error("Client Viewer or Field User access is required to edit workflow fields.");
     error.statusCode = 403;
     throw error;
   }
@@ -1300,7 +1300,7 @@ async function handleFilters(req, res) {
       ...observationRows.map((row) => row.property_id),
     ]);
 
-    const [{ data: orgRows }, { data: propertyRows }, tradeOptions] = await Promise.all([
+    const [{ data: orgRows }, { data: propertyRows }, tradeOptions, tradeOptionEditable] = await Promise.all([
       orgIds.length
         ? client
             .from("orgs")
@@ -1318,12 +1318,16 @@ async function handleFilters(req, res) {
             .order("name", { ascending: true })
         : { data: [] },
       loadTradeOptions(),
+      canAddTradeOption(auth),
     ]);
 
     return sendJson(res, 200, {
       orgs: (orgRows || []).map(toOrg),
       properties: (propertyRows || []).map(toProperty),
       tradeOptions,
+      permissions: {
+        canAddTradeOption: Boolean(tradeOptionEditable),
+      },
     });
   } catch {
     return sendJson(res, 500, { error: "Unable to load punch list filters." });
