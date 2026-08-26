@@ -936,25 +936,27 @@ const PUNCH_LIST_STYLES = `
   .punch-select-control {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 4px;
+    gap: 5px;
   }
 
   .punch-select-control.has-action {
-    grid-template-columns: minmax(0, 1fr) 26px;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .punch-control-add {
     display: inline-flex;
-    height: 28px;
-    width: 26px;
+    height: 22px;
+    width: fit-content;
     align-items: center;
     justify-content: center;
+    justify-self: end;
     border-radius: 7px;
     border: 1px solid rgb(191 219 254);
     background: rgb(239 246 255);
+    padding: 0 7px;
     color: rgb(29 78 216);
-    font-size: 16px;
-    font-weight: 900;
+    font-size: 11px;
+    font-weight: 800;
     line-height: 1;
   }
 
@@ -1469,6 +1471,7 @@ function WorkflowControl({
   saving,
   onChange,
   onAddOption,
+  addOptionLabel = "Add",
 }) {
   if (!canEdit) {
     return <ReadOnlyControl label={label} value={displayValue || value} style={style} />;
@@ -1546,10 +1549,10 @@ function WorkflowControl({
               onAddOption(row);
             }}
             disabled={saving}
-            aria-label={`Add ${label}`}
-            title={`Add ${label}`}
+            aria-label={addOptionLabel}
+            title={addOptionLabel}
           >
-            +
+            {addOptionLabel}
           </button>
         )}
       </span>
@@ -1869,6 +1872,7 @@ function IssueRow({
             saving={workflowSavingKey === `${row.id}:trade`}
             onChange={onWorkflowChange}
             onAddOption={canEditWorkflow ? onAddTrade : null}
+            addOptionLabel="Add Trade"
           />
         </div>
       </div>
