@@ -875,8 +875,7 @@ const PUNCH_LIST_STYLES = `
     }
 
     .punch-filter-advanced .punch-filter-control,
-    .punch-filter-advanced .punch-filter-detail,
-    .punch-filter-advanced .punch-trade-refresh-stack {
+    .punch-filter-advanced .punch-filter-detail {
       align-self: start;
       min-width: 0;
       width: 100%;
@@ -890,12 +889,8 @@ const PUNCH_LIST_STYLES = `
     }
 
     .punch-trade-refresh-stack {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 6px;
+      display: contents;
       margin-left: 0;
-      width: 100%;
     }
 
     .punch-trade-refresh-stack .punch-filter-control {
