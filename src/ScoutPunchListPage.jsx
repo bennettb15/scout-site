@@ -168,6 +168,14 @@ function formatTime(value) {
   }).format(date);
 }
 
+function formatRefreshTime(value) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(value);
+}
+
 function textValue(value) {
   const text = String(value || "").trim();
   return text || "";
@@ -372,8 +380,23 @@ const PUNCH_LIST_STYLES = `
 
   .punch-refresh-button {
     flex: 0 0 auto;
-    margin-left: auto;
+    min-width: 122px;
     width: auto;
+  }
+
+  .punch-refresh-cluster {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .punch-refresh-status {
+    color: rgb(100 116 139);
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1;
+    white-space: nowrap;
   }
 
   .punch-row {
@@ -711,7 +734,12 @@ const PUNCH_LIST_STYLES = `
 
     .punch-refresh-button {
       align-self: flex-start;
+    }
+
+    .punch-refresh-cluster {
+      justify-content: flex-start;
       margin-left: 0;
+      width: 100%;
     }
 
     .punch-row-body {
@@ -1105,6 +1133,8 @@ export default function ScoutPunchListPage() {
   const [downloadId, setDownloadId] = useState("");
   const [previewRow, setPreviewRow] = useState(null);
   const [loadedRowsScope, setLoadedRowsScope] = useState({ orgId: "", propertyId: "" });
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
   const sessionScopeRef = useRef("");
 
   useEffect(() => {
@@ -1208,17 +1238,17 @@ export default function ScoutPunchListPage() {
   }
 
   async function loadPunchList(activeSession = session, { force = false } = {}) {
-    if (!activeSession?.access_token) return;
+    if (!activeSession?.access_token) return false;
     if (!selectedOrgId) {
       setRows([]);
       setLoadedRowsScope({ orgId: "", propertyId: "" });
-      return;
+      return false;
     }
     const selectedOrgProperties = propertyOptionsForOrg(allPropertyOptions, selectedOrgId);
     if (filtersReady && selectedOrgProperties.length === 0) {
       setRows([]);
       setLoadedRowsScope({ orgId: "", propertyId: "" });
-      return;
+      return false;
     }
     const propertyScope = selectedPropertyId && selectedPropertyId !== ALL ? selectedPropertyId : ALL;
     const rowsScopeKey = buildRowsScopeKey(activeSession, selectedOrgId, propertyScope);
@@ -1237,7 +1267,7 @@ export default function ScoutPunchListPage() {
         setPunchListLoading(false);
         setLoadedRowsScope({ orgId: selectedOrgId, propertyId: propertyScope });
         setRows(cachedViewRows);
-        return;
+        return true;
       }
 
       const cachedRows = cacheGet(punchListRowsCache, rowsScopeKey);
@@ -1247,7 +1277,7 @@ export default function ScoutPunchListPage() {
         setPunchListLoading(false);
         setLoadedRowsScope({ orgId: selectedOrgId, propertyId: propertyScope });
         setRows(cachedRows);
-        return;
+        return true;
       }
     }
     setPunchListLoading(true);
@@ -1271,10 +1301,12 @@ export default function ScoutPunchListPage() {
       cacheSet(punchListViewCache, rowsFilterKey, body.rows);
       setLoadedRowsScope({ orgId: selectedOrgId, propertyId: propertyScope });
       setRows(body.rows);
+      return true;
     } catch (error) {
       setPunchListError(error.message || "Unable to load punch list.");
       setRows([]);
       setLoadedRowsScope({ orgId: "", propertyId: "" });
+      return false;
     } finally {
       setPunchListLoading(false);
     }
@@ -1303,6 +1335,7 @@ export default function ScoutPunchListPage() {
       setSelectedOrgId("");
       setSelectedPropertyId("");
       setLoadedRowsScope({ orgId: "", propertyId: "" });
+      setLastRefreshedAt(null);
       setPunchListError("");
       setFiltersReady(false);
     }
@@ -1356,6 +1389,17 @@ export default function ScoutPunchListPage() {
     setSelectedOrgId("");
     setSelectedPropertyId("");
     setLoadedRowsScope({ orgId: "", propertyId: "" });
+    setLastRefreshedAt(null);
+    setManualRefreshing(false);
+  }
+
+  async function handleRefresh() {
+    setManualRefreshing(true);
+    const refreshed = await loadPunchList(session, { force: true });
+    if (refreshed) {
+      setLastRefreshedAt(new Date());
+    }
+    setManualRefreshing(false);
   }
 
   async function handleDownloadOriginal(row) {
@@ -1399,6 +1443,7 @@ export default function ScoutPunchListPage() {
   }
 
   function prepareRowsForScope(orgId, propertyId) {
+    setLastRefreshedAt(null);
     if (!orgId || !propertyId) {
       setRows([]);
       setLoadedRowsScope({ orgId: "", propertyId: "" });
@@ -1632,17 +1677,24 @@ export default function ScoutPunchListPage() {
                     ))}
                   </select>
                 </label>
-                <button
-                  type="button"
-                  onClick={() => loadPunchList(session, { force: true })}
-                  disabled={punchListLoading || filtersLoading || !selectedOrgId}
-                  className="punch-refresh-button inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
-                >
-                  <RefreshCw
-                    className={`h-4 w-4 ${punchListLoading ? "animate-spin" : ""}`}
-                  />
-                  Refresh
-                </button>
+                <div className="punch-refresh-cluster">
+                  {lastRefreshedAt && (
+                    <span className="punch-refresh-status">
+                      Last refreshed {formatRefreshTime(lastRefreshedAt)}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleRefresh}
+                    disabled={manualRefreshing || punchListLoading || filtersLoading || !selectedOrgId}
+                    className="punch-refresh-button inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 ${punchListLoading ? "animate-spin" : ""}`}
+                    />
+                    {manualRefreshing ? "Refreshing..." : "Refresh"}
+                  </button>
+                </div>
               </div>
             )}
           </div>
