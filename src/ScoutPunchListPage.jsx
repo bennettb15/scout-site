@@ -287,7 +287,7 @@ const PUNCH_LIST_STYLES = `
     align-items: stretch;
     gap: 16px;
     width: 100%;
-    cursor: pointer;
+    cursor: default;
   }
 
   .punch-row-left {
