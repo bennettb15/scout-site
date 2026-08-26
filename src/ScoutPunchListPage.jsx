@@ -101,6 +101,30 @@ function clearViewCacheForRowsScope(session, orgId, propertyId) {
   }
 }
 
+function patchCachedPunchListRows(session, rowId, patch) {
+  const sessionPrefix = `${sessionCacheScope(session)}|`;
+  const now = Date.now();
+  for (const [key, entry] of punchListRowsCache.entries()) {
+    if (!key.startsWith(sessionPrefix)) continue;
+    if (!entry || now > entry.expiresAt) {
+      punchListRowsCache.delete(key);
+      continue;
+    }
+    if (!Array.isArray(entry.value) || !entry.value.some((row) => row.id === rowId)) continue;
+    punchListRowsCache.set(key, {
+      ...entry,
+      value: entry.value.map((row) => (row.id === rowId ? { ...row, ...patch } : row)),
+    });
+  }
+  for (const key of punchListViewCache.keys()) {
+    if (key.startsWith(sessionPrefix)) punchListViewCache.delete(key);
+  }
+}
+
+function patchRowList(rows, rowId, patch) {
+  return rows.map((row) => (row.id === rowId ? { ...row, ...patch } : row));
+}
+
 const PRIORITY_LABELS = {
   critical: "Critical",
   high: "High",
@@ -260,6 +284,22 @@ function tradeKey(value) {
     .replace(/&/g, " and ")
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
+}
+
+function normalizeWorkflowFieldValue(field, value) {
+  if (field === "priority") return textValue(value).toLowerCase() || "medium";
+  if (field === "status") return textValue(value).toLowerCase() === "resolved" ? "resolved" : "active";
+  if (field === "trade") return tradeKey(value) || "general";
+  if (field === "dueDate") {
+    const dateValue = textValue(value);
+    return localDateFromDateOnly(dateValue) ? dateValue : null;
+  }
+  return value;
+}
+
+function workflowPatch(field, value) {
+  if (!field) return {};
+  return { [field]: normalizeWorkflowFieldValue(field, value) };
 }
 
 function readableDetail(value) {
@@ -1492,7 +1532,11 @@ function WorkflowControl({
             value={dateValue}
             onClick={(event) => event.stopPropagation()}
             onKeyDown={(event) => event.stopPropagation()}
-            onChange={(event) => handleChange(event.target.value)}
+            onChange={(event) => {
+              const input = event.currentTarget;
+              handleChange(input.value);
+              window.setTimeout(() => input.blur(), 0);
+            }}
             disabled={saving}
             className="punch-control-input"
             style={style}
@@ -1505,6 +1549,7 @@ function WorkflowControl({
               onClick={(event) => {
                 event.stopPropagation();
                 handleChange(null);
+                event.currentTarget.blur();
               }}
               disabled={saving}
               aria-label={`Clear ${label}`}
@@ -2331,9 +2376,15 @@ export default function ScoutPunchListPage() {
 
   async function handleWorkflowChange(row, field, value) {
     if (!session?.access_token || !canEditWorkflowForRow(row)) return;
+    const nextPatch = workflowPatch(field, value);
+    const previousPatch = { [field]: row[field] ?? null };
+    if ((previousPatch[field] || null) === (nextPatch[field] || null)) return;
     const saveKey = `${row.id}:${field}`;
     setWorkflowSavingKey(saveKey);
     setPunchListError("");
+    setRows((current) => patchRowList(current, row.id, nextPatch));
+    setPreviewRow((current) => (current?.id === row.id ? { ...current, ...nextPatch } : current));
+    patchCachedPunchListRows(session, row.id, nextPatch);
     try {
       const response = await fetch("/api/punch-list", {
         method: "PATCH",
@@ -2346,16 +2397,23 @@ export default function ScoutPunchListPage() {
           shotId: row.observationId ? null : row.shotId,
           packageId: row.observationId ? null : row.packageId,
           field,
-          value,
+          value: nextPatch[field],
         }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !body.updated) {
         throw new Error(body.error || "Unable to update punch list field.");
       }
-      clearPunchListCaches();
-      await loadPunchList(session, { force: true });
+      if (body.observationId && !row.observationId) {
+        const observationPatch = { observationId: body.observationId };
+        setRows((current) => patchRowList(current, row.id, observationPatch));
+        setPreviewRow((current) => (current?.id === row.id ? { ...current, ...observationPatch } : current));
+        patchCachedPunchListRows(session, row.id, observationPatch);
+      }
     } catch (error) {
+      setRows((current) => patchRowList(current, row.id, previousPatch));
+      setPreviewRow((current) => (current?.id === row.id ? { ...current, ...previousPatch } : current));
+      patchCachedPunchListRows(session, row.id, previousPatch);
       setPunchListError(error.message || "Unable to update punch list field.");
     } finally {
       setWorkflowSavingKey("");
