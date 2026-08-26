@@ -433,6 +433,12 @@ const PUNCH_LIST_STYLES = `
     min-width: 124px;
   }
 
+  .punch-filter-organization {
+    flex: 1 1 260px;
+    min-width: 180px;
+    max-width: none;
+  }
+
   .punch-filter-property {
     flex: 1 1 420px;
     min-width: 320px;
@@ -449,6 +455,10 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-filter-property select {
+    max-width: none;
+  }
+
+  .punch-filter-organization select {
     max-width: none;
   }
 
@@ -1804,7 +1814,7 @@ export default function ScoutPunchListPage() {
             </h1>
             {session && (
               <div className="punch-filter-row mt-3 flex flex-wrap gap-2">
-                <label className="punch-filter-control grid gap-1 text-xs font-semibold text-foreground/60">
+                <label className="punch-filter-control punch-filter-organization grid gap-1 text-xs font-semibold text-foreground/60">
                   Organization
                   <select
                     value={selectedOrgId}
