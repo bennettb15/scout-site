@@ -382,6 +382,7 @@ function publicPreview(row, previewUrl, reportPackage) {
 function publicActivityRow(row, options = {}) {
   if (!row) return null;
   const canDelete = Boolean(options.canDelete);
+  const canEdit = Boolean(options.canEdit);
   return {
     id: row.id,
     activityType: row.activity_type,
@@ -390,8 +391,10 @@ function publicActivityRow(row, options = {}) {
     note: compactText(row.note),
     createdBy: row.created_by || null,
     createdAt: row.created_at,
+    canEdit,
     canDelete,
     permissions: {
+      canEdit,
       canDelete,
     },
   };
@@ -1048,7 +1051,7 @@ async function handleAddNote(req, res) {
     }
 
     return sendJson(res, 200, {
-      activity: publicActivityRow(activity),
+      activity: publicActivityRow(activity, { canEdit: true, canDelete: true }),
       observationId: observation.id,
     });
   } catch (error) {
@@ -1125,12 +1128,102 @@ async function handleAddTradeOption(req, res) {
   }
 }
 
-async function handleUpdateWorkflowField(req, res) {
-  let body = {};
+async function handleUpdateNote(req, res, body = null) {
+  if (!body) {
+    try {
+      body = await readJsonBody(req);
+    } catch {
+      return sendJson(res, 400, { error: "Invalid JSON body." });
+    }
+  }
+
+  const noteId = validateUuid(body.noteId || body.activityId);
+  if (!noteId) {
+    return sendJson(res, 400, { error: "Valid note ID is required." });
+  }
+
+  let note = "";
   try {
-    body = await readJsonBody(req);
+    note = validateNoteText(body.note);
+  } catch (error) {
+    return sendJson(res, error.statusCode || 400, { error: error.message });
+  }
+
+  try {
+    const auth = await authenticateRequest(req);
+    if (auth.error) return sendJson(res, 401, { error: auth.error });
+
+    const { data: activity, error: activityError } = await auth.client
+      .from("punchlist_activity")
+      .select("id,org_id,property_id,observation_id,shot_id,activity_type,from_value,to_value,note,created_by,created_at,deleted_at")
+      .eq("id", noteId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (activityError) {
+      return sendJson(res, 500, { error: "Unable to load note." });
+    }
+    if (!activity) {
+      return sendJson(res, 404, { error: "Note not found." });
+    }
+    if (activity.activity_type !== "note_added") {
+      return sendJson(res, 400, { error: "Only notes can be edited." });
+    }
+
+    const adminAllowed = isApprovedAdminEmail(auth.user?.email);
+    const ownNoteWriterNote =
+      activity.created_by === auth.user.id && (await loadNoteWriterMembership(auth, activity.org_id));
+    if (!adminAllowed && !ownNoteWriterNote) {
+      return sendJson(res, 403, { error: "You can only edit your own notes." });
+    }
+
+    if (compactText(activity.note) === note) {
+      return sendJson(res, 200, {
+        updated: true,
+        unchanged: true,
+        activity: publicActivityRow(activity, {
+          canEdit: true,
+          canDelete: adminAllowed || Boolean(ownNoteWriterNote),
+        }),
+      });
+    }
+
+    const service = createServiceClient();
+    const { data: updatedActivity, error: updateError } = await service
+      .from("punchlist_activity")
+      .update({
+        note,
+        from_value: activity.from_value || activity.note || null,
+        to_value: note,
+      })
+      .eq("id", activity.id)
+      .is("deleted_at", null)
+      .select("id,activity_type,from_value,to_value,note,created_by,created_at")
+      .single();
+
+    if (updateError) {
+      return sendJson(res, 500, { error: "Unable to edit note." });
+    }
+
+    return sendJson(res, 200, {
+      updated: true,
+      activity: publicActivityRow(updatedActivity, {
+        canEdit: true,
+        canDelete: adminAllowed || Boolean(ownNoteWriterNote),
+      }),
+    });
   } catch {
-    return sendJson(res, 400, { error: "Invalid JSON body." });
+    return sendJson(res, 500, { error: "Unable to edit note." });
+  }
+}
+
+async function handleUpdateWorkflowField(req, res, body = null) {
+  if (!body) {
+    try {
+      body = await readJsonBody(req);
+    } catch {
+      return sendJson(res, 400, { error: "Invalid JSON body." });
+    }
   }
 
   const observationId = validateUuid(body.observationId);
@@ -1344,7 +1437,16 @@ export default async function handler(req, res) {
     return handleAddNote(req, res);
   }
   if (req.method === "PATCH") {
-    return handleUpdateWorkflowField(req, res);
+    let body = {};
+    try {
+      body = await readJsonBody(req);
+    } catch {
+      return sendJson(res, 400, { error: "Invalid JSON body." });
+    }
+    if (body.noteId != null || body.activityId != null) {
+      return handleUpdateNote(req, res, body);
+    }
+    return handleUpdateWorkflowField(req, res, body);
   }
   if (req.method === "DELETE") {
     return handleDeleteNote(req, res);
@@ -1533,10 +1635,11 @@ export default async function handler(req, res) {
         continue;
       }
       if (activityRow.activity_type !== "note_added") continue;
+      const ownNoteWriterNote =
+        noteWriterOrgIds.has(activityRow.org_id) && activityRow.created_by === auth.user.id;
       const publicRow = publicActivityRow(activityRow, {
-        canDelete:
-          adminAllowed ||
-          (noteWriterOrgIds.has(activityRow.org_id) && activityRow.created_by === auth.user.id),
+        canEdit: adminAllowed || ownNoteWriterNote,
+        canDelete: adminAllowed || ownNoteWriterNote,
       });
       if (!publicRow?.note) continue;
       const rows = activityByObservationId.get(activityRow.observation_id) || [];
