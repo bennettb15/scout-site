@@ -865,6 +865,7 @@ const PUNCH_LIST_STYLES = `
     .punch-filter-advanced {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
       gap: 10px;
       width: 100%;
     }
@@ -876,9 +877,16 @@ const PUNCH_LIST_STYLES = `
     .punch-filter-advanced .punch-filter-control,
     .punch-filter-advanced .punch-filter-detail,
     .punch-filter-advanced .punch-trade-refresh-stack {
+      align-self: start;
       min-width: 0;
       width: 100%;
       max-width: none;
+    }
+
+    .punch-filter-advanced .punch-filter-control,
+    .punch-filter-advanced .punch-filter-detail {
+      grid-template-rows: auto 36px;
+      min-height: 54px;
     }
 
     .punch-trade-refresh-stack {
@@ -925,7 +933,7 @@ const PUNCH_LIST_STYLES = `
       grid-column: 1 / -1;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       width: 100%;
-      padding: 8px 0 2px;
+      padding: 8px 8px 2px;
     }
 
     .punch-control {
