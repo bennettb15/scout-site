@@ -283,7 +283,7 @@ const PUNCH_LIST_STYLES = `
   .punch-row-body {
     position: relative;
     display: grid;
-    grid-template-columns: 144px minmax(0, 1fr) 196px;
+    grid-template-columns: 152px minmax(0, 1fr) 196px;
     align-items: stretch;
     gap: 16px;
     width: 100%;
@@ -295,9 +295,9 @@ const PUNCH_LIST_STYLES = `
     align-items: stretch;
     justify-content: stretch;
     overflow: hidden;
-    width: 144px;
-    height: 144px;
-    min-height: 144px;
+    width: 152px;
+    height: 152px;
+    min-height: 152px;
   }
 
   .punch-thumbnail {
@@ -316,14 +316,14 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-thumbnail:not(.punch-thumbnail-large) {
-    width: 144px;
-    height: 144px;
-    min-width: 144px;
-    min-height: 144px;
-    max-width: 144px;
-    max-height: 144px;
+    width: 152px;
+    height: 152px;
+    min-width: 152px;
+    min-height: 152px;
+    max-width: 152px;
+    max-height: 152px;
     aspect-ratio: 1 / 1;
-    flex: 0 0 144px;
+    flex: 0 0 152px;
   }
 
   .punch-thumbnail-button {
@@ -342,8 +342,8 @@ const PUNCH_LIST_STYLES = `
 
   .punch-row-left .punch-thumbnail,
   .punch-row-left .punch-thumbnail img {
-    width: 144px;
-    height: 144px;
+    width: 152px;
+    height: 152px;
   }
 
   .punch-row-main {
@@ -691,13 +691,13 @@ function IssueThumbnail({ row, large = false, onPreview }) {
   const frameStyle = large
     ? { width: "100%", height: 176, minHeight: 176 }
     : {
-        width: 144,
-        height: 144,
-        minWidth: 144,
-        maxWidth: 144,
-        maxHeight: 144,
-        flexBasis: 144,
-        minHeight: 144,
+        width: 152,
+        height: 152,
+        minWidth: 152,
+        maxWidth: 152,
+        maxHeight: 152,
+        flexBasis: 152,
+        minHeight: 152,
         aspectRatio: "1 / 1",
       };
   const label = locationLine(row) || row.title || "Punch list photo";
