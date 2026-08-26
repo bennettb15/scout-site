@@ -423,6 +423,7 @@ function defaultPropertyIdForOrg(options, orgId) {
 const PUNCH_LIST_STYLES = `
   .punch-filter-row {
     align-items: end;
+    padding-top: 42px;
   }
 
   .punch-filter-control {
@@ -452,6 +453,9 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-refresh-cluster {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 6px);
     display: flex;
     align-items: center;
     align-self: end;
@@ -467,15 +471,14 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-trade-refresh-stack {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 6px;
+    position: relative;
+    flex: 0 1 142px;
+    min-width: 124px;
     margin-left: auto;
   }
 
   .punch-trade-refresh-stack .punch-filter-control {
-    width: 142px;
+    width: 100%;
   }
 
   .punch-row {
@@ -803,6 +806,7 @@ const PUNCH_LIST_STYLES = `
   @media (max-width: 767px) {
     .punch-filter-row {
       align-items: stretch;
+      padding-top: 0;
     }
 
     .punch-filter-row label,
@@ -816,12 +820,16 @@ const PUNCH_LIST_STYLES = `
     }
 
     .punch-refresh-cluster {
+      position: static;
       justify-content: flex-start;
       width: 100%;
     }
 
     .punch-trade-refresh-stack {
+      display: flex;
+      flex-direction: column;
       align-items: flex-start;
+      gap: 6px;
       margin-left: 0;
       width: 100%;
     }
