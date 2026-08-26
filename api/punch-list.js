@@ -666,6 +666,19 @@ function validateWorkflowValue(field, value) {
   throw error;
 }
 
+function workflowActivityErrorMessage(error, field) {
+  const message = String(error?.message || "");
+  if (
+    field === "dueDate" &&
+    (error?.code === "23514" ||
+      message.includes("punchlist_activity_type_check") ||
+      message.includes("due_date_changed"))
+  ) {
+    return "Due date activity is not enabled yet. Apply supabase/migrations/202608260002_punchlist_activity_due_date.sql.";
+  }
+  return "Unable to update workflow field. Punch list activity may need to be configured.";
+}
+
 function isFlaggedShot(row) {
   return Boolean(row?.is_flagged || row?.issue_id || compactText(row?.issue_status));
 }
@@ -1178,7 +1191,7 @@ async function handleUpdateWorkflowField(req, res) {
 
     if (activityError) {
       return sendJson(res, 500, {
-        error: "Unable to update workflow field. Punch list activity may need to be configured.",
+        error: workflowActivityErrorMessage(activityError, field),
       });
     }
 
