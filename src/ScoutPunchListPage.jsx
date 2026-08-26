@@ -1890,6 +1890,7 @@ export default function ScoutPunchListPage() {
         body: JSON.stringify({
           observationId: row.observationId,
           shotId: row.observationId ? null : row.shotId,
+          packageId: row.observationId ? null : row.packageId,
           note: trimmedNote,
         }),
       });

@@ -506,16 +506,20 @@ function promotedObservationStatus(shot) {
   return normalizedStatus(shot?.issue_status) === "resolved" ? "resolved" : "active";
 }
 
-async function loadReadyReportPackageForShot(auth, shot) {
+async function loadReadyReportPackageForShot(auth, shot, packageId) {
   let query = auth.client
     .from("report_packages")
-    .select("id,org_id,property_id,session_id,status,session_completed_at,completed_at")
+    .select("id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at")
     .eq("org_id", shot.org_id)
     .eq("session_id", shot.session_id)
     .eq("status", "ready")
     .is("deleted_at", null)
     .order("session_completed_at", { ascending: false })
     .limit(1);
+
+  if (packageId) {
+    query = query.eq("id", packageId);
+  }
 
   if (shot.property_id) {
     query = query.eq("property_id", shot.property_id);
@@ -526,23 +530,26 @@ async function loadReadyReportPackageForShot(auth, shot) {
   return data || null;
 }
 
-async function loadAccessibleFallbackShot(auth, shotId) {
-  const { data: shot, error: shotError } = await auth.client
+async function loadAccessibleFallbackShot(auth, service, shotId, packageId) {
+  const { data: rawShot, error: shotError } = await auth.client
     .from("shots")
     .select(shotSelect())
     .eq("id", shotId)
     .is("deleted_at", null)
     .maybeSingle();
 
-  if (shotError || !shot || !isFlaggedShot(shot)) return null;
+  if (shotError || !rawShot) return null;
 
-  const reportPackage = await loadReadyReportPackageForShot(auth, shot);
+  const reportPackage = await loadReadyReportPackageForShot(auth, rawShot, packageId);
   if (!reportPackage) return null;
 
+  const snapshotMetadata = await loadSnapshotPhotoMetadata(service, reportPackage);
+  const shot = enrichPhotoRowWithSnapshotMetadata(rawShot, snapshotMetadata);
   const propertyId = shot.property_id || reportPackage.property_id;
   if (!propertyId || reportPackage.org_id !== shot.org_id || reportPackage.session_id !== shot.session_id) {
     return null;
   }
+  if (!isFlaggedShot(shot)) return null;
 
   return {
     ...shot,
@@ -606,7 +613,7 @@ async function canWritePunchListNotes(auth, orgId) {
   return Boolean(await loadFieldMembership(auth, orgId));
 }
 
-async function resolveNoteObservation(auth, service, { observationId, shotId }) {
+async function resolveNoteObservation(auth, service, { observationId, shotId, packageId }) {
   if (observationId) {
     const { data: observation, error: observationError } = await auth.client
       .from("observations")
@@ -639,7 +646,7 @@ async function resolveNoteObservation(auth, service, { observationId, shotId }) 
     throw error;
   }
 
-  const shot = await loadAccessibleFallbackShot(auth, shotId);
+  const shot = await loadAccessibleFallbackShot(auth, service, shotId, packageId);
   if (!shot) {
     const error = new Error("Punch list photo not found.");
     error.statusCode = 404;
@@ -665,6 +672,7 @@ async function handleAddNote(req, res) {
 
   const observationId = validateUuid(body.observationId);
   const shotId = validateUuid(body.shotId);
+  const packageId = validateUuid(body.packageId);
   if (!observationId && !shotId) {
     return sendJson(res, 400, { error: "Valid observation or shot ID is required." });
   }
@@ -682,7 +690,7 @@ async function handleAddNote(req, res) {
 
     const service = createServiceClient();
     await ensureUserProfile(service, auth.user, auth.user.id);
-    const observation = await resolveNoteObservation(auth, service, { observationId, shotId });
+    const observation = await resolveNoteObservation(auth, service, { observationId, shotId, packageId });
 
     const { data: activity, error: activityError } = await service
       .from("punchlist_activity")
