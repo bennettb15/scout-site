@@ -691,6 +691,19 @@ const PUNCH_LIST_STYLES = `
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
   }
 
+  .punch-row-note-button.has-notes {
+    border-color: rgb(37 99 235);
+    background: rgb(239 246 255);
+    color: rgb(29 78 216);
+    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.16);
+  }
+
+  .punch-row-note-button.has-notes:hover {
+    border-color: rgb(29 78 216);
+    background: rgb(219 234 254);
+    color: rgb(30 64 175);
+  }
+
   .punch-row-note-area {
     border-top: 1px solid rgb(226 232 240);
     margin-top: 12px;
@@ -1471,7 +1484,7 @@ function IssueRow({
             {showNoteButton && (
               <button
                 type="button"
-                className="punch-row-note-button"
+                className={`punch-row-note-button ${notes.length > 0 ? "has-notes" : ""}`}
                 onClick={(event) => {
                   event.stopPropagation();
                   onToggleNotePanel(row.id);

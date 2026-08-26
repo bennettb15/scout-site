@@ -30,6 +30,7 @@ const MAX_PREVIEW_URLS = 60;
 const MAX_ACTIVITY_ROWS = 1000;
 const MAX_NOTE_LENGTH = 1000;
 const ALL_VALUE = "all";
+const NOTE_WRITER_ROLES = ["viewer", "field"];
 const FIELD_REVIEW_ELEVATION_ORDER = ["front", "north", "east", "south", "west", "rear"];
 const NATURAL_COLLATOR = new Intl.Collator("en-US", {
   numeric: true,
@@ -454,20 +455,20 @@ function publicShotRow({ shot, org, property, session, reportPackage, previewUrl
   };
 }
 
-async function loadFieldMembership(auth, orgId) {
+async function loadNoteWriterMembership(auth, orgId) {
   const { data, error } = await auth.client
     .from("org_memberships")
     .select("id,role,access_scope,deleted_at")
     .eq("org_id", orgId)
     .eq("user_id", auth.user.id)
-    .eq("role", "field")
+    .in("role", NOTE_WRITER_ROLES)
     .is("deleted_at", null);
 
   if (error) return null;
   return (data || []).find((row) => (row.access_scope || "org") === "org") || null;
 }
 
-async function editableOrgIdSet(auth, orgIds) {
+async function noteWriterOrgIdSet(auth, orgIds) {
   const ids = unique(orgIds).filter(Boolean);
   if (ids.length === 0) return new Set();
   if (isApprovedAdminEmail(auth.user?.email)) return new Set(ids);
@@ -477,7 +478,7 @@ async function editableOrgIdSet(auth, orgIds) {
     .select("org_id,role,access_scope,deleted_at")
     .in("org_id", ids)
     .eq("user_id", auth.user.id)
-    .eq("role", "field")
+    .in("role", NOTE_WRITER_ROLES)
     .is("deleted_at", null);
 
   if (error) return new Set();
@@ -615,7 +616,7 @@ async function createObservationForFallbackShot(service, auth, shot) {
 
 async function canWritePunchListNotes(auth, orgId) {
   if (isApprovedAdminEmail(auth.user?.email)) return true;
-  return Boolean(await loadFieldMembership(auth, orgId));
+  return Boolean(await loadNoteWriterMembership(auth, orgId));
 }
 
 async function resolveNoteObservation(auth, service, { observationId, shotId, packageId }) {
@@ -638,7 +639,7 @@ async function resolveNoteObservation(auth, service, { observationId, shotId, pa
       throw error;
     }
     if (!(await canWritePunchListNotes(auth, observation.org_id))) {
-      const error = new Error("Field User access is required to add notes.");
+      const error = new Error("Client Viewer or Field User access is required to add notes.");
       error.statusCode = 403;
       throw error;
     }
@@ -658,7 +659,7 @@ async function resolveNoteObservation(auth, service, { observationId, shotId, pa
     throw error;
   }
   if (!(await canWritePunchListNotes(auth, shot.org_id))) {
-    const error = new Error("Field User access is required to add notes.");
+    const error = new Error("Client Viewer or Field User access is required to add notes.");
     error.statusCode = 403;
     throw error;
   }
@@ -764,9 +765,9 @@ async function handleDeleteNote(req, res) {
     }
 
     const adminAllowed = isApprovedAdminEmail(auth.user?.email);
-    const ownFieldNote =
-      activity.created_by === auth.user.id && (await loadFieldMembership(auth, activity.org_id));
-    if (!adminAllowed && !ownFieldNote) {
+    const ownNoteWriterNote =
+      activity.created_by === auth.user.id && (await loadNoteWriterMembership(auth, activity.org_id));
+    if (!adminAllowed && !ownNoteWriterNote) {
       return sendJson(res, 403, { error: "You can only delete your own notes." });
     }
 
@@ -1023,7 +1024,7 @@ export default async function handler(req, res) {
     const orgById = new Map((orgRows || []).map((row) => [row.id, toOrg(row)]));
     const propertyById = new Map((propertyRows || []).map((row) => [row.id, toProperty(row)]));
     const sessionById = new Map((sessionRows || []).map((row) => [row.id, toSession(row)]));
-    const editableOrgIds = await editableOrgIdSet(auth, orgIds);
+    const noteWriterOrgIds = await noteWriterOrgIdSet(auth, orgIds);
     const adminAllowed = isApprovedAdminEmail(auth.user?.email);
     const latestUpdateByObservationId = new Map();
     for (const update of observationUpdates) {
@@ -1037,7 +1038,7 @@ export default async function handler(req, res) {
       const publicRow = publicActivityRow(activityRow, {
         canDelete:
           adminAllowed ||
-          (editableOrgIds.has(activityRow.org_id) && activityRow.created_by === auth.user.id),
+          (noteWriterOrgIds.has(activityRow.org_id) && activityRow.created_by === auth.user.id),
       });
       if (!publicRow?.note) continue;
       const rows = activityByObservationId.get(activityRow.observation_id) || [];
@@ -1064,7 +1065,7 @@ export default async function handler(req, res) {
         observation,
         update: latestUpdateByObservationId.get(observation.id) || null,
         activity: activityRowsForObservation(activityByObservationId, observation.id),
-        canAddNote: editableOrgIds.has(observation.org_id),
+        canAddNote: noteWriterOrgIds.has(observation.org_id),
         shot,
         org: orgById.get(observation.org_id) || null,
         property: propertyById.get(observation.property_id || shot?.property_id) || null,
@@ -1104,7 +1105,7 @@ export default async function handler(req, res) {
         session: sessionById.get(shot.session_id) || null,
         reportPackage,
         previewUrl: await previewForShot(shot),
-        canAddNote: editableOrgIds.has(shot.org_id),
+        canAddNote: noteWriterOrgIds.has(shot.org_id),
       });
       addDedupKeys(dedupKeys, row);
       rows.push(row);
