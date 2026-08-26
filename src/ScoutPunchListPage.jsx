@@ -935,6 +935,23 @@ const PUNCH_LIST_STYLES = `
   .punch-date-control {
     position: relative;
     display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    border-radius: 7px;
+  }
+
+  .punch-date-control .punch-control-input {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .punch-date-control:not(.is-empty) .punch-control-input {
+    padding-right: 30px;
   }
 
   .punch-date-control.is-empty {
