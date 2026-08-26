@@ -1381,7 +1381,7 @@ export default function ScoutReportsPortalPage() {
                                           setActivePhotoViewer({ reportPackage, photo })
                                         }
                                         className="absolute inset-0 block h-full w-full text-left"
-                                        style={{ zIndex: 1 }}
+                                        style={{ cursor: "zoom-in", zIndex: 1 }}
                                         aria-label={`Open ${photoLabel}`}
                                       >
                                         {photo.previewUrl ? (
