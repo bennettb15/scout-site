@@ -8,6 +8,7 @@ import {
   expectedOriginalJpgPreviewPath,
   friendlyOriginalDownloadFilename,
   friendlyPhotoDisplayName,
+  getQueryValue,
   loadSnapshotPhotoMetadata,
   methodAllowed,
   originalIsBrowserPreviewable,
@@ -20,6 +21,7 @@ import {
 
 const MAX_ROWS = 250;
 const MAX_PREVIEW_URLS = 60;
+const ALL_VALUE = "all";
 
 function compactText(value) {
   const text = String(value || "").trim();
@@ -51,6 +53,19 @@ function normalizedPriority(value) {
 
 function normalizedTrade(value) {
   return keyValue(value) || "general";
+}
+
+function scopeId(req, name) {
+  const value = compactText(getQueryValue(req, name));
+  if (!value || value.toLowerCase() === ALL_VALUE) return "";
+  return value;
+}
+
+function applyScope(query, scope) {
+  let scopedQuery = query;
+  if (scope.orgId) scopedQuery = scopedQuery.eq("org_id", scope.orgId);
+  if (scope.propertyId) scopedQuery = scopedQuery.eq("property_id", scope.propertyId);
+  return scopedQuery;
 }
 
 function toOrg(row) {
@@ -309,29 +324,106 @@ function publicShotRow({ shot, org, property, session, reportPackage, previewUrl
   };
 }
 
+async function handleFilters(req, res) {
+  try {
+    const auth = await authenticateRequest(req);
+    if (auth.error) return sendJson(res, 401, { error: auth.error });
+
+    const { client } = auth;
+    const [packageRows, observationRows] = await Promise.all([
+      safeRows(
+        client
+          .from("report_packages")
+          .select("org_id,property_id")
+          .eq("status", "ready")
+          .is("deleted_at", null)
+          .order("session_completed_at", { ascending: false })
+          .limit(1000)
+      ),
+      safeRows(
+        client
+          .from("observations")
+          .select("org_id,property_id")
+          .is("deleted_at", null)
+          .order("updated_at", { ascending: false })
+          .limit(1000)
+      ),
+    ]);
+
+    const orgIds = unique([
+      ...packageRows.map((row) => row.org_id),
+      ...observationRows.map((row) => row.org_id),
+    ]);
+    const propertyIds = unique([
+      ...packageRows.map((row) => row.property_id),
+      ...observationRows.map((row) => row.property_id),
+    ]);
+
+    const [{ data: orgRows }, { data: propertyRows }] = await Promise.all([
+      orgIds.length
+        ? client
+            .from("orgs")
+            .select("id,name")
+            .in("id", orgIds)
+            .is("deleted_at", null)
+            .order("name", { ascending: true })
+        : { data: [] },
+      propertyIds.length
+        ? client
+            .from("properties")
+            .select("id,org_id,name,address_line1,city,state,postal_code")
+            .in("id", propertyIds)
+            .is("deleted_at", null)
+            .order("name", { ascending: true })
+        : { data: [] },
+    ]);
+
+    return sendJson(res, 200, {
+      orgs: (orgRows || []).map(toOrg),
+      properties: (propertyRows || []).map(toProperty),
+    });
+  } catch {
+    return sendJson(res, 500, { error: "Unable to load punch list filters." });
+  }
+}
+
 export default async function handler(req, res) {
   if (!methodAllowed(req, res, ["GET", "OPTIONS"])) return;
+
+  if (getQueryValue(req, "mode") === "filters") {
+    return handleFilters(req, res);
+  }
 
   try {
     const auth = await authenticateRequest(req);
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
     const { client } = auth;
+    const scope = {
+      orgId: scopeId(req, "orgId"),
+      propertyId: scopeId(req, "propertyId"),
+    };
     const packageRows = await safeRows(
-      client
-        .from("report_packages")
-        .select("id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at")
-        .eq("status", "ready")
-        .is("deleted_at", null)
+      applyScope(
+        client
+          .from("report_packages")
+          .select("id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at")
+          .eq("status", "ready")
+          .is("deleted_at", null),
+        scope
+      )
         .order("session_completed_at", { ascending: false })
         .limit(100)
     );
 
     const observations = await safeRows(
-      client
-        .from("observations")
-        .select(safeObservationSelect())
-        .is("deleted_at", null)
+      applyScope(
+        client
+          .from("observations")
+          .select(safeObservationSelect())
+          .is("deleted_at", null),
+        scope
+      )
         .order("updated_at", { ascending: false })
         .limit(MAX_ROWS)
     );

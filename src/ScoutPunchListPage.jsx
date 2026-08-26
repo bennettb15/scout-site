@@ -265,6 +265,31 @@ function uniqueOptions(rows, getter, labeler) {
   return Array.from(byId.values()).sort((a, b) => a.label.localeCompare(b.label));
 }
 
+function orgOption(org) {
+  return {
+    id: org.id,
+    label: org.name || "Organization",
+    value: org,
+  };
+}
+
+function propertyOption(property) {
+  return {
+    id: property.id,
+    label: propertyOptionLabel(property),
+    value: property,
+  };
+}
+
+function propertyOptionsForOrg(options, orgId) {
+  if (!orgId) return options;
+  return options.filter((option) => option.value?.orgId === orgId);
+}
+
+function defaultPropertyIdForOrg(options, orgId) {
+  return propertyOptionsForOrg(options, orgId)[0]?.id || "";
+}
+
 const PUNCH_LIST_STYLES = `
   .punch-filter-row {
     align-items: end;
@@ -990,7 +1015,11 @@ export default function ScoutPunchListPage() {
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [rows, setRows] = useState([]);
+  const [orgOptions, setOrgOptions] = useState([]);
+  const [allPropertyOptions, setAllPropertyOptions] = useState([]);
   const [punchListError, setPunchListError] = useState("");
+  const [filtersLoading, setFiltersLoading] = useState(false);
+  const [filtersReady, setFiltersReady] = useState(false);
   const [punchListLoading, setPunchListLoading] = useState(false);
   const [selectedTab, setSelectedTab] = useState(TAB_OPEN);
   const [selectedOrgId, setSelectedOrgId] = useState("");
@@ -1032,12 +1061,74 @@ export default function ScoutPunchListPage() {
     };
   }, []);
 
+  async function loadPunchListFilters(activeSession = session) {
+    if (!activeSession?.access_token) return;
+    setFiltersLoading(true);
+    setFiltersReady(false);
+    setPunchListError("");
+    try {
+      const response = await fetch("/api/punch-list?mode=filters", {
+        headers: {
+          Authorization: `Bearer ${activeSession.access_token}`,
+        },
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(body.orgs) || !Array.isArray(body.properties)) {
+        throw new Error(body.error || "Unable to load punch list filters.");
+      }
+
+      const nextOrgOptions = body.orgs.map(orgOption);
+      const nextPropertyOptions = body.properties
+        .map(propertyOption)
+        .sort((left, right) => left.label.localeCompare(right.label));
+      const nextOrgId = nextOrgOptions.some((option) => option.id === selectedOrgId)
+        ? selectedOrgId
+        : nextOrgOptions[0]?.id || "";
+      const orgProperties = propertyOptionsForOrg(nextPropertyOptions, nextOrgId);
+      const selectedPropertyStillAvailable =
+        selectedPropertyId !== ALL &&
+        orgProperties.some((option) => option.id === selectedPropertyId);
+      const nextPropertyId = selectedPropertyStillAvailable
+        ? selectedPropertyId
+        : defaultPropertyIdForOrg(nextPropertyOptions, nextOrgId);
+
+      setOrgOptions(nextOrgOptions);
+      setAllPropertyOptions(nextPropertyOptions);
+      setSelectedOrgId(nextOrgId);
+      setSelectedPropertyId(nextPropertyId);
+      setFiltersReady(true);
+    } catch (error) {
+      setPunchListError(error.message || "Unable to load punch list filters.");
+      setOrgOptions([]);
+      setAllPropertyOptions([]);
+      setRows([]);
+      setSelectedOrgId("");
+      setSelectedPropertyId("");
+      setFiltersReady(true);
+    } finally {
+      setFiltersLoading(false);
+    }
+  }
+
   async function loadPunchList(activeSession = session) {
     if (!activeSession?.access_token) return;
+    if (!selectedOrgId) {
+      setRows([]);
+      return;
+    }
+    const selectedOrgProperties = propertyOptionsForOrg(allPropertyOptions, selectedOrgId);
+    if (filtersReady && selectedOrgProperties.length === 0) {
+      setRows([]);
+      return;
+    }
     setPunchListLoading(true);
     setPunchListError("");
     try {
-      const response = await fetch("/api/punch-list", {
+      const params = new URLSearchParams({ orgId: selectedOrgId });
+      if (selectedPropertyId && selectedPropertyId !== ALL) {
+        params.set("propertyId", selectedPropertyId);
+      }
+      const response = await fetch(`/api/punch-list?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${activeSession.access_token}`,
         },
@@ -1057,14 +1148,22 @@ export default function ScoutPunchListPage() {
 
   useEffect(() => {
     if (session?.access_token) {
-      loadPunchList(session);
+      loadPunchListFilters(session);
     } else {
       setRows([]);
+      setOrgOptions([]);
+      setAllPropertyOptions([]);
       setSelectedOrgId("");
-      setSelectedPropertyId(ALL);
+      setSelectedPropertyId("");
       setPunchListError("");
+      setFiltersReady(false);
     }
   }, [session?.access_token]);
+
+  useEffect(() => {
+    if (!session?.access_token || !filtersReady || filtersLoading) return;
+    loadPunchList(session);
+  }, [session?.access_token, filtersReady, filtersLoading, selectedOrgId, selectedPropertyId]);
 
   useEffect(() => {
     if (!previewRow) return undefined;
@@ -1094,8 +1193,10 @@ export default function ScoutPunchListPage() {
   async function handleSignOut() {
     await supabase?.auth.signOut();
     setRows([]);
+    setOrgOptions([]);
+    setAllPropertyOptions([]);
     setSelectedOrgId("");
-    setSelectedPropertyId(ALL);
+    setSelectedPropertyId("");
   }
 
   async function handleDownloadOriginal(row) {
@@ -1120,39 +1221,30 @@ export default function ScoutPunchListPage() {
     }
   }
 
-  const orgOptions = useMemo(
-    () => uniqueOptions(rows, (row) => row.org, (org) => org.name || "Organization"),
-    [rows]
-  );
-
-  useEffect(() => {
-    if (orgOptions.length === 0) {
-      if (selectedOrgId) setSelectedOrgId("");
-      return;
-    }
-    if (!selectedOrgId || !orgOptions.some((option) => option.id === selectedOrgId)) {
-      setSelectedOrgId(orgOptions[0].id);
-    }
-  }, [orgOptions, selectedOrgId]);
-
   const orgFilteredRows = useMemo(() => {
     if (!selectedOrgId) return rows;
     return rows.filter((row) => row.org?.id === selectedOrgId);
   }, [rows, selectedOrgId]);
 
   const propertyOptions = useMemo(
-    () => uniqueOptions(orgFilteredRows, (row) => row.property, propertyOptionLabel),
-    [orgFilteredRows]
+    () => propertyOptionsForOrg(allPropertyOptions, selectedOrgId),
+    [allPropertyOptions, selectedOrgId]
   );
 
   useEffect(() => {
-    if (
-      selectedPropertyId !== ALL &&
-      !propertyOptions.some((option) => option.id === selectedPropertyId)
-    ) {
-      setSelectedPropertyId(ALL);
+    if (!filtersReady) return;
+    if (propertyOptions.length === 0) {
+      if (selectedPropertyId) setSelectedPropertyId("");
+      return;
     }
-  }, [propertyOptions, selectedPropertyId]);
+    if (
+      !selectedPropertyId ||
+      (selectedPropertyId === ALL && propertyOptions.length <= 1) ||
+      (selectedPropertyId !== ALL && !propertyOptions.some((option) => option.id === selectedPropertyId))
+    ) {
+      setSelectedPropertyId(propertyOptions[0].id);
+    }
+  }, [filtersReady, propertyOptions, selectedPropertyId]);
 
   const priorityOptions = useMemo(
     () =>
@@ -1207,6 +1299,17 @@ export default function ScoutPunchListPage() {
 
   const openCount = orgFilteredRows.filter((row) => row.status !== "resolved").length;
   const resolvedCount = orgFilteredRows.filter((row) => row.status === "resolved").length;
+  const showAllPropertiesOption = propertyOptions.length > 1;
+  const propertySelectValue =
+    propertyOptions.length === 0
+      ? ""
+      : selectedPropertyId === ALL && !showAllPropertiesOption
+        ? propertyOptions[0]?.id || ""
+        : selectedPropertyId || propertyOptions[0]?.id || "";
+  const noPunchListProperties =
+    Boolean(session) && filtersReady && !filtersLoading && orgOptions.length > 0 && propertyOptions.length === 0;
+  const noPunchListSources =
+    Boolean(session) && filtersReady && !filtersLoading && orgOptions.length === 0;
 
   return (
     <div
@@ -1263,8 +1366,10 @@ export default function ScoutPunchListPage() {
                     <select
                       value={selectedOrgId}
                       onChange={(event) => {
-                        setSelectedOrgId(event.target.value);
-                        setSelectedPropertyId(ALL);
+                        const nextOrgId = event.target.value;
+                        setSelectedOrgId(nextOrgId);
+                        setSelectedPropertyId(defaultPropertyIdForOrg(allPropertyOptions, nextOrgId));
+                        setRows([]);
                       }}
                       className="h-9 max-w-[220px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
                     >
@@ -1279,12 +1384,20 @@ export default function ScoutPunchListPage() {
                 <label className="grid gap-1 text-xs font-semibold text-foreground/60">
                   Property
                   <select
-                    value={selectedPropertyId}
-                    onChange={(event) => setSelectedPropertyId(event.target.value)}
-                    disabled={propertyOptions.length === 0}
+                    value={propertySelectValue}
+                    onChange={(event) => {
+                      setSelectedPropertyId(event.target.value);
+                      setRows([]);
+                    }}
+                    disabled={filtersLoading || propertyOptions.length === 0}
                     className="h-9 max-w-[280px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
                   >
-                    <option value={ALL}>All Properties</option>
+                    {propertyOptions.length === 0 && (
+                      <option value="">No Properties</option>
+                    )}
+                    {showAllPropertiesOption && (
+                      <option value={ALL}>All Properties</option>
+                    )}
                     {propertyOptions.map((option) => (
                       <option key={option.id} value={option.id}>
                         {option.label}
@@ -1325,7 +1438,7 @@ export default function ScoutPunchListPage() {
                 <button
                   type="button"
                   onClick={() => loadPunchList()}
-                  disabled={punchListLoading}
+                  disabled={punchListLoading || filtersLoading || !selectedOrgId}
                   className="punch-refresh-button inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
                 >
                   <RefreshCw
@@ -1442,17 +1555,33 @@ export default function ScoutPunchListPage() {
               Filters are above
             </div>
 
-            {!punchListLoading && filteredRows.length === 0 && (
-              <div className="rounded-lg border border-border bg-background p-6 text-sm text-foreground/70 shadow-sm">
-                No punch list items match the selected filters.
-              </div>
-            )}
-
-            {punchListLoading && rows.length === 0 && (
+            {(filtersLoading || (punchListLoading && rows.length === 0)) && (
               <div className="rounded-lg border border-border bg-background p-6 text-sm text-foreground/70 shadow-sm">
                 Loading punch list...
               </div>
             )}
+
+            {!filtersLoading && !punchListLoading && noPunchListSources && (
+              <div className="rounded-lg border border-border bg-background p-6 text-sm text-foreground/70 shadow-sm">
+                No punch list properties are available for this account.
+              </div>
+            )}
+
+            {!filtersLoading && !punchListLoading && noPunchListProperties && (
+              <div className="rounded-lg border border-border bg-background p-6 text-sm text-foreground/70 shadow-sm">
+                No properties are available for the selected organization.
+              </div>
+            )}
+
+            {!filtersLoading &&
+              !punchListLoading &&
+              !noPunchListSources &&
+              !noPunchListProperties &&
+              filteredRows.length === 0 && (
+                <div className="rounded-lg border border-border bg-background p-6 text-sm text-foreground/70 shadow-sm">
+                  No punch list items match the selected filters.
+                </div>
+              )}
 
             {filteredRows.length > 0 && (
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
