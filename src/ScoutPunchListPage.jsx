@@ -1234,6 +1234,8 @@ export default function ScoutPunchListPage() {
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
   const sessionScopeRef = useRef("");
+  const filterRequestRef = useRef(0);
+  const bootstrapTokenRef = useRef("");
 
   useEffect(() => {
     document.title = BRAND.siteTitle;
@@ -1248,16 +1250,24 @@ export default function ScoutPunchListPage() {
     }
 
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setSession(data.session || null);
-      setAuthLoading(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!active) return;
+        setSession(data.session || null);
+        setAuthLoading(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setSession(null);
+        setAuthLoading(false);
+      });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession || null);
+      setAuthLoading(false);
     });
 
     return () => {
@@ -1291,10 +1301,14 @@ export default function ScoutPunchListPage() {
 
   async function loadPunchListFilters(activeSession = session, { force = false } = {}) {
     if (!activeSession?.access_token) return;
+    const requestId = filterRequestRef.current + 1;
+    filterRequestRef.current = requestId;
+    const isLatestRequest = () => filterRequestRef.current === requestId;
     const cacheKey = buildFilterCacheKey(activeSession);
     if (!force) {
       const cachedFilters = cacheGet(punchListFilterCache, cacheKey);
       if (cachedFilters) {
+        if (!isLatestRequest()) return;
         setPunchListError("");
         setFiltersLoading(false);
         setFiltersReady(false);
@@ -1320,9 +1334,11 @@ export default function ScoutPunchListPage() {
         orgs: body.orgs,
         properties: body.properties,
       };
+      if (!isLatestRequest()) return;
       cacheSet(punchListFilterCache, cacheKey, filterBody);
       applyPunchListFilterBody(filterBody);
     } catch (error) {
+      if (!isLatestRequest()) return;
       setPunchListError(error.message || "Unable to load punch list filters.");
       setOrgOptions([]);
       setAllPropertyOptions([]);
@@ -1331,7 +1347,9 @@ export default function ScoutPunchListPage() {
       setSelectedPropertyId("");
       setFiltersReady(true);
     } finally {
-      setFiltersLoading(false);
+      if (isLatestRequest()) {
+        setFiltersLoading(false);
+      }
     }
   }
 
@@ -1425,8 +1443,26 @@ export default function ScoutPunchListPage() {
 
   useEffect(() => {
     if (session?.access_token) {
+      const nextBootstrapScope = sessionCacheScope(session);
+      if (bootstrapTokenRef.current !== nextBootstrapScope) {
+        setRows([]);
+        setOrgOptions([]);
+        setAllPropertyOptions([]);
+        setSelectedOrgId("");
+        setSelectedPropertyId("");
+        setSelectedElevation(ALL);
+        setSelectedDetail(ALL);
+        setSelectedRowId("");
+        setLoadedRowsScope({ orgId: "", propertyId: "" });
+        setLastRefreshedAt(null);
+        setPunchListError("");
+        setFiltersReady(false);
+      }
+      bootstrapTokenRef.current = nextBootstrapScope;
       loadPunchListFilters(session);
     } else {
+      filterRequestRef.current += 1;
+      bootstrapTokenRef.current = "";
       setRows([]);
       setOrgOptions([]);
       setAllPropertyOptions([]);
@@ -1471,12 +1507,19 @@ export default function ScoutPunchListPage() {
       setAuthError("Supabase is not configured for this site.");
       return;
     }
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
     if (error) {
       setAuthError(error.message || "Unable to sign in.");
+      return;
+    }
+    if (data?.session) {
+      bootstrapTokenRef.current = sessionCacheScope(data.session);
+      setSession(data.session);
+      setAuthLoading(false);
+      await loadPunchListFilters(data.session, { force: true });
     }
   }
 
@@ -1737,30 +1780,32 @@ export default function ScoutPunchListPage() {
             </h1>
             {session && (
               <div className="punch-filter-row mt-3 flex flex-wrap gap-2">
-                {orgOptions.length > 1 && (
-                  <label className="punch-filter-control grid gap-1 text-xs font-semibold text-foreground/60">
-                    Organization
-                    <select
-                      value={selectedOrgId}
-                      onChange={(event) => {
-                        const nextOrgId = event.target.value;
-                        const nextPropertyId = defaultPropertyIdForOrg(allPropertyOptions, nextOrgId);
-                        prepareRowsForScope(nextOrgId, nextPropertyId);
-                        setSelectedOrgId(nextOrgId);
-                        setSelectedPropertyId(nextPropertyId);
-                        setSelectedElevation(ALL);
-                        setSelectedDetail(ALL);
-                      }}
-                      className="h-9 max-w-[220px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
-                    >
-                      {orgOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
+                <label className="punch-filter-control grid gap-1 text-xs font-semibold text-foreground/60">
+                  Organization
+                  <select
+                    value={selectedOrgId}
+                    onChange={(event) => {
+                      const nextOrgId = event.target.value;
+                      const nextPropertyId = defaultPropertyIdForOrg(allPropertyOptions, nextOrgId);
+                      prepareRowsForScope(nextOrgId, nextPropertyId);
+                      setSelectedOrgId(nextOrgId);
+                      setSelectedPropertyId(nextPropertyId);
+                      setSelectedElevation(ALL);
+                      setSelectedDetail(ALL);
+                    }}
+                    disabled={filtersLoading || orgOptions.length <= 1}
+                    className="h-9 max-w-[220px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:cursor-default disabled:opacity-100"
+                  >
+                    {orgOptions.length === 0 && (
+                      <option value="">No Organizations</option>
+                    )}
+                    {orgOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label className="punch-filter-property grid gap-1 text-xs font-semibold text-foreground/60">
                   Property
                   <select
