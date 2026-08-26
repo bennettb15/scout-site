@@ -934,19 +934,17 @@ const PUNCH_LIST_STYLES = `
 
   .punch-date-control {
     position: relative;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 26px;
-    gap: 4px;
+    display: block;
   }
 
   .punch-date-control.is-empty {
-    grid-template-columns: minmax(0, 1fr) 26px;
+    display: block;
   }
 
   .punch-date-control.is-empty::after {
     content: "None";
     position: absolute;
-    inset: 0 30px 0 0;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -962,6 +960,9 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-date-clear {
+    position: absolute;
+    top: 0;
+    right: 0;
     display: inline-flex;
     height: 28px;
     width: 26px;
@@ -1489,20 +1490,15 @@ const PUNCH_LIST_STYLES = `
     }
 
     .punch-date-control {
-      grid-template-columns: minmax(0, 1fr) 27px;
-    }
-
-    .punch-date-control .punch-control-input {
-      font-size: 13px;
+      display: block;
     }
 
     .punch-date-control.is-empty {
-      grid-template-columns: minmax(0, 1fr) 27px;
+      display: block;
     }
 
     .punch-date-control.is-empty::after {
-      right: 31px;
-      font-size: 13px;
+      right: 0;
     }
 
     .punch-select-control.has-action {
