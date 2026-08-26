@@ -950,18 +950,18 @@ const PUNCH_LIST_STYLES = `
     align-items: center;
     justify-content: center;
     border-radius: 7px;
-    border: 1px solid rgb(191 219 254);
-    background: rgb(239 246 255);
-    color: rgb(29 78 216);
+    border: 1px solid rgb(17 24 39);
+    background: rgb(17 24 39);
+    color: white;
     font-size: 16px;
     font-weight: 900;
     line-height: 1;
   }
 
   .punch-control-add:hover {
-    border-color: rgb(37 99 235);
-    background: rgb(219 234 254);
-    color: rgb(30 64 175);
+    border-color: rgb(0 0 0);
+    background: rgb(0 0 0);
+    color: white;
   }
 
   .punch-notes-panel {
