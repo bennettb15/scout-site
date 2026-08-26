@@ -1380,6 +1380,39 @@ export default function ScoutPunchListPage() {
     }
   }
 
+  function hasCachedRowsForScope(orgId, propertyId) {
+    if (!session?.access_token || !orgId) return false;
+    const propertyScope = propertyId && propertyId !== ALL ? propertyId : ALL;
+    const rowsFilterKey = buildRowsFilterKey(
+      session,
+      orgId,
+      propertyScope,
+      selectedTab,
+      selectedPriority,
+      selectedTrade
+    );
+    const rowsScopeKey = buildRowsScopeKey(session, orgId, propertyScope);
+    return (
+      cacheGet(punchListViewCache, rowsFilterKey) !== null ||
+      cacheGet(punchListRowsCache, rowsScopeKey) !== null
+    );
+  }
+
+  function prepareRowsForScope(orgId, propertyId) {
+    if (!orgId || !propertyId) {
+      setRows([]);
+      setLoadedRowsScope({ orgId: "", propertyId: "" });
+      setSelectedRowId("");
+      setPunchListLoading(false);
+      return;
+    }
+    if (hasCachedRowsForScope(orgId, propertyId)) return;
+    setRows([]);
+    setLoadedRowsScope({ orgId: "", propertyId: "" });
+    setSelectedRowId("");
+    setPunchListLoading(true);
+  }
+
   const displayedOrgId = loadedRowsScope.orgId || selectedOrgId;
   const displayedPropertyId = loadedRowsScope.propertyId || selectedPropertyId || ALL;
 
@@ -1529,8 +1562,10 @@ export default function ScoutPunchListPage() {
                       value={selectedOrgId}
                       onChange={(event) => {
                         const nextOrgId = event.target.value;
+                        const nextPropertyId = defaultPropertyIdForOrg(allPropertyOptions, nextOrgId);
+                        prepareRowsForScope(nextOrgId, nextPropertyId);
                         setSelectedOrgId(nextOrgId);
-                        setSelectedPropertyId(defaultPropertyIdForOrg(allPropertyOptions, nextOrgId));
+                        setSelectedPropertyId(nextPropertyId);
                       }}
                       className="h-9 max-w-[220px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
                     >
@@ -1547,7 +1582,9 @@ export default function ScoutPunchListPage() {
                   <select
                     value={propertySelectValue}
                     onChange={(event) => {
-                      setSelectedPropertyId(event.target.value);
+                      const nextPropertyId = event.target.value;
+                      prepareRowsForScope(selectedOrgId, nextPropertyId);
+                      setSelectedPropertyId(nextPropertyId);
                     }}
                     disabled={filtersLoading || propertyOptions.length === 0}
                     className="h-9 max-w-[280px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
