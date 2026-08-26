@@ -420,6 +420,22 @@ function defaultPropertyIdForOrg(options, orgId) {
   return propertyOptionsForOrg(options, orgId)[0]?.id || "";
 }
 
+function activityNotes(row) {
+  return Array.isArray(row?.activity)
+    ? row.activity.filter((activity) => activity?.activityType === "note_added" && textValue(activity.note))
+    : [];
+}
+
+function noteUnavailableMessage(row) {
+  if (row?.source !== "observation") {
+    return "Notes can be added after this historical item is backed by an observation.";
+  }
+  if (!row?.permissions?.canAddNote) {
+    return "This account can view notes but cannot add them.";
+  }
+  return "";
+}
+
 const PUNCH_LIST_STYLES = `
   .punch-filter-row {
     align-items: end;
@@ -681,6 +697,110 @@ const PUNCH_LIST_STYLES = `
     font-weight: 800;
     line-height: 1;
     text-align: center;
+  }
+
+  .punch-notes-panel {
+    border-top: 1px solid rgb(226 232 240);
+    margin-top: 14px;
+    padding-top: 14px;
+  }
+
+  .punch-notes-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: rgb(15 23 42);
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  .punch-note-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .punch-note-item {
+    border-radius: 8px;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252);
+    padding: 9px 10px;
+  }
+
+  .punch-note-meta {
+    color: rgb(100 116 139);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .punch-note-text {
+    margin-top: 4px;
+    color: rgb(30 41 59);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+    white-space: pre-wrap;
+  }
+
+  .punch-note-empty {
+    margin-top: 8px;
+    color: rgb(100 116 139);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .punch-note-form {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .punch-note-input {
+    min-height: 76px;
+    resize: vertical;
+    border-radius: 8px;
+    border: 1px solid rgb(203 213 225);
+    background: white;
+    padding: 9px 10px;
+    color: rgb(15 23 42);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.45;
+    outline: none;
+  }
+
+  .punch-note-input:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 2px rgba(28, 39, 66, 0.12);
+  }
+
+  .punch-note-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .punch-note-submit {
+    display: inline-flex;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border-radius: 8px;
+    background: var(--brand);
+    padding: 0 12px;
+    color: white;
+    font-size: 13px;
+    font-weight: 800;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  }
+
+  .punch-note-submit:disabled {
+    opacity: 0.55;
   }
 
   .punch-lightbox {
@@ -1055,7 +1175,73 @@ function ReadOnlyField({ label, value }) {
   );
 }
 
-function RowDetail({ row, onDownloadOriginal, downloadId, onPreview }) {
+function NotesPanel({ row, noteDraft, onNoteDraftChange, onAddNote, noteSaving }) {
+  const notes = activityNotes(row);
+  const canAddNote = Boolean(row?.permissions?.canAddNote);
+  const unavailableMessage = noteUnavailableMessage(row);
+  const trimmedDraft = textValue(noteDraft);
+
+  return (
+    <div className="punch-notes-panel">
+      <div className="punch-notes-title">
+        <FileText className="h-4 w-4" />
+        Notes
+      </div>
+      {notes.length > 0 ? (
+        <div className="punch-note-list">
+          {notes.slice(0, 5).map((note) => (
+            <div key={note.id} className="punch-note-item">
+              <div className="punch-note-meta">{formatDateTime(note.createdAt) || "Recently"}</div>
+              <div className="punch-note-text">{note.note}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="punch-note-empty">No notes yet.</div>
+      )}
+      {canAddNote ? (
+        <form
+          className="punch-note-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (trimmedDraft) onAddNote(row, trimmedDraft);
+          }}
+        >
+          <textarea
+            value={noteDraft}
+            onChange={(event) => onNoteDraftChange(row.id, event.target.value)}
+            maxLength={1000}
+            className="punch-note-input"
+            placeholder="Add a note"
+          />
+          <div className="punch-note-actions">
+            <button
+              type="submit"
+              disabled={!trimmedDraft || noteSaving}
+              className="punch-note-submit"
+            >
+              <FileText className="h-4 w-4" />
+              {noteSaving ? "Adding..." : "Add Note"}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="punch-note-empty">{unavailableMessage}</div>
+      )}
+    </div>
+  );
+}
+
+function RowDetail({
+  row,
+  onDownloadOriginal,
+  downloadId,
+  onPreview,
+  noteDraft,
+  onNoteDraftChange,
+  onAddNote,
+  noteSaving,
+}) {
   if (!row) {
     return (
       <div className="rounded-lg border border-border bg-background p-5 text-sm text-foreground/60 shadow-sm">
@@ -1084,7 +1270,7 @@ function RowDetail({ row, onDownloadOriginal, downloadId, onPreview }) {
           {statusLabel(row.status)}
         </span>
         <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800">
-          Read Only
+          {row.permissions?.canAddNote ? "Notes Enabled" : "Read Only"}
         </span>
       </div>
 
@@ -1131,11 +1317,28 @@ function RowDetail({ row, onDownloadOriginal, downloadId, onPreview }) {
           </a>
         )}
       </div>
+
+      <NotesPanel
+        row={row}
+        noteDraft={noteDraft}
+        onNoteDraftChange={onNoteDraftChange}
+        onAddNote={onAddNote}
+        noteSaving={noteSaving}
+      />
     </aside>
   );
 }
 
-function IssueRow({ row, selected, onSelect, onPreview }) {
+function IssueRow({
+  row,
+  selected,
+  onSelect,
+  onPreview,
+  noteDraft,
+  onNoteDraftChange,
+  onAddNote,
+  noteSaving,
+}) {
   const flagNote = row.title || row.reason || "Flagged observation";
 
   return (
@@ -1182,9 +1385,18 @@ function IssueRow({ row, selected, onSelect, onPreview }) {
           <ReadOnlyControl label="Trade" value={optionLabel(row.trade, TRADE_LABELS)} />
         </div>
       </div>
-      {selected && row.reason && row.reason !== row.title && (
+      {selected && (
         <div className="mt-3 grid gap-3 border-t border-border pt-3 md:hidden">
-          <p className="text-sm leading-6 text-foreground/70">{row.reason}</p>
+          {row.reason && row.reason !== row.title && (
+            <p className="text-sm leading-6 text-foreground/70">{row.reason}</p>
+          )}
+          <NotesPanel
+            row={row}
+            noteDraft={noteDraft}
+            onNoteDraftChange={onNoteDraftChange}
+            onAddNote={onAddNote}
+            noteSaving={noteSaving}
+          />
         </div>
       )}
     </article>
@@ -1267,6 +1479,8 @@ export default function ScoutPunchListPage() {
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [noteDrafts, setNoteDrafts] = useState({});
+  const [noteSavingId, setNoteSavingId] = useState("");
   const sessionScopeRef = useRef("");
   const filterRequestRef = useRef(0);
   const bootstrapTokenRef = useRef("");
@@ -1490,6 +1704,8 @@ export default function ScoutPunchListPage() {
         setLoadedRowsScope({ orgId: "", propertyId: "" });
         setLastRefreshedAt(null);
         setPunchListError("");
+        setNoteDrafts({});
+        setNoteSavingId("");
         setFiltersReady(false);
       }
       bootstrapTokenRef.current = nextBootstrapScope;
@@ -1507,6 +1723,8 @@ export default function ScoutPunchListPage() {
       setLoadedRowsScope({ orgId: "", propertyId: "" });
       setLastRefreshedAt(null);
       setPunchListError("");
+      setNoteDrafts({});
+      setNoteSavingId("");
       setFiltersReady(false);
     }
   }, [session?.access_token]);
@@ -1570,6 +1788,8 @@ export default function ScoutPunchListPage() {
     setLoadedRowsScope({ orgId: "", propertyId: "" });
     setLastRefreshedAt(null);
     setManualRefreshing(false);
+    setNoteDrafts({});
+    setNoteSavingId("");
   }
 
   async function handleRefresh() {
@@ -1579,6 +1799,49 @@ export default function ScoutPunchListPage() {
       setLastRefreshedAt(new Date());
     }
     setManualRefreshing(false);
+  }
+
+  function handleNoteDraftChange(rowId, value) {
+    setNoteDrafts((current) => ({
+      ...current,
+      [rowId]: value,
+    }));
+  }
+
+  async function handleAddNote(row, note) {
+    if (!session?.access_token || !row?.observationId || !row.permissions?.canAddNote) return;
+    const trimmedNote = textValue(note);
+    if (!trimmedNote) return;
+
+    setNoteSavingId(row.id);
+    setPunchListError("");
+    try {
+      const response = await fetch("/api/punch-list", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          observationId: row.observationId,
+          note: trimmedNote,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.activity) {
+        throw new Error(body.error || "Unable to add note.");
+      }
+      clearPunchListCaches();
+      setNoteDrafts((current) => ({
+        ...current,
+        [row.id]: "",
+      }));
+      await loadPunchList(session, { force: true });
+    } catch (error) {
+      setPunchListError(error.message || "Unable to add note.");
+    } finally {
+      setNoteSavingId("");
+    }
   }
 
   async function handleDownloadOriginal(row) {
@@ -2122,6 +2385,10 @@ export default function ScoutPunchListPage() {
                       selected={row.id === selectedRowId}
                       onSelect={() => setSelectedRowId(row.id)}
                       onPreview={setPreviewRow}
+                      noteDraft={noteDrafts[row.id] || ""}
+                      onNoteDraftChange={handleNoteDraftChange}
+                      onAddNote={handleAddNote}
+                      noteSaving={noteSavingId === row.id}
                     />
                   ))}
                 </div>
@@ -2132,6 +2399,10 @@ export default function ScoutPunchListPage() {
                       onDownloadOriginal={handleDownloadOriginal}
                       downloadId={downloadId}
                       onPreview={setPreviewRow}
+                      noteDraft={selectedRow ? noteDrafts[selectedRow.id] || "" : ""}
+                      onNoteDraftChange={handleNoteDraftChange}
+                      onAddNote={handleAddNote}
+                      noteSaving={selectedRow ? noteSavingId === selectedRow.id : false}
                     />
                   </div>
                 </div>

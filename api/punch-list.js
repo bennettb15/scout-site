@@ -18,9 +18,17 @@ import {
   sortPhotoRowsBySnapshot,
   stampedPhotoFilename,
 } from "./_reportPortalShared.js";
+import {
+  ensureUserProfile,
+  isApprovedAdminEmail,
+  readJsonBody,
+  validateUuid,
+} from "./_portalAdminShared.js";
 
 const MAX_ROWS = 250;
 const MAX_PREVIEW_URLS = 60;
+const MAX_ACTIVITY_ROWS = 1000;
+const MAX_NOTE_LENGTH = 1000;
 const ALL_VALUE = "all";
 const FIELD_REVIEW_ELEVATION_ORDER = ["front", "north", "east", "south", "west", "rear"];
 const NATURAL_COLLATOR = new Intl.Collator("en-US", {
@@ -333,11 +341,39 @@ function publicPreview(row, previewUrl, reportPackage) {
   };
 }
 
+function publicActivityRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    activityType: row.activity_type,
+    fromValue: row.from_value || null,
+    toValue: row.to_value || null,
+    note: compactText(row.note),
+    createdBy: row.created_by || null,
+    createdAt: row.created_at,
+  };
+}
+
+function activityRowsForObservation(activityByObservationId, observationId) {
+  return activityByObservationId.get(observationId) || [];
+}
+
 function rowTitle(...values) {
   return values.map(compactText).find(Boolean) || "Flagged observation";
 }
 
-function publicObservationRow({ observation, update, shot, org, property, session, reportPackage, previewUrl }) {
+function publicObservationRow({
+  observation,
+  update,
+  activity,
+  canAddNote,
+  shot,
+  org,
+  property,
+  session,
+  reportPackage,
+  previewUrl,
+}) {
   const status = normalizedStatus(update?.status || observation.status || shot?.issue_status);
   const title = rowTitle(observation.title, update?.message, shot?.reason, observation.detail);
   return {
@@ -365,6 +401,10 @@ function publicObservationRow({ observation, update, shot, org, property, sessio
     resolvedAt: observation.resolved_at || (status === "resolved" ? update?.updated_at || observation.updated_at : null),
     locationKey: shot ? locationKeyFromShot({ ...shot, property_id: observation.property_id }) : "",
     preview: publicPreview(shot, previewUrl, reportPackage),
+    activity,
+    permissions: {
+      canAddNote: Boolean(canAddNote),
+    },
   };
 }
 
@@ -396,7 +436,139 @@ function publicShotRow({ shot, org, property, session, reportPackage, previewUrl
     resolvedAt: status === "resolved" ? shot.updated_at || shot.captured_at || shot.created_at : null,
     locationKey: locationKeyFromShot(shot),
     preview: publicPreview(shot, previewUrl, reportPackage),
+    activity: [],
+    permissions: {
+      canAddNote: false,
+    },
   };
+}
+
+async function loadFieldMembership(auth, orgId) {
+  const { data, error } = await auth.client
+    .from("org_memberships")
+    .select("id,role,access_scope,deleted_at")
+    .eq("org_id", orgId)
+    .eq("user_id", auth.user.id)
+    .eq("role", "field")
+    .is("deleted_at", null);
+
+  if (error) return null;
+  return (data || []).find((row) => (row.access_scope || "org") === "org") || null;
+}
+
+async function editableOrgIdSet(auth, orgIds) {
+  const ids = unique(orgIds).filter(Boolean);
+  if (ids.length === 0) return new Set();
+  if (isApprovedAdminEmail(auth.user?.email)) return new Set(ids);
+
+  const { data, error } = await auth.client
+    .from("org_memberships")
+    .select("org_id,role,access_scope,deleted_at")
+    .in("org_id", ids)
+    .eq("user_id", auth.user.id)
+    .eq("role", "field")
+    .is("deleted_at", null);
+
+  if (error) return new Set();
+  return new Set(
+    (data || [])
+      .filter((row) => (row.access_scope || "org") === "org")
+      .map((row) => row.org_id)
+  );
+}
+
+function validateNoteText(value) {
+  const note = compactText(value);
+  if (!note) {
+    const error = new Error("Note text is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (note.length > MAX_NOTE_LENGTH) {
+    const error = new Error(`Notes must be ${MAX_NOTE_LENGTH} characters or fewer.`);
+    error.statusCode = 400;
+    throw error;
+  }
+  return note;
+}
+
+async function handleAddNote(req, res) {
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body." });
+  }
+
+  const observationId = validateUuid(body.observationId);
+  if (!observationId) {
+    return sendJson(res, 400, { error: "Valid observation ID is required." });
+  }
+
+  let note = "";
+  try {
+    note = validateNoteText(body.note);
+  } catch (error) {
+    return sendJson(res, error.statusCode || 400, { error: error.message });
+  }
+
+  try {
+    const auth = await authenticateRequest(req);
+    if (auth.error) return sendJson(res, 401, { error: auth.error });
+
+    const { data: observation, error: observationError } = await auth.client
+      .from("observations")
+      .select(safeObservationSelect())
+      .eq("id", observationId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (observationError) {
+      return sendJson(res, 500, { error: "Unable to load punch list item." });
+    }
+    if (!observation) {
+      return sendJson(res, 404, { error: "Punch list item not found." });
+    }
+
+    const adminAllowed = isApprovedAdminEmail(auth.user?.email);
+    const fieldMembership = adminAllowed ? true : await loadFieldMembership(auth, observation.org_id);
+    if (!adminAllowed && !fieldMembership) {
+      return sendJson(res, 403, { error: "Field User access is required to add notes." });
+    }
+
+    const service = createServiceClient();
+    await ensureUserProfile(service, auth.user, auth.user.id);
+
+    const { data: activity, error: activityError } = await service
+      .from("punchlist_activity")
+      .insert({
+        org_id: observation.org_id,
+        property_id: observation.property_id,
+        observation_id: observation.id,
+        shot_id: observation.shot_id || null,
+        activity_type: "note_added",
+        from_value: null,
+        to_value: null,
+        note,
+        created_by: auth.user.id,
+        deleted_at: null,
+      })
+      .select("id,activity_type,from_value,to_value,note,created_by,created_at")
+      .single();
+
+    if (activityError) {
+      return sendJson(res, 500, {
+        error: "Unable to add note. Punch list activity may need to be configured.",
+      });
+    }
+
+    return sendJson(res, 200, {
+      activity: publicActivityRow(activity),
+      observationId: observation.id,
+    });
+  } catch {
+    return sendJson(res, 500, { error: "Unable to add note." });
+  }
 }
 
 async function handleFilters(req, res) {
@@ -463,7 +635,11 @@ async function handleFilters(req, res) {
 }
 
 export default async function handler(req, res) {
-  if (!methodAllowed(req, res, ["GET", "OPTIONS"])) return;
+  if (!methodAllowed(req, res, ["GET", "POST", "OPTIONS"])) return;
+
+  if (req.method === "POST") {
+    return handleAddNote(req, res);
+  }
 
   if (getQueryValue(req, "mode") === "filters") {
     return handleFilters(req, res);
@@ -513,6 +689,17 @@ export default async function handler(req, res) {
             .is("deleted_at", null)
             .order("updated_at", { ascending: false })
             .limit(MAX_ROWS * 3)
+        )
+      : [];
+    const punchListActivity = observationIds.length
+      ? await safeRows(
+          client
+            .from("punchlist_activity")
+            .select("id,org_id,property_id,observation_id,shot_id,activity_type,from_value,to_value,note,created_by,created_at,deleted_at")
+            .in("observation_id", observationIds)
+            .is("deleted_at", null)
+            .order("created_at", { ascending: false })
+            .limit(MAX_ACTIVITY_ROWS)
         )
       : [];
 
@@ -623,6 +810,16 @@ export default async function handler(req, res) {
         latestUpdateByObservationId.set(update.observation_id, update);
       }
     }
+    const activityByObservationId = new Map();
+    for (const activityRow of punchListActivity) {
+      if (activityRow.activity_type !== "note_added") continue;
+      const publicRow = publicActivityRow(activityRow);
+      if (!publicRow?.note) continue;
+      const rows = activityByObservationId.get(activityRow.observation_id) || [];
+      rows.push(publicRow);
+      activityByObservationId.set(activityRow.observation_id, rows);
+    }
+    const editableOrgIds = await editableOrgIdSet(auth, orgIds);
 
     const previewCache = new Map();
     async function previewForShot(shot) {
@@ -642,6 +839,8 @@ export default async function handler(req, res) {
       const row = publicObservationRow({
         observation,
         update: latestUpdateByObservationId.get(observation.id) || null,
+        activity: activityRowsForObservation(activityByObservationId, observation.id),
+        canAddNote: editableOrgIds.has(observation.org_id),
         shot,
         org: orgById.get(observation.org_id) || null,
         property: propertyById.get(observation.property_id || shot?.property_id) || null,
