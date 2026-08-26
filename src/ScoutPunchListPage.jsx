@@ -818,6 +818,13 @@ const PUNCH_LIST_STYLES = `
       max-width: none;
     }
 
+    .punch-filter-row > .punch-filter-control,
+    .punch-filter-row > .punch-filter-property {
+      flex: 1 1 100%;
+      min-width: 0;
+      max-width: none;
+    }
+
     .punch-mobile-filter-actions {
       display: flex;
       align-items: center;
