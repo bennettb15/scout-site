@@ -376,10 +376,13 @@ function publicObservationRow({
 }) {
   const status = normalizedStatus(update?.status || observation.status || shot?.issue_status);
   const title = rowTitle(observation.title, update?.message, shot?.reason, observation.detail);
+  const noteEditable = Boolean(canAddNote);
   return {
     id: `observation:${observation.id}`,
     source: "observation",
     observationId: observation.id,
+    canAddNote: noteEditable,
+    isEditable: noteEditable,
     issueId: shot?.issue_id || null,
     org,
     property,
@@ -403,7 +406,7 @@ function publicObservationRow({
     preview: publicPreview(shot, previewUrl, reportPackage),
     activity,
     permissions: {
-      canAddNote: Boolean(canAddNote),
+      canAddNote: noteEditable,
     },
   };
 }
@@ -415,6 +418,8 @@ function publicShotRow({ shot, org, property, session, reportPackage, previewUrl
     id: `shot:${shot.id}`,
     source: "flagged_shot",
     observationId: null,
+    canAddNote: false,
+    isEditable: false,
     issueId: shot.issue_id || null,
     org,
     property,

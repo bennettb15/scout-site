@@ -426,11 +426,16 @@ function activityNotes(row) {
     : [];
 }
 
+function canAddNoteToRow(row) {
+  if (row?.source !== "observation" || !row?.observationId) return false;
+  return Boolean(row?.permissions?.canAddNote || row?.canAddNote || row?.isEditable);
+}
+
 function noteUnavailableMessage(row) {
   if (row?.source !== "observation") {
     return "Notes can be added after this historical item is backed by an observation.";
   }
-  if (!row?.permissions?.canAddNote) {
+  if (!canAddNoteToRow(row)) {
     return "This account can view notes but cannot add them.";
   }
   return "";
@@ -1203,7 +1208,7 @@ function ReadOnlyField({ label, value }) {
 
 function NotesPanel({ row, noteDraft, onNoteDraftChange, onAddNote, noteSaving }) {
   const notes = activityNotes(row);
-  const canAddNote = Boolean(row?.permissions?.canAddNote);
+  const canAddNote = canAddNoteToRow(row);
   const unavailableMessage = noteUnavailableMessage(row);
   const trimmedDraft = textValue(noteDraft);
 
@@ -1369,7 +1374,7 @@ function IssueRow({
 }) {
   const flagNote = row.title || row.reason || "Flagged observation";
   const notes = activityNotes(row);
-  const canAddNote = Boolean(row.permissions?.canAddNote);
+  const canAddNote = canAddNoteToRow(row);
   const showNoteButton = canAddNote || notes.length > 0;
   const noteButtonLabel = canAddNote
     ? notes.length > 0
@@ -1867,7 +1872,7 @@ export default function ScoutPunchListPage() {
   }
 
   async function handleAddNote(row, note) {
-    if (!session?.access_token || !row?.observationId || !row.permissions?.canAddNote) return;
+    if (!session?.access_token || !row?.observationId || !canAddNoteToRow(row)) return;
     const trimmedNote = textValue(note);
     if (!trimmedNote) return;
 
