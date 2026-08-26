@@ -10,6 +10,7 @@ import {
   LogOut,
   Pencil,
   RefreshCw,
+  ShieldCheck,
   Trash2,
   X,
 } from "lucide-react";
@@ -2293,6 +2294,7 @@ export default function ScoutPunchListPage() {
   const [workflowSavingKey, setWorkflowSavingKey] = useState("");
   const [activeNoteRowId, setActiveNoteRowId] = useState("");
   const [activeNoteEditId, setActiveNoteEditId] = useState("");
+  const [canOpenAdmin, setCanOpenAdmin] = useState(false);
   const sessionScopeRef = useRef("");
   const filterRequestRef = useRef(0);
   const bootstrapTokenRef = useRef("");
@@ -2504,6 +2506,7 @@ export default function ScoutPunchListPage() {
     if (!session?.access_token) {
       clearPunchListCaches();
       sessionScopeRef.current = "";
+      setCanOpenAdmin(false);
       return;
     }
     const nextScope = sessionCacheScope(session);
@@ -2512,6 +2515,35 @@ export default function ScoutPunchListPage() {
     }
     sessionScopeRef.current = nextScope;
   }, [session?.access_token, session?.user?.email, session?.user?.id]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadAdminStatus() {
+      if (!session?.access_token) {
+        setCanOpenAdmin(false);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/admin/me", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+        const body = await response.json().catch(() => ({}));
+        if (active) setCanOpenAdmin(response.ok && body.isAdmin === true);
+      } catch {
+        if (active) setCanOpenAdmin(false);
+      }
+    }
+
+    loadAdminStatus();
+
+    return () => {
+      active = false;
+    };
+  }, [session?.access_token]);
 
   useEffect(() => {
     if (session?.access_token) {
@@ -3101,6 +3133,15 @@ export default function ScoutPunchListPage() {
                 <ChevronLeft className="h-4 w-4" />
                 Reports
               </a>
+              {canOpenAdmin && (
+                <a
+                  href="/admin/portal-access"
+                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  Admin
+                </a>
+              )}
               <button
                 type="button"
                 onClick={handleSignOut}

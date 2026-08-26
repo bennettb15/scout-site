@@ -567,7 +567,7 @@ export default function PortalAccessAdminPage() {
             )}
 
             <section className="rounded-lg border border-border bg-background p-5 shadow-sm">
-              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+              <div className="grid max-w-3xl gap-4">
                 <div>
                   <h2 className="text-base font-semibold text-foreground">
                     Create Organization
@@ -578,7 +578,7 @@ export default function PortalAccessAdminPage() {
                 </div>
                 <form
                   onSubmit={handleCreateOrganization}
-                  className="grid gap-3 md:min-w-[460px] md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
+                  className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
                 >
                   <label className="grid gap-1.5 text-sm font-medium text-foreground">
                     Organization Name
