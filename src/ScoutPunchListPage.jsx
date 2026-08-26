@@ -942,34 +942,57 @@ const PUNCH_LIST_STYLES = `
     max-width: 100%;
   }
 
-  .punch-date-control .punch-control-input {
-    display: block;
+  .punch-date-shell {
+    position: relative;
+    display: flex;
     width: 100%;
     min-width: 0;
-    max-width: 100%;
-    box-sizing: border-box;
-  }
-
-  .punch-date-control.is-empty {
-    display: block;
-  }
-
-  .punch-date-control.is-empty::after {
-    content: "None";
-    position: absolute;
-    inset: 0;
-    display: flex;
+    height: 28px;
     align-items: center;
     justify-content: center;
-    pointer-events: none;
+    overflow: hidden;
+    border-radius: 7px;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252);
+    padding: 0 8px;
+    box-sizing: border-box;
     color: rgb(30 41 59);
     font-size: 12px;
     font-weight: 800;
     line-height: 1;
+    text-align: center;
   }
 
-  .punch-date-control.is-empty .punch-control-input {
-    color: transparent;
+  .punch-date-shell:focus-within {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 2px rgba(28, 39, 66, 0.12);
+  }
+
+  .punch-date-shell.is-disabled {
+    cursor: wait;
+    opacity: 0.65;
+  }
+
+  .punch-date-display {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .punch-date-native {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .punch-date-control.is-empty {
+    display: block;
   }
 
   .punch-date-clear {
@@ -1499,6 +1522,13 @@ const PUNCH_LIST_STYLES = `
       width: 27px;
     }
 
+    .punch-date-shell {
+      height: 27px;
+      font-size: 11.5px;
+      padding-left: 7px;
+      padding-right: 7px;
+    }
+
     .punch-date-control {
       grid-template-columns: minmax(0, 1fr) 27px;
       gap: 4px;
@@ -1506,10 +1536,6 @@ const PUNCH_LIST_STYLES = `
 
     .punch-date-control.is-empty {
       display: block;
-    }
-
-    .punch-date-control.is-empty::after {
-      right: 0;
     }
 
     .punch-select-control.has-action {
@@ -1621,21 +1647,27 @@ function WorkflowControl({
       <div className="punch-control">
         <div className="punch-control-label">{label}</div>
         <div className={`punch-date-control ${isEmpty ? "is-empty" : ""}`}>
-          <input
-            type="date"
-            value={dateValue}
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={(event) => event.stopPropagation()}
-            onChange={(event) => {
-              const input = event.currentTarget;
-              handleChange(input.value);
-              window.setTimeout(() => input.blur(), 0);
-            }}
-            disabled={saving}
-            className="punch-control-input"
+          <span
+            className={`punch-date-shell ${saving ? "is-disabled" : ""}`}
             style={style}
-            aria-label={`Set ${label}`}
-          />
+            onClick={(event) => event.stopPropagation()}
+          >
+            <span className="punch-date-display">{isEmpty ? "None" : displayValue || dateValue}</span>
+            <input
+              type="date"
+              value={dateValue}
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+              onChange={(event) => {
+                const input = event.currentTarget;
+                handleChange(input.value);
+                window.setTimeout(() => input.blur(), 0);
+              }}
+              disabled={saving}
+              className="punch-date-native"
+              aria-label={`Set ${label}`}
+            />
+          </span>
           {!isEmpty && (
             <button
               type="button"
