@@ -1105,6 +1105,7 @@ export default function ScoutPunchListPage() {
   const [downloadId, setDownloadId] = useState("");
   const [previewRow, setPreviewRow] = useState(null);
   const [loadedFromCache, setLoadedFromCache] = useState(false);
+  const [loadedRowsScope, setLoadedRowsScope] = useState({ orgId: "", propertyId: "" });
   const sessionScopeRef = useRef("");
 
   useEffect(() => {
@@ -1211,12 +1212,14 @@ export default function ScoutPunchListPage() {
     if (!activeSession?.access_token) return;
     if (!selectedOrgId) {
       setRows([]);
+      setLoadedRowsScope({ orgId: "", propertyId: "" });
       setLoadedFromCache(false);
       return;
     }
     const selectedOrgProperties = propertyOptionsForOrg(allPropertyOptions, selectedOrgId);
     if (filtersReady && selectedOrgProperties.length === 0) {
       setRows([]);
+      setLoadedRowsScope({ orgId: "", propertyId: "" });
       setLoadedFromCache(false);
       return;
     }
@@ -1236,6 +1239,7 @@ export default function ScoutPunchListPage() {
         setPunchListError("");
         setPunchListLoading(false);
         setLoadedFromCache(true);
+        setLoadedRowsScope({ orgId: selectedOrgId, propertyId: propertyScope });
         setRows(cachedViewRows);
         return;
       }
@@ -1246,6 +1250,7 @@ export default function ScoutPunchListPage() {
         setPunchListError("");
         setPunchListLoading(false);
         setLoadedFromCache(true);
+        setLoadedRowsScope({ orgId: selectedOrgId, propertyId: propertyScope });
         setRows(cachedRows);
         return;
       }
@@ -1270,10 +1275,12 @@ export default function ScoutPunchListPage() {
       cacheSet(punchListRowsCache, rowsScopeKey, body.rows);
       cacheSet(punchListViewCache, rowsFilterKey, body.rows);
       setLoadedFromCache(false);
+      setLoadedRowsScope({ orgId: selectedOrgId, propertyId: propertyScope });
       setRows(body.rows);
     } catch (error) {
       setPunchListError(error.message || "Unable to load punch list.");
       setRows([]);
+      setLoadedRowsScope({ orgId: "", propertyId: "" });
       setLoadedFromCache(false);
     } finally {
       setPunchListLoading(false);
@@ -1302,6 +1309,7 @@ export default function ScoutPunchListPage() {
       setAllPropertyOptions([]);
       setSelectedOrgId("");
       setSelectedPropertyId("");
+      setLoadedRowsScope({ orgId: "", propertyId: "" });
       setPunchListError("");
       setFiltersReady(false);
       setLoadedFromCache(false);
@@ -1355,6 +1363,7 @@ export default function ScoutPunchListPage() {
     setAllPropertyOptions([]);
     setSelectedOrgId("");
     setSelectedPropertyId("");
+    setLoadedRowsScope({ orgId: "", propertyId: "" });
     setLoadedFromCache(false);
   }
 
@@ -1380,10 +1389,18 @@ export default function ScoutPunchListPage() {
     }
   }
 
+  const displayedOrgId = loadedRowsScope.orgId || selectedOrgId;
+  const displayedPropertyId = loadedRowsScope.propertyId || selectedPropertyId || ALL;
+  const requestedPropertyId = selectedPropertyId && selectedPropertyId !== ALL ? selectedPropertyId : ALL;
+  const rowsAreRefreshing =
+    punchListLoading &&
+    rows.length > 0 &&
+    (loadedRowsScope.orgId !== selectedOrgId || loadedRowsScope.propertyId !== requestedPropertyId);
+
   const orgFilteredRows = useMemo(() => {
-    if (!selectedOrgId) return rows;
-    return rows.filter((row) => row.org?.id === selectedOrgId);
-  }, [rows, selectedOrgId]);
+    if (!displayedOrgId) return rows;
+    return rows.filter((row) => row.org?.id === displayedOrgId);
+  }, [displayedOrgId, rows]);
 
   const propertyOptions = useMemo(
     () => propertyOptionsForOrg(allPropertyOptions, selectedOrgId),
@@ -1434,12 +1451,12 @@ export default function ScoutPunchListPage() {
 
   const filteredRows = useMemo(() => {
     return tabRows.filter((row) => {
-      if (selectedPropertyId !== ALL && row.property?.id !== selectedPropertyId) return false;
+      if (displayedPropertyId !== ALL && row.property?.id !== displayedPropertyId) return false;
       if (selectedPriority !== ALL && row.priority !== selectedPriority) return false;
       if (selectedTrade !== ALL && row.trade !== selectedTrade) return false;
       return true;
     });
-  }, [selectedPriority, selectedPropertyId, selectedTrade, tabRows]);
+  }, [displayedPropertyId, selectedPriority, selectedTrade, tabRows]);
 
   useEffect(() => {
     if (filteredRows.length === 0) {
@@ -1528,7 +1545,6 @@ export default function ScoutPunchListPage() {
                         const nextOrgId = event.target.value;
                         setSelectedOrgId(nextOrgId);
                         setSelectedPropertyId(defaultPropertyIdForOrg(allPropertyOptions, nextOrgId));
-                        setRows([]);
                         setLoadedFromCache(false);
                       }}
                       className="h-9 max-w-[220px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
@@ -1547,7 +1563,6 @@ export default function ScoutPunchListPage() {
                     value={propertySelectValue}
                     onChange={(event) => {
                       setSelectedPropertyId(event.target.value);
-                      setRows([]);
                       setLoadedFromCache(false);
                     }}
                     disabled={filtersLoading || propertyOptions.length === 0}
@@ -1679,6 +1694,9 @@ export default function ScoutPunchListPage() {
                 . {compactCount(filteredRows.length, "visible issue")}.
                 {loadedFromCache && (
                   <span className="text-foreground/50"> Cached briefly; Refresh gets latest.</span>
+                )}
+                {rowsAreRefreshing && (
+                  <span className="text-foreground/50"> Updating...</span>
                 )}
               </div>
               <div className="inline-flex w-fit rounded-lg border border-border bg-slate-50 p-1">
