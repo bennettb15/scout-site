@@ -1492,12 +1492,17 @@ const PUNCH_LIST_STYLES = `
       grid-template-columns: minmax(0, 1fr) 27px;
     }
 
+    .punch-date-control .punch-control-input {
+      font-size: 13px;
+    }
+
     .punch-date-control.is-empty {
       grid-template-columns: minmax(0, 1fr) 27px;
     }
 
     .punch-date-control.is-empty::after {
       right: 31px;
+      font-size: 13px;
     }
 
     .punch-select-control.has-action {
