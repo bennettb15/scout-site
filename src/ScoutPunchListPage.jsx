@@ -456,7 +456,6 @@ const PUNCH_LIST_STYLES = `
     align-items: center;
     align-self: end;
     gap: 8px;
-    margin-left: auto;
   }
 
   .punch-refresh-status {
@@ -465,6 +464,18 @@ const PUNCH_LIST_STYLES = `
     font-weight: 650;
     line-height: 1;
     white-space: nowrap;
+  }
+
+  .punch-trade-refresh-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    margin-left: auto;
+  }
+
+  .punch-trade-refresh-stack .punch-filter-control {
+    width: 142px;
   }
 
   .punch-row {
@@ -806,7 +817,16 @@ const PUNCH_LIST_STYLES = `
 
     .punch-refresh-cluster {
       justify-content: flex-start;
+      width: 100%;
+    }
+
+    .punch-trade-refresh-stack {
+      align-items: flex-start;
       margin-left: 0;
+      width: 100%;
+    }
+
+    .punch-trade-refresh-stack .punch-filter-control {
       width: 100%;
     }
 
@@ -1805,38 +1825,40 @@ export default function ScoutPunchListPage() {
                     ))}
                   </select>
                 </label>
-                <label className="punch-filter-control grid gap-1 text-xs font-semibold text-foreground/60">
-                  Trade
-                  <select
-                    value={selectedTrade}
-                    onChange={(event) => setSelectedTrade(event.target.value)}
-                    className="h-9 rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
-                  >
-                    <option value={ALL}>All Trades</option>
-                    {tradeOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="punch-refresh-cluster">
-                  {lastRefreshedAt && (
-                    <span className="punch-refresh-status">
-                      Last refreshed {formatRefreshTime(lastRefreshedAt)}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleRefresh}
-                    disabled={manualRefreshing || punchListLoading || filtersLoading || !selectedOrgId}
-                    className="punch-refresh-button inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
-                  >
-                    <RefreshCw
-                      className={`h-4 w-4 ${punchListLoading ? "animate-spin" : ""}`}
-                    />
-                    {manualRefreshing ? "Refreshing..." : "Refresh"}
-                  </button>
+                <div className="punch-trade-refresh-stack">
+                  <div className="punch-refresh-cluster">
+                    {lastRefreshedAt && (
+                      <span className="punch-refresh-status">
+                        Last refreshed {formatRefreshTime(lastRefreshedAt)}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleRefresh}
+                      disabled={manualRefreshing || punchListLoading || filtersLoading || !selectedOrgId}
+                      className="punch-refresh-button inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+                    >
+                      <RefreshCw
+                        className={`h-4 w-4 ${punchListLoading ? "animate-spin" : ""}`}
+                      />
+                      {manualRefreshing ? "Refreshing..." : "Refresh"}
+                    </button>
+                  </div>
+                  <label className="punch-filter-control grid gap-1 text-xs font-semibold text-foreground/60">
+                    Trade
+                    <select
+                      value={selectedTrade}
+                      onChange={(event) => setSelectedTrade(event.target.value)}
+                      className="h-9 rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                    >
+                      <option value={ALL}>All Trades</option>
+                      {tradeOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
               </div>
             )}
