@@ -411,15 +411,16 @@ function publicObservationRow({
   };
 }
 
-function publicShotRow({ shot, org, property, session, reportPackage, previewUrl }) {
+function publicShotRow({ shot, org, property, session, reportPackage, previewUrl, canAddNote }) {
   const status = normalizedStatus(shot.issue_status);
   const title = rowTitle(shot.reason);
+  const noteEditable = Boolean(canAddNote);
   return {
     id: `shot:${shot.id}`,
     source: "flagged_shot",
     observationId: null,
-    canAddNote: false,
-    isEditable: false,
+    canAddNote: noteEditable,
+    isEditable: noteEditable,
     issueId: shot.issue_id || null,
     org,
     property,
@@ -443,7 +444,7 @@ function publicShotRow({ shot, org, property, session, reportPackage, previewUrl
     preview: publicPreview(shot, previewUrl, reportPackage),
     activity: [],
     permissions: {
-      canAddNote: false,
+      canAddNote: noteEditable,
     },
   };
 }
@@ -497,6 +498,163 @@ function validateNoteText(value) {
   return note;
 }
 
+function isFlaggedShot(row) {
+  return Boolean(row?.is_flagged || row?.issue_id || compactText(row?.issue_status));
+}
+
+function promotedObservationStatus(shot) {
+  return normalizedStatus(shot?.issue_status) === "resolved" ? "resolved" : "active";
+}
+
+async function loadReadyReportPackageForShot(auth, shot) {
+  let query = auth.client
+    .from("report_packages")
+    .select("id,org_id,property_id,session_id,status,session_completed_at,completed_at")
+    .eq("org_id", shot.org_id)
+    .eq("session_id", shot.session_id)
+    .eq("status", "ready")
+    .is("deleted_at", null)
+    .order("session_completed_at", { ascending: false })
+    .limit(1);
+
+  if (shot.property_id) {
+    query = query.eq("property_id", shot.property_id);
+  }
+
+  const { data, error } = await query.maybeSingle();
+  if (error) return null;
+  return data || null;
+}
+
+async function loadAccessibleFallbackShot(auth, shotId) {
+  const { data: shot, error: shotError } = await auth.client
+    .from("shots")
+    .select(shotSelect())
+    .eq("id", shotId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (shotError || !shot || !isFlaggedShot(shot)) return null;
+
+  const reportPackage = await loadReadyReportPackageForShot(auth, shot);
+  if (!reportPackage) return null;
+
+  const propertyId = shot.property_id || reportPackage.property_id;
+  if (!propertyId || reportPackage.org_id !== shot.org_id || reportPackage.session_id !== shot.session_id) {
+    return null;
+  }
+
+  return {
+    ...shot,
+    property_id: propertyId,
+  };
+}
+
+async function findExistingObservationForShot(service, shot) {
+  const { data, error } = await service
+    .from("observations")
+    .select(safeObservationSelect())
+    .eq("org_id", shot.org_id)
+    .eq("shot_id", shot.id)
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) return null;
+  return data || null;
+}
+
+async function createObservationForFallbackShot(service, auth, shot) {
+  const status = promotedObservationStatus(shot);
+  const seenAt = shot.captured_at || shot.created_at || null;
+  const resolvedAt = status === "resolved" ? shot.updated_at || seenAt : null;
+  const title = rowTitle(shot.reason);
+  const { data, error } = await service
+    .from("observations")
+    .insert({
+      org_id: shot.org_id,
+      property_id: shot.property_id,
+      session_id: shot.session_id,
+      shot_id: shot.id,
+      category: "condition",
+      status,
+      title,
+      detail: compactText(shot.reason) || title,
+      first_seen_session_id: shot.session_id,
+      last_update_session_id: shot.session_id,
+      resolved_session_id: status === "resolved" ? shot.session_id : null,
+      first_seen_at: seenAt,
+      last_seen_at: seenAt,
+      resolved_at: resolvedAt,
+      priority: compactText(shot.priority),
+      trade: compactText(shot.trade),
+      updated_by: auth.user.id,
+      deleted_at: null,
+    })
+    .select(safeObservationSelect())
+    .single();
+
+  if (error) {
+    throw new Error("Unable to prepare punch list item for notes.");
+  }
+  return data;
+}
+
+async function canWritePunchListNotes(auth, orgId) {
+  if (isApprovedAdminEmail(auth.user?.email)) return true;
+  return Boolean(await loadFieldMembership(auth, orgId));
+}
+
+async function resolveNoteObservation(auth, service, { observationId, shotId }) {
+  if (observationId) {
+    const { data: observation, error: observationError } = await auth.client
+      .from("observations")
+      .select(safeObservationSelect())
+      .eq("id", observationId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (observationError) {
+      const error = new Error("Unable to load punch list item.");
+      error.statusCode = 500;
+      throw error;
+    }
+    if (!observation) {
+      const error = new Error("Punch list item not found.");
+      error.statusCode = 404;
+      throw error;
+    }
+    if (!(await canWritePunchListNotes(auth, observation.org_id))) {
+      const error = new Error("Field User access is required to add notes.");
+      error.statusCode = 403;
+      throw error;
+    }
+    return observation;
+  }
+
+  if (!shotId) {
+    const error = new Error("Valid observation or shot ID is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const shot = await loadAccessibleFallbackShot(auth, shotId);
+  if (!shot) {
+    const error = new Error("Punch list photo not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+  if (!(await canWritePunchListNotes(auth, shot.org_id))) {
+    const error = new Error("Field User access is required to add notes.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const existing = await findExistingObservationForShot(service, shot);
+  return existing || createObservationForFallbackShot(service, auth, shot);
+}
+
 async function handleAddNote(req, res) {
   let body = {};
   try {
@@ -506,8 +664,9 @@ async function handleAddNote(req, res) {
   }
 
   const observationId = validateUuid(body.observationId);
-  if (!observationId) {
-    return sendJson(res, 400, { error: "Valid observation ID is required." });
+  const shotId = validateUuid(body.shotId);
+  if (!observationId && !shotId) {
+    return sendJson(res, 400, { error: "Valid observation or shot ID is required." });
   }
 
   let note = "";
@@ -521,28 +680,9 @@ async function handleAddNote(req, res) {
     const auth = await authenticateRequest(req);
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
-    const { data: observation, error: observationError } = await auth.client
-      .from("observations")
-      .select(safeObservationSelect())
-      .eq("id", observationId)
-      .is("deleted_at", null)
-      .maybeSingle();
-
-    if (observationError) {
-      return sendJson(res, 500, { error: "Unable to load punch list item." });
-    }
-    if (!observation) {
-      return sendJson(res, 404, { error: "Punch list item not found." });
-    }
-
-    const adminAllowed = isApprovedAdminEmail(auth.user?.email);
-    const fieldMembership = adminAllowed ? true : await loadFieldMembership(auth, observation.org_id);
-    if (!adminAllowed && !fieldMembership) {
-      return sendJson(res, 403, { error: "Field User access is required to add notes." });
-    }
-
     const service = createServiceClient();
     await ensureUserProfile(service, auth.user, auth.user.id);
+    const observation = await resolveNoteObservation(auth, service, { observationId, shotId });
 
     const { data: activity, error: activityError } = await service
       .from("punchlist_activity")
@@ -571,8 +711,8 @@ async function handleAddNote(req, res) {
       activity: publicActivityRow(activity),
       observationId: observation.id,
     });
-  } catch {
-    return sendJson(res, 500, { error: "Unable to add note." });
+  } catch (error) {
+    return sendJson(res, error.statusCode || 500, { error: error.message || "Unable to add note." });
   }
 }
 
@@ -885,6 +1025,7 @@ export default async function handler(req, res) {
         session: sessionById.get(shot.session_id) || null,
         reportPackage,
         previewUrl: await previewForShot(shot),
+        canAddNote: editableOrgIds.has(shot.org_id),
       });
       addDedupKeys(dedupKeys, row);
       rows.push(row);

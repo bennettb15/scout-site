@@ -427,12 +427,14 @@ function activityNotes(row) {
 }
 
 function canAddNoteToRow(row) {
-  if (row?.source !== "observation" || !row?.observationId) return false;
-  return Boolean(row?.permissions?.canAddNote || row?.canAddNote || row?.isEditable);
+  const rowAllowsNotes = Boolean(row?.permissions?.canAddNote || row?.canAddNote || row?.isEditable);
+  if (row?.source === "observation") return Boolean(row?.observationId && rowAllowsNotes);
+  if (row?.source === "flagged_shot") return Boolean(row?.shotId && rowAllowsNotes);
+  return false;
 }
 
 function noteUnavailableMessage(row) {
-  if (row?.source !== "observation") {
+  if (row?.source === "flagged_shot") {
     return "Notes can be added after this historical item is backed by an observation.";
   }
   if (!canAddNoteToRow(row)) {
@@ -1872,7 +1874,7 @@ export default function ScoutPunchListPage() {
   }
 
   async function handleAddNote(row, note) {
-    if (!session?.access_token || !row?.observationId || !canAddNoteToRow(row)) return;
+    if (!session?.access_token || !canAddNoteToRow(row)) return;
     const trimmedNote = textValue(note);
     if (!trimmedNote) return;
 
@@ -1887,6 +1889,7 @@ export default function ScoutPunchListPage() {
         },
         body: JSON.stringify({
           observationId: row.observationId,
+          shotId: row.observationId ? null : row.shotId,
           note: trimmedNote,
         }),
       });
