@@ -367,20 +367,20 @@ const PUNCH_LIST_STYLES = `
     text-overflow: ellipsis;
     white-space: nowrap;
     color: rgb(15 23 42);
-    font-size: 15px;
+    font-size: 18px;
     line-height: 1.25;
   }
 
   .punch-property-name {
     flex: 0 0 auto;
-    font-weight: 800;
+    font-weight: 700;
   }
 
   .punch-property-address {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-weight: 500;
+    font-weight: 400;
   }
 
   .punch-org-line {
@@ -389,7 +389,7 @@ const PUNCH_LIST_STYLES = `
     text-overflow: ellipsis;
     white-space: nowrap;
     color: rgb(71 85 105);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 650;
     line-height: 1.35;
   }
@@ -400,7 +400,7 @@ const PUNCH_LIST_STYLES = `
     text-overflow: ellipsis;
     white-space: nowrap;
     color: rgb(15 23 42);
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 800;
     letter-spacing: 0;
     line-height: 1.25;
@@ -413,7 +413,7 @@ const PUNCH_LIST_STYLES = `
     margin-top: auto;
     margin-bottom: 11px;
     color: rgb(220 38 38);
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 700;
     line-height: 1.25;
   }
