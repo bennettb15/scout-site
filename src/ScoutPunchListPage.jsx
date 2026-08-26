@@ -989,6 +989,7 @@ const PUNCH_LIST_STYLES = `
     margin: 0;
     opacity: 0;
     cursor: pointer;
+    pointer-events: none;
   }
 
   .punch-date-control.is-empty {
@@ -1631,6 +1632,10 @@ function WorkflowControl({
   onAddOption,
   addOptionLabel = "Add",
 }) {
+  const dateInputRef = useRef(null);
+  const dateOpenStartedAtRef = useRef(0);
+  const dateAutoGuardValueRef = useRef("");
+
   if (!canEdit) {
     return <ReadOnlyControl label={label} value={displayValue || value} style={style} />;
   }
@@ -1643,6 +1648,43 @@ function WorkflowControl({
   if (type === "date") {
     const dateValue = textValue(value);
     const isEmpty = !dateValue;
+
+    function openDatePicker(event) {
+      event.stopPropagation();
+      if (saving) return;
+      const input = dateInputRef.current;
+      if (!input) return;
+
+      dateOpenStartedAtRef.current = Date.now();
+      dateAutoGuardValueRef.current = isEmpty ? todayDateOnly() : "";
+      input.focus({ preventScroll: true });
+
+      if (typeof input.showPicker === "function") {
+        try {
+          input.showPicker();
+          return;
+        } catch {
+          // Fall back to a normal programmatic click below.
+        }
+      }
+
+      input.click();
+    }
+
+    function handleDateChange(event) {
+      const input = event.currentTarget;
+      const nextValue = input.value;
+      const openedRecently = Date.now() - dateOpenStartedAtRef.current < 800;
+
+      if (isEmpty && openedRecently && nextValue === dateAutoGuardValueRef.current) {
+        input.value = "";
+        return;
+      }
+
+      handleChange(nextValue);
+      window.setTimeout(() => input.blur(), 0);
+    }
+
     return (
       <div className="punch-control">
         <div className="punch-control-label">{label}</div>
@@ -1650,19 +1692,25 @@ function WorkflowControl({
           <span
             className={`punch-date-shell ${saving ? "is-disabled" : ""}`}
             style={style}
-            onClick={(event) => event.stopPropagation()}
+            onClick={openDatePicker}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                openDatePicker(event);
+              }
+            }}
+            role="button"
+            tabIndex={0}
           >
             <span className="punch-date-display">{isEmpty ? "None" : displayValue || dateValue}</span>
             <input
+              ref={dateInputRef}
               type="date"
               value={dateValue}
               onClick={(event) => event.stopPropagation()}
               onKeyDown={(event) => event.stopPropagation()}
-              onChange={(event) => {
-                const input = event.currentTarget;
-                handleChange(input.value);
-                window.setTimeout(() => input.blur(), 0);
-              }}
+              onChange={handleDateChange}
               disabled={saving}
               className="punch-date-native"
               aria-label={`Set ${label}`}
