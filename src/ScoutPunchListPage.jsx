@@ -292,6 +292,9 @@ const PUNCH_LIST_STYLES = `
 
   .punch-row-left {
     display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+    overflow: hidden;
     width: 144px;
     height: 144px;
     min-height: 144px;
@@ -307,6 +310,8 @@ const PUNCH_LIST_STYLES = `
     background: rgb(241 245 249);
     color: rgb(100 116 139);
     appearance: none;
+    box-sizing: border-box;
+    line-height: 0;
     padding: 0;
   }
 
@@ -333,6 +338,12 @@ const PUNCH_LIST_STYLES = `
     min-height: 100%;
     object-fit: cover;
     object-position: center;
+  }
+
+  .punch-row-left .punch-thumbnail,
+  .punch-row-left .punch-thumbnail img {
+    width: 144px;
+    height: 144px;
   }
 
   .punch-row-main {
@@ -394,7 +405,7 @@ const PUNCH_LIST_STYLES = `
     align-items: center;
     gap: 5px;
     margin-top: auto;
-    margin-bottom: 15px;
+    margin-bottom: 11px;
     color: rgb(220 38 38);
     font-size: 14px;
     font-weight: 700;
@@ -606,6 +617,12 @@ const PUNCH_LIST_STYLES = `
       width: 96px;
       height: 96px;
       min-height: 96px;
+    }
+
+    .punch-row-left .punch-thumbnail,
+    .punch-row-left .punch-thumbnail img {
+      width: 96px;
+      height: 96px;
     }
 
     .punch-thumbnail:not(.punch-thumbnail-large) {
