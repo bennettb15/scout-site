@@ -9,6 +9,7 @@ import {
   Flag,
   LogOut,
   RefreshCw,
+  Trash2,
   X,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
@@ -426,6 +427,10 @@ function activityNotes(row) {
     : [];
 }
 
+function canDeleteNote(note) {
+  return Boolean(note?.permissions?.canDelete || note?.canDelete);
+}
+
 function canAddNoteToRow(row) {
   const rowAllowsNotes = Boolean(row?.permissions?.canAddNote || row?.canAddNote || row?.isEditable);
   if (row?.source === "observation") return Boolean(row?.observationId && rowAllowsNotes);
@@ -760,11 +765,39 @@ const PUNCH_LIST_STYLES = `
     padding: 9px 10px;
   }
 
+  .punch-note-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
   .punch-note-meta {
     color: rgb(100 116 139);
     font-size: 11px;
     font-weight: 700;
     line-height: 1.2;
+  }
+
+  .punch-note-delete {
+    display: inline-flex;
+    height: 24px;
+    width: 24px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    color: rgb(100 116 139);
+  }
+
+  .punch-note-delete:hover {
+    background: rgb(254 226 226);
+    color: rgb(185 28 28);
+  }
+
+  .punch-note-delete:disabled {
+    cursor: wait;
+    opacity: 0.45;
   }
 
   .punch-note-text {
@@ -1208,7 +1241,15 @@ function ReadOnlyField({ label, value }) {
   );
 }
 
-function NotesPanel({ row, noteDraft, onNoteDraftChange, onAddNote, noteSaving }) {
+function NotesPanel({
+  row,
+  noteDraft,
+  onNoteDraftChange,
+  onAddNote,
+  onDeleteNote,
+  noteSaving,
+  noteDeletingId,
+}) {
   const notes = activityNotes(row);
   const canAddNote = canAddNoteToRow(row);
   const unavailableMessage = noteUnavailableMessage(row);
@@ -1224,7 +1265,21 @@ function NotesPanel({ row, noteDraft, onNoteDraftChange, onAddNote, noteSaving }
         <div className="punch-note-list">
           {notes.slice(0, 5).map((note) => (
             <div key={note.id} className="punch-note-item">
-              <div className="punch-note-meta">{formatDateTime(note.createdAt) || "Recently"}</div>
+              <div className="punch-note-header">
+                <div className="punch-note-meta">{formatDateTime(note.createdAt) || "Recently"}</div>
+                {canDeleteNote(note) && (
+                  <button
+                    type="button"
+                    className="punch-note-delete"
+                    onClick={() => onDeleteNote(row, note)}
+                    disabled={noteDeletingId === note.id}
+                    aria-label="Delete note"
+                    title="Delete note"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
               <div className="punch-note-text">{note.note}</div>
             </div>
           ))}
@@ -1273,7 +1328,9 @@ function RowDetail({
   noteDraft,
   onNoteDraftChange,
   onAddNote,
+  onDeleteNote,
   noteSaving,
+  noteDeletingId,
 }) {
   if (!row) {
     return (
@@ -1356,7 +1413,9 @@ function RowDetail({
         noteDraft={noteDraft}
         onNoteDraftChange={onNoteDraftChange}
         onAddNote={onAddNote}
+        onDeleteNote={onDeleteNote}
         noteSaving={noteSaving}
+        noteDeletingId={noteDeletingId}
       />
     </aside>
   );
@@ -1372,17 +1431,15 @@ function IssueRow({
   noteDraft,
   onNoteDraftChange,
   onAddNote,
+  onDeleteNote,
   noteSaving,
+  noteDeletingId,
 }) {
   const flagNote = row.title || row.reason || "Flagged observation";
   const notes = activityNotes(row);
   const canAddNote = canAddNoteToRow(row);
   const showNoteButton = canAddNote || notes.length > 0;
-  const noteButtonLabel = canAddNote
-    ? notes.length > 0
-      ? `Add Note (${notes.length})`
-      : "Add Note"
-    : `Notes (${notes.length})`;
+  const noteButtonLabel = notes.length > 0 ? `Notes (${notes.length})` : "Add Note";
 
   return (
     <article
@@ -1451,7 +1508,9 @@ function IssueRow({
             noteDraft={noteDraft}
             onNoteDraftChange={onNoteDraftChange}
             onAddNote={onAddNote}
+            onDeleteNote={onDeleteNote}
             noteSaving={noteSaving}
+            noteDeletingId={noteDeletingId}
           />
         </div>
       )}
@@ -1537,6 +1596,7 @@ export default function ScoutPunchListPage() {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [noteDrafts, setNoteDrafts] = useState({});
   const [noteSavingId, setNoteSavingId] = useState("");
+  const [noteDeletingId, setNoteDeletingId] = useState("");
   const [activeNoteRowId, setActiveNoteRowId] = useState("");
   const sessionScopeRef = useRef("");
   const filterRequestRef = useRef(0);
@@ -1763,6 +1823,7 @@ export default function ScoutPunchListPage() {
         setPunchListError("");
         setNoteDrafts({});
         setNoteSavingId("");
+        setNoteDeletingId("");
         setActiveNoteRowId("");
         setFiltersReady(false);
       }
@@ -1783,6 +1844,7 @@ export default function ScoutPunchListPage() {
       setPunchListError("");
       setNoteDrafts({});
       setNoteSavingId("");
+      setNoteDeletingId("");
       setActiveNoteRowId("");
       setFiltersReady(false);
     }
@@ -1849,6 +1911,7 @@ export default function ScoutPunchListPage() {
     setManualRefreshing(false);
     setNoteDrafts({});
     setNoteSavingId("");
+    setNoteDeletingId("");
     setActiveNoteRowId("");
   }
 
@@ -1908,6 +1971,37 @@ export default function ScoutPunchListPage() {
       setPunchListError(error.message || "Unable to add note.");
     } finally {
       setNoteSavingId("");
+    }
+  }
+
+  async function handleDeleteNote(row, note) {
+    if (!session?.access_token || !canDeleteNote(note)) return;
+    const confirmed = window.confirm("Delete this note?");
+    if (!confirmed) return;
+
+    setNoteDeletingId(note.id);
+    setPunchListError("");
+    try {
+      const response = await fetch("/api/punch-list", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          noteId: note.id,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.deleted) {
+        throw new Error(body.error || "Unable to delete note.");
+      }
+      clearPunchListCaches();
+      await loadPunchList(session, { force: true });
+    } catch (error) {
+      setPunchListError(error.message || "Unable to delete note.");
+    } finally {
+      setNoteDeletingId("");
     }
   }
 
@@ -2461,7 +2555,9 @@ export default function ScoutPunchListPage() {
                       noteDraft={noteDrafts[row.id] || ""}
                       onNoteDraftChange={handleNoteDraftChange}
                       onAddNote={handleAddNote}
+                      onDeleteNote={handleDeleteNote}
                       noteSaving={noteSavingId === row.id}
+                      noteDeletingId={noteDeletingId}
                     />
                   ))}
                 </div>
@@ -2475,7 +2571,9 @@ export default function ScoutPunchListPage() {
                       noteDraft={selectedRow ? noteDrafts[selectedRow.id] || "" : ""}
                       onNoteDraftChange={handleNoteDraftChange}
                       onAddNote={handleAddNote}
+                      onDeleteNote={handleDeleteNote}
                       noteSaving={selectedRow ? noteSavingId === selectedRow.id : false}
+                      noteDeletingId={noteDeletingId}
                     />
                   </div>
                 </div>

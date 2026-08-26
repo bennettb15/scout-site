@@ -341,8 +341,9 @@ function publicPreview(row, previewUrl, reportPackage) {
   };
 }
 
-function publicActivityRow(row) {
+function publicActivityRow(row, options = {}) {
   if (!row) return null;
+  const canDelete = Boolean(options.canDelete);
   return {
     id: row.id,
     activityType: row.activity_type,
@@ -351,6 +352,10 @@ function publicActivityRow(row) {
     note: compactText(row.note),
     createdBy: row.created_by || null,
     createdAt: row.created_at,
+    canDelete,
+    permissions: {
+      canDelete,
+    },
   };
 }
 
@@ -724,6 +729,64 @@ async function handleAddNote(req, res) {
   }
 }
 
+async function handleDeleteNote(req, res) {
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body." });
+  }
+
+  const noteId = validateUuid(body.noteId || body.activityId);
+  if (!noteId) {
+    return sendJson(res, 400, { error: "Valid note ID is required." });
+  }
+
+  try {
+    const auth = await authenticateRequest(req);
+    if (auth.error) return sendJson(res, 401, { error: auth.error });
+
+    const { data: activity, error: activityError } = await auth.client
+      .from("punchlist_activity")
+      .select("id,org_id,property_id,observation_id,shot_id,activity_type,created_by,deleted_at")
+      .eq("id", noteId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (activityError) {
+      return sendJson(res, 500, { error: "Unable to load note." });
+    }
+    if (!activity) {
+      return sendJson(res, 404, { error: "Note not found." });
+    }
+    if (activity.activity_type !== "note_added") {
+      return sendJson(res, 400, { error: "Only notes can be deleted." });
+    }
+
+    const adminAllowed = isApprovedAdminEmail(auth.user?.email);
+    const ownFieldNote =
+      activity.created_by === auth.user.id && (await loadFieldMembership(auth, activity.org_id));
+    if (!adminAllowed && !ownFieldNote) {
+      return sendJson(res, 403, { error: "You can only delete your own notes." });
+    }
+
+    const service = createServiceClient();
+    const { error: updateError } = await service
+      .from("punchlist_activity")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", activity.id)
+      .is("deleted_at", null);
+
+    if (updateError) {
+      return sendJson(res, 500, { error: "Unable to delete note." });
+    }
+
+    return sendJson(res, 200, { deleted: true, noteId: activity.id });
+  } catch {
+    return sendJson(res, 500, { error: "Unable to delete note." });
+  }
+}
+
 async function handleFilters(req, res) {
   try {
     const auth = await authenticateRequest(req);
@@ -788,10 +851,13 @@ async function handleFilters(req, res) {
 }
 
 export default async function handler(req, res) {
-  if (!methodAllowed(req, res, ["GET", "POST", "OPTIONS"])) return;
+  if (!methodAllowed(req, res, ["GET", "POST", "DELETE", "OPTIONS"])) return;
 
   if (req.method === "POST") {
     return handleAddNote(req, res);
+  }
+  if (req.method === "DELETE") {
+    return handleDeleteNote(req, res);
   }
 
   if (getQueryValue(req, "mode") === "filters") {
@@ -957,6 +1023,8 @@ export default async function handler(req, res) {
     const orgById = new Map((orgRows || []).map((row) => [row.id, toOrg(row)]));
     const propertyById = new Map((propertyRows || []).map((row) => [row.id, toProperty(row)]));
     const sessionById = new Map((sessionRows || []).map((row) => [row.id, toSession(row)]));
+    const editableOrgIds = await editableOrgIdSet(auth, orgIds);
+    const adminAllowed = isApprovedAdminEmail(auth.user?.email);
     const latestUpdateByObservationId = new Map();
     for (const update of observationUpdates) {
       if (!latestUpdateByObservationId.has(update.observation_id)) {
@@ -966,13 +1034,16 @@ export default async function handler(req, res) {
     const activityByObservationId = new Map();
     for (const activityRow of punchListActivity) {
       if (activityRow.activity_type !== "note_added") continue;
-      const publicRow = publicActivityRow(activityRow);
+      const publicRow = publicActivityRow(activityRow, {
+        canDelete:
+          adminAllowed ||
+          (editableOrgIds.has(activityRow.org_id) && activityRow.created_by === auth.user.id),
+      });
       if (!publicRow?.note) continue;
       const rows = activityByObservationId.get(activityRow.observation_id) || [];
       rows.push(publicRow);
       activityByObservationId.set(activityRow.observation_id, rows);
     }
-    const editableOrgIds = await editableOrgIdSet(auth, orgIds);
 
     const previewCache = new Map();
     async function previewForShot(shot) {
