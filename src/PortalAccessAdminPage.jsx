@@ -3,6 +3,7 @@ import {
   ClipboardList,
   KeyRound,
   LogOut,
+  Plus,
   RefreshCw,
   ShieldCheck,
   Trash2,
@@ -117,6 +118,8 @@ export default function PortalAccessAdminPage() {
   const [selectedOrgId, setSelectedOrgId] = useState("");
   const [selectedAccessRole, setSelectedAccessRole] = useState("viewer");
   const [clientEmail, setClientEmail] = useState("");
+  const [newOrgName, setNewOrgName] = useState("");
+  const [creatingOrg, setCreatingOrg] = useState(false);
   const [setupLinkDetails, setSetupLinkDetails] = useState(null);
   const [copyMessage, setCopyMessage] = useState("");
   const [revokeId, setRevokeId] = useState("");
@@ -330,6 +333,44 @@ export default function PortalAccessAdminPage() {
     }
   }
 
+  async function handleCreateOrganization(event) {
+    event.preventDefault();
+    if (!session?.access_token) return;
+
+    setCreatingOrg(true);
+    setActionMessage("");
+    setLoadError("");
+    setSetupLinkDetails(null);
+    setCopyMessage("");
+
+    try {
+      const response = await fetch("/api/admin/portal-access", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "createOrg",
+          name: newOrgName,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body.error || "Unable to create organization.");
+      }
+
+      setNewOrgName("");
+      await loadAccess();
+      if (body.org?.id) setSelectedOrgId(body.org.id);
+      setActionMessage("Created organization. Add properties in ScoutCapture, then invite the client.");
+    } catch (error) {
+      setLoadError(error.message || "Unable to create organization.");
+    } finally {
+      setCreatingOrg(false);
+    }
+  }
+
   async function handleCopySetupLink() {
     if (!setupLinkDetails?.setupUrl) return;
     setCopyMessage("");
@@ -524,6 +565,42 @@ export default function PortalAccessAdminPage() {
                 {actionMessage}
               </div>
             )}
+
+            <section className="rounded-lg border border-border bg-background p-5 shadow-sm">
+              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+                <div>
+                  <h2 className="text-base font-semibold text-foreground">
+                    Create Organization
+                  </h2>
+                  <p className="mt-1 text-sm leading-relaxed text-foreground/60">
+                    Create the organization here. Add properties in ScoutCapture.
+                  </p>
+                </div>
+                <form
+                  onSubmit={handleCreateOrganization}
+                  className="grid gap-3 md:min-w-[460px] md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
+                >
+                  <label className="grid gap-1.5 text-sm font-medium text-foreground">
+                    Organization Name
+                    <input
+                      type="text"
+                      value={newOrgName}
+                      onChange={(event) => setNewOrgName(event.target.value)}
+                      maxLength={120}
+                      className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={creatingOrg || !newOrgName.trim()}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {creatingOrg ? "Creating..." : "Create Organization"}
+                  </button>
+                </form>
+              </div>
+            </section>
 
             <section className="rounded-lg border border-border bg-background p-5 shadow-sm">
               <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px_auto] lg:items-end">

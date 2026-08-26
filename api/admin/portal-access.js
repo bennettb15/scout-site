@@ -16,10 +16,27 @@ import { sendJson } from "../_reportPortalShared.js";
 const ORDINARY_ACCESS_ROLES = new Set(["viewer", "field"]);
 const ORDINARY_ACCESS_ONLY_ERROR =
   "Only existing org-level Client Viewer or Field User access can be changed here.";
+const MAX_ORG_NAME_LENGTH = 120;
 
 function validateAccessRole(value) {
   const role = String(value || "viewer").trim().toLowerCase();
   return ORDINARY_ACCESS_ROLES.has(role) ? role : "";
+}
+
+function normalizeOrgName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function orgNameKey(value) {
+  return normalizeOrgName(value).toLowerCase();
+}
+
+function slugFromOrgName(value) {
+  return orgNameKey(value)
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 96);
 }
 
 function userSummary(user) {
@@ -440,6 +457,77 @@ async function createSetupLink(req, res, context) {
   }
 }
 
+async function createOrganization(req, res, context) {
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body." });
+  }
+
+  const name = normalizeOrgName(body.name);
+  const slug = slugFromOrgName(name);
+  if (!name) return sendJson(res, 400, { error: "Organization name is required." });
+  if (name.length > MAX_ORG_NAME_LENGTH) {
+    return sendJson(res, 400, {
+      error: `Organization name must be ${MAX_ORG_NAME_LENGTH} characters or fewer.`,
+    });
+  }
+  if (!slug) {
+    return sendJson(res, 400, { error: "Organization name must include letters or numbers." });
+  }
+
+  try {
+    const { data: existingOrgs, error: existingError } = await context.service
+      .from("orgs")
+      .select("id,name,slug")
+      .is("deleted_at", null);
+    if (existingError) throw existingError;
+
+    const duplicate = (existingOrgs || []).find(
+      (org) => orgNameKey(org.name) === orgNameKey(name) || String(org.slug || "") === slug
+    );
+    if (duplicate) {
+      return sendJson(res, 409, {
+        error: `An active organization named ${duplicate.name} already exists.`,
+        org: {
+          id: duplicate.id,
+          name: duplicate.name,
+          slug: duplicate.slug,
+        },
+      });
+    }
+
+    await ensureUserProfile(context.service, context.user, context.user.id);
+
+    const { data: org, error: createError } = await context.service
+      .from("orgs")
+      .insert({
+        name,
+        slug,
+        updated_by: context.user.id,
+        deleted_at: null,
+      })
+      .select("id,name,slug,created_at,updated_at")
+      .single();
+
+    if (createError) throw createError;
+    return sendJson(res, 201, {
+      org: {
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        createdAt: org.created_at,
+        updatedAt: org.updated_at,
+      },
+    });
+  } catch (error) {
+    return sendJson(res, 500, {
+      error: error.message || "Unable to create organization.",
+    });
+  }
+}
+
 async function revokeOrgAccess(req, res, context) {
   let body = {};
   try {
@@ -522,6 +610,7 @@ export default async function handler(req, res) {
     }
 
     req.body = body;
+    if (body.action === "createOrg") return createOrganization(req, res, context);
     if (body.action === "setupLink") return createSetupLink(req, res, context);
     if (body.action === "grantExisting") return grantExistingOrgAccess(req, res, context);
     return grantOrgAccess(req, res, context);

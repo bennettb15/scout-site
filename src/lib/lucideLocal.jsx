@@ -139,6 +139,7 @@ export const Pencil = createIcon(
     <path d="m15 5 4 4" />
   </>
 );
+export const Plus = createIcon(<path d="M12 5v14M5 12h14" />);
 export const RefreshCw = createIcon(
   <>
     <path d="M3 12a9 9 0 0 1 9-9 9.8 9.8 0 0 1 6.7 2.7L21 8" />
