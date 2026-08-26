@@ -278,12 +278,13 @@ const PUNCH_LIST_STYLES = `
 
   .punch-row {
     overflow: hidden;
+    cursor: default;
   }
 
   .punch-row-body {
     position: relative;
     display: grid;
-    grid-template-columns: 152px minmax(0, 1fr) 196px;
+    grid-template-columns: 156px minmax(0, 1fr) 196px;
     align-items: stretch;
     gap: 16px;
     width: 100%;
@@ -295,9 +296,9 @@ const PUNCH_LIST_STYLES = `
     align-items: stretch;
     justify-content: stretch;
     overflow: hidden;
-    width: 152px;
-    height: 152px;
-    min-height: 152px;
+    width: 156px;
+    height: 156px;
+    min-height: 156px;
   }
 
   .punch-thumbnail {
@@ -316,17 +317,22 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-thumbnail:not(.punch-thumbnail-large) {
-    width: 152px;
-    height: 152px;
-    min-width: 152px;
-    min-height: 152px;
-    max-width: 152px;
-    max-height: 152px;
+    width: 156px;
+    height: 156px;
+    min-width: 156px;
+    min-height: 156px;
+    max-width: 156px;
+    max-height: 156px;
     aspect-ratio: 1 / 1;
-    flex: 0 0 152px;
+    flex: 0 0 156px;
   }
 
   .punch-thumbnail-button {
+    cursor: zoom-in;
+  }
+
+  .punch-thumbnail-button,
+  .punch-thumbnail-button * {
     cursor: zoom-in;
   }
 
@@ -342,8 +348,8 @@ const PUNCH_LIST_STYLES = `
 
   .punch-row-left .punch-thumbnail,
   .punch-row-left .punch-thumbnail img {
-    width: 152px;
-    height: 152px;
+    width: 156px;
+    height: 156px;
   }
 
   .punch-row-main {
@@ -691,13 +697,13 @@ function IssueThumbnail({ row, large = false, onPreview }) {
   const frameStyle = large
     ? { width: "100%", height: 176, minHeight: 176 }
     : {
-        width: 152,
-        height: 152,
-        minWidth: 152,
-        maxWidth: 152,
-        maxHeight: 152,
-        flexBasis: 152,
-        minHeight: 152,
+        width: 156,
+        height: 156,
+        minWidth: 156,
+        maxWidth: 156,
+        maxHeight: 156,
+        flexBasis: 156,
+        minHeight: 156,
         aspectRatio: "1 / 1",
       };
   const label = locationLine(row) || row.title || "Punch list photo";
