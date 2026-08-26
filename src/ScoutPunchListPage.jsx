@@ -434,9 +434,9 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-filter-organization {
-    flex: 1 1 260px;
-    min-width: 180px;
-    max-width: none;
+    flex: 0 0 320px;
+    min-width: 320px;
+    max-width: 320px;
   }
 
   .punch-filter-property {
