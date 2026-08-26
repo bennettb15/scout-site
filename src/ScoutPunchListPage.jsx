@@ -423,7 +423,9 @@ function defaultPropertyIdForOrg(options, orgId) {
 const PUNCH_LIST_STYLES = `
   .punch-filter-row {
     align-items: end;
-    padding-top: 42px;
+    column-gap: 8px;
+    row-gap: 10px;
+    padding-top: 0;
   }
 
   .punch-filter-control {
@@ -432,9 +434,9 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-filter-property {
-    flex: 1 1 260px;
-    min-width: 220px;
-    max-width: 360px;
+    flex: 1 1 420px;
+    min-width: 320px;
+    max-width: 620px;
   }
 
   .punch-filter-detail {
@@ -446,6 +448,10 @@ const PUNCH_LIST_STYLES = `
     width: 100%;
   }
 
+  .punch-filter-property select {
+    max-width: none;
+  }
+
   .punch-refresh-button {
     flex: 0 0 auto;
     min-width: 144px;
@@ -453,13 +459,11 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-refresh-cluster {
-    position: absolute;
-    right: 0;
-    bottom: calc(100% + 6px);
     display: flex;
     align-items: center;
     align-self: end;
     gap: 8px;
+    margin-left: auto;
   }
 
   .punch-refresh-status {
@@ -470,23 +474,15 @@ const PUNCH_LIST_STYLES = `
     white-space: nowrap;
   }
 
-  .punch-trade-refresh-stack {
-    position: relative;
-    flex: 0 1 142px;
-    min-width: 124px;
-    margin-left: auto;
-  }
-
-  .punch-trade-refresh-stack .punch-filter-control {
-    width: 100%;
-  }
-
   .punch-mobile-filter-actions {
     display: none;
   }
 
   .punch-filter-advanced {
-    display: contents;
+    display: flex;
+    align-items: end;
+    flex: 1 0 100%;
+    gap: 8px;
   }
 
   .punch-row {
@@ -893,15 +889,6 @@ const PUNCH_LIST_STYLES = `
     .punch-filter-advanced .punch-filter-detail {
       grid-template-rows: auto 36px;
       min-height: 54px;
-    }
-
-    .punch-trade-refresh-stack {
-      display: contents;
-      margin-left: 0;
-    }
-
-    .punch-trade-refresh-stack .punch-filter-control {
-      width: 100%;
     }
 
     .punch-row-body {
@@ -1870,6 +1857,24 @@ export default function ScoutPunchListPage() {
                     ))}
                   </select>
                 </label>
+                <div className="punch-refresh-cluster punch-refresh-desktop">
+                  {lastRefreshedAt && (
+                    <span className="punch-refresh-status">
+                      Last refreshed {formatRefreshTime(lastRefreshedAt)}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleRefresh}
+                    disabled={manualRefreshing || punchListLoading || filtersLoading || !selectedOrgId}
+                    className="punch-refresh-button inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 ${punchListLoading ? "animate-spin" : ""}`}
+                    />
+                    {manualRefreshing ? "Refreshing..." : "Refresh"}
+                  </button>
+                </div>
                 <div className="punch-mobile-filter-actions">
                   <button
                     type="button"
@@ -1949,25 +1954,6 @@ export default function ScoutPunchListPage() {
                       ))}
                     </select>
                   </label>
-                <div className="punch-trade-refresh-stack">
-                  <div className="punch-refresh-cluster punch-refresh-desktop">
-                    {lastRefreshedAt && (
-                      <span className="punch-refresh-status">
-                        Last refreshed {formatRefreshTime(lastRefreshedAt)}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={handleRefresh}
-                      disabled={manualRefreshing || punchListLoading || filtersLoading || !selectedOrgId}
-                      className="punch-refresh-button inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
-                    >
-                      <RefreshCw
-                        className={`h-4 w-4 ${punchListLoading ? "animate-spin" : ""}`}
-                      />
-                      {manualRefreshing ? "Refreshing..." : "Refresh"}
-                    </button>
-                  </div>
                   <label className="punch-filter-control grid gap-1 text-xs font-semibold text-foreground/60">
                     Trade
                     <select
@@ -1983,7 +1969,6 @@ export default function ScoutPunchListPage() {
                       ))}
                     </select>
                   </label>
-                </div>
                 </div>
               </div>
             )}
