@@ -951,8 +951,8 @@ const PUNCH_LIST_STYLES = `
     justify-content: center;
     border-radius: 7px;
     border: 1px solid rgb(17 24 39);
-    background: rgb(17 24 39);
-    color: white;
+    background: white;
+    color: rgb(17 24 39);
     font-size: 16px;
     font-weight: 900;
     line-height: 1;
@@ -960,8 +960,8 @@ const PUNCH_LIST_STYLES = `
 
   .punch-control-add:hover {
     border-color: rgb(0 0 0);
-    background: rgb(0 0 0);
-    color: white;
+    background: rgb(249 250 251);
+    color: rgb(0 0 0);
   }
 
   .punch-notes-panel {
