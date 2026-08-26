@@ -940,13 +940,13 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-date-control.is-empty {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 26px;
   }
 
   .punch-date-control.is-empty::after {
     content: "None";
     position: absolute;
-    inset: 0;
+    inset: 0 30px 0 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1490,6 +1490,14 @@ const PUNCH_LIST_STYLES = `
 
     .punch-date-control {
       grid-template-columns: minmax(0, 1fr) 27px;
+    }
+
+    .punch-date-control.is-empty {
+      grid-template-columns: minmax(0, 1fr) 27px;
+    }
+
+    .punch-date-control.is-empty::after {
+      right: 31px;
     }
 
     .punch-select-control.has-action {
@@ -2080,8 +2088,8 @@ function IssueRow({
           />
         </div>
       </div>
-      {(selected || notePanelOpen) && (
-        <div className={`punch-row-note-area grid gap-3 ${notePanelOpen ? "" : "md:hidden"}`}>
+      {notePanelOpen && (
+        <div className="punch-row-note-area grid gap-3">
           {row.reason && row.reason !== row.title && (
             <p className="text-sm leading-6 text-foreground/70">{row.reason}</p>
           )}
@@ -2565,7 +2573,12 @@ export default function ScoutPunchListPage() {
 
   function handleToggleNotePanel(rowId) {
     setSelectedRowId(rowId);
-    setActiveNoteRowId((current) => (current === rowId ? "" : rowId));
+    const isClosing = activeNoteRowId === rowId;
+    setActiveNoteRowId(isClosing ? "" : rowId);
+    if (isClosing) {
+      setActiveNoteEditId("");
+      setNoteEditDrafts({});
+    }
   }
 
   function handleStartEditNote(_row, note) {
