@@ -22,6 +22,11 @@ import {
 const MAX_ROWS = 250;
 const MAX_PREVIEW_URLS = 60;
 const ALL_VALUE = "all";
+const FIELD_REVIEW_ELEVATION_ORDER = ["front", "north", "east", "south", "west", "rear"];
+const NATURAL_COLLATOR = new Intl.Collator("en-US", {
+  numeric: true,
+  sensitivity: "base",
+});
 
 function compactText(value) {
   const text = String(value || "").trim();
@@ -30,6 +35,76 @@ function compactText(value) {
 
 function keyValue(value) {
   return compactText(value)?.toLowerCase() || "";
+}
+
+function sortableText(value) {
+  return compactText(value) || "";
+}
+
+function readableSortText(value) {
+  return sortableText(value)
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function compareNatural(left, right) {
+  const leftText = sortableText(left);
+  const rightText = sortableText(right);
+  if (leftText && !rightText) return -1;
+  if (!leftText && rightText) return 1;
+  return NATURAL_COLLATOR.compare(leftText, rightText);
+}
+
+function compareNumber(left, right) {
+  const leftNumber = Number(left);
+  const rightNumber = Number(right);
+  const leftValue = Number.isFinite(leftNumber) ? leftNumber : Number.POSITIVE_INFINITY;
+  const rightValue = Number.isFinite(rightNumber) ? rightNumber : Number.POSITIVE_INFINITY;
+  return leftValue - rightValue;
+}
+
+function propertySortText(property) {
+  if (!property) return "";
+  const cityState = [property.city, property.state].filter(Boolean).join(", ");
+  return [property.name, property.addressLine1, cityState, property.postalCode]
+    .map(sortableText)
+    .filter(Boolean)
+    .join(" ");
+}
+
+function compareElevation(left, right) {
+  const leftText = keyValue(left);
+  const rightText = keyValue(right);
+  const leftIndex = FIELD_REVIEW_ELEVATION_ORDER.indexOf(leftText);
+  const rightIndex = FIELD_REVIEW_ELEVATION_ORDER.indexOf(rightText);
+  const leftKnown = leftIndex >= 0;
+  const rightKnown = rightIndex >= 0;
+  if (leftKnown && rightKnown && leftIndex !== rightIndex) return leftIndex - rightIndex;
+  if (leftKnown !== rightKnown) return leftKnown ? -1 : 1;
+  return compareNatural(leftText, rightText);
+}
+
+function compareShotOrder(left, right) {
+  const shotKeyCompare = compareNatural(left.shotKey, right.shotKey);
+  if (shotKeyCompare !== 0) return shotKeyCompare;
+  const angleCompare = compareNumber(left.angleIndex, right.angleIndex);
+  if (angleCompare !== 0) return angleCompare;
+  return compareNatural(left.shotId || left.id, right.shotId || right.id);
+}
+
+function compareFieldReviewOrder(left, right) {
+  const propertyCompare = compareNatural(propertySortText(left.property), propertySortText(right.property));
+  if (propertyCompare !== 0) return propertyCompare;
+  const buildingCompare = compareNatural(left.building, right.building);
+  if (buildingCompare !== 0) return buildingCompare;
+  const elevationCompare = compareElevation(left.elevation, right.elevation);
+  if (elevationCompare !== 0) return elevationCompare;
+  const detailCompare = compareNatural(readableSortText(left.detailType), readableSortText(right.detailType));
+  if (detailCompare !== 0) return detailCompare;
+  const shotCompare = compareShotOrder(left, right);
+  if (shotCompare !== 0) return shotCompare;
+  return compareNatural(left.capturedAt || left.updatedAt, right.capturedAt || right.updatedAt);
 }
 
 function unique(values) {
@@ -612,14 +687,7 @@ export default async function handler(req, res) {
       if (rows.length >= MAX_ROWS) break;
     }
 
-    rows.sort((left, right) => {
-      const leftOpen = left.status === "resolved" ? 1 : 0;
-      const rightOpen = right.status === "resolved" ? 1 : 0;
-      if (leftOpen !== rightOpen) return leftOpen - rightOpen;
-      return String(right.updatedAt || right.capturedAt || "").localeCompare(
-        String(left.updatedAt || left.capturedAt || "")
-      );
-    });
+    rows.sort(compareFieldReviewOrder);
 
     return sendJson(res, 200, { rows: rows.slice(0, MAX_ROWS) });
   } catch {
