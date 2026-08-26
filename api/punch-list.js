@@ -44,6 +44,7 @@ const WORKFLOW_ACTIVITY_TYPE_BY_FIELD = {
   dueDate: "due_date_changed",
   trade: "trade_changed",
 };
+const MAX_TRADE_NAME_LENGTH = 60;
 const FIELD_REVIEW_ELEVATION_ORDER = ["front", "north", "east", "south", "west", "rear"];
 const NATURAL_COLLATOR = new Intl.Collator("en-US", {
   numeric: true,
@@ -145,8 +146,15 @@ function normalizedPriority(value) {
   return "medium";
 }
 
+function tradeKeyFromName(value) {
+  return keyValue(value)
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 function normalizedTrade(value) {
-  return keyValue(value) || "general";
+  return tradeKeyFromName(value) || "general";
 }
 
 function normalizedDateOnly(value) {
@@ -895,6 +903,84 @@ function workflowValueForField({ observation, workflowState }, field) {
   return workflowOverride(workflowState, field, baseState[field]) || null;
 }
 
+function publicTradeOption(row) {
+  if (!row) return null;
+  const key = compactText(row.trade_key) || normalizedTrade(row.name);
+  if (!key) return null;
+  return {
+    id: key,
+    key,
+    name: compactText(row.name) || key,
+    label: compactText(row.name) || key,
+    isActive: row.is_active !== false,
+  };
+}
+
+async function loadTradeOptions() {
+  const service = await maybeServiceClient();
+  if (!service) return [];
+  const { data, error } = await service
+    .from("punchlist_trade_options")
+    .select("id,name,trade_key,is_active,deleted_at")
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .order("name", { ascending: true });
+
+  if (error) return [];
+  return (data || []).map(publicTradeOption).filter(Boolean);
+}
+
+async function canAddTradeOption(auth) {
+  if (isApprovedAdminEmail(auth.user?.email)) return true;
+  const { data, error } = await auth.client
+    .from("org_memberships")
+    .select("id,role,access_scope,deleted_at")
+    .eq("user_id", auth.user.id)
+    .eq("role", "field")
+    .eq("access_scope", "org")
+    .is("deleted_at", null)
+    .limit(1);
+
+  if (error) return false;
+  return (data || []).length > 0;
+}
+
+async function tradeOptionExists(service, tradeKey) {
+  const key = normalizedTrade(tradeKey);
+  if (!key) return false;
+  const { data, error } = await service
+    .from("punchlist_trade_options")
+    .select("id")
+    .eq("trade_key", key)
+    .eq("is_active", true)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (error) return false;
+  return Boolean(data);
+}
+
+function validateTradeName(value) {
+  const name = String(value || "").replace(/\s+/g, " ").trim();
+  if (!name) {
+    const error = new Error("Trade name is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (name.length > MAX_TRADE_NAME_LENGTH) {
+    const error = new Error(`Trade names must be ${MAX_TRADE_NAME_LENGTH} characters or fewer.`);
+    error.statusCode = 400;
+    throw error;
+  }
+  const key = tradeKeyFromName(name);
+  if (!key) {
+    const error = new Error("Trade name is not valid.");
+    error.statusCode = 400;
+    throw error;
+  }
+  return { name, key };
+}
+
 async function handleAddNote(req, res) {
   let body = {};
   try {
@@ -957,6 +1043,75 @@ async function handleAddNote(req, res) {
   }
 }
 
+async function handleAddTradeOption(req, res) {
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body." });
+  }
+
+  let trade;
+  try {
+    trade = validateTradeName(body.name || body.trade || body.value);
+  } catch (error) {
+    return sendJson(res, error.statusCode || 400, { error: error.message });
+  }
+
+  try {
+    const auth = await authenticateRequest(req);
+    if (auth.error) return sendJson(res, 401, { error: auth.error });
+    if (!(await canAddTradeOption(auth))) {
+      return sendJson(res, 403, { error: "Field User access is required to add trades." });
+    }
+
+    const service = createServiceClient();
+    await ensureUserProfile(service, auth.user, auth.user.id);
+
+    const { data: existing, error: existingError } = await service
+      .from("punchlist_trade_options")
+      .select("id,name,trade_key,is_active,deleted_at")
+      .eq("trade_key", trade.key)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (existingError) {
+      return sendJson(res, 500, { error: "Unable to check trade options." });
+    }
+    if (existing) {
+      return sendJson(res, 200, {
+        tradeOption: publicTradeOption(existing),
+        created: false,
+      });
+    }
+
+    const { data: inserted, error: insertError } = await service
+      .from("punchlist_trade_options")
+      .insert({
+        name: trade.name,
+        trade_key: trade.key,
+        is_active: true,
+        created_by: auth.user.id,
+        deleted_at: null,
+      })
+      .select("id,name,trade_key,is_active,deleted_at")
+      .single();
+
+    if (insertError) {
+      return sendJson(res, 500, { error: "Unable to add trade option." });
+    }
+
+    return sendJson(res, 200, {
+      tradeOption: publicTradeOption(inserted),
+      created: true,
+    });
+  } catch (error) {
+    return sendJson(res, error.statusCode || 500, {
+      error: error.message || "Unable to add trade option.",
+    });
+  }
+}
+
 async function handleUpdateWorkflowField(req, res) {
   let body = {};
   try {
@@ -998,6 +1153,9 @@ async function handleUpdateWorkflowField(req, res) {
         unchanged: true,
         observationId: observation.id,
       });
+    }
+    if (field === "trade" && !(await tradeOptionExists(service, nextValue))) {
+      return sendJson(res, 400, { error: "Trade must be an active punch list trade option." });
     }
 
     const activityType = WORKFLOW_ACTIVITY_TYPE_BY_FIELD[field];
@@ -1129,7 +1287,7 @@ async function handleFilters(req, res) {
       ...observationRows.map((row) => row.property_id),
     ]);
 
-    const [{ data: orgRows }, { data: propertyRows }] = await Promise.all([
+    const [{ data: orgRows }, { data: propertyRows }, tradeOptions] = await Promise.all([
       orgIds.length
         ? client
             .from("orgs")
@@ -1146,11 +1304,13 @@ async function handleFilters(req, res) {
             .is("deleted_at", null)
             .order("name", { ascending: true })
         : { data: [] },
+      loadTradeOptions(),
     ]);
 
     return sendJson(res, 200, {
       orgs: (orgRows || []).map(toOrg),
       properties: (propertyRows || []).map(toProperty),
+      tradeOptions,
     });
   } catch {
     return sendJson(res, 500, { error: "Unable to load punch list filters." });
@@ -1161,6 +1321,9 @@ export default async function handler(req, res) {
   if (!methodAllowed(req, res, ["GET", "POST", "PATCH", "DELETE", "OPTIONS"])) return;
 
   if (req.method === "POST") {
+    if (getQueryValue(req, "mode") === "trade-options") {
+      return handleAddTradeOption(req, res);
+    }
     return handleAddNote(req, res);
   }
   if (req.method === "PATCH") {

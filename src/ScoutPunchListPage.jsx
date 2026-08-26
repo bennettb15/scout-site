@@ -121,18 +121,25 @@ const STATUS_OPTIONS = [
 const TRADE_LABELS = {
   carpentry: "Carpentry",
   concrete: "Concrete",
+  doors: "Doors",
   drywall: "Drywall",
   electrical: "Electrical",
   fire_protection: "Fire Protection",
   flooring: "Flooring",
   general: "General",
+  gutters: "Gutters",
   hvac: "HVAC",
+  landscaping: "Landscaping",
   masonry: "Masonry",
+  other: "Other",
+  paint: "Paint",
   painting: "Painting",
   plumbing: "Plumbing",
   roofing: "Roofing",
+  siding: "Siding",
   sitework: "Sitework",
   steel: "Steel",
+  windows: "Windows",
 };
 const ELEVATION_ORDER = ["interior", "north", "south", "east", "west"];
 const ELEVATION_LABELS = {
@@ -236,6 +243,25 @@ function readableToken(value) {
     .trim();
 }
 
+function titleCase(value) {
+  return readableToken(value)
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => {
+      if (word.toLowerCase() === "hvac") return "HVAC";
+      return `${word.slice(0, 1).toUpperCase()}${word.slice(1).toLowerCase()}`;
+    })
+    .join(" ");
+}
+
+function tradeKey(value) {
+  return textValue(value)
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 function readableDetail(value) {
   return textValue(value)
     .replace(/[_-]+/g, " / ")
@@ -250,6 +276,22 @@ function normalizedOptionId(value) {
 
 function readableDetailLabel(value) {
   return readableDetail(value).toUpperCase();
+}
+
+function tradeOptionFromApi(option) {
+  const id = tradeKey(option?.key || option?.id || option?.name || option?.label);
+  if (!id) return null;
+  return {
+    id,
+    label: textValue(option?.label || option?.name) || titleCase(id),
+    value: option,
+  };
+}
+
+function tradeLabel(value, options = []) {
+  const key = tradeKey(value);
+  const option = (options || []).find((item) => item?.id === key);
+  return option?.label || TRADE_LABELS[key] || titleCase(key) || "General";
 }
 
 function elevationLabel(value) {
@@ -498,9 +540,9 @@ function tradeOptionsForRow(row, options) {
   for (const option of options || []) {
     if (option?.id) byId.set(option.id, option);
   }
-  const rowTrade = textValue(row?.trade);
+  const rowTrade = tradeKey(row?.trade);
   if (rowTrade && !byId.has(rowTrade)) {
-    byId.set(rowTrade, { id: rowTrade, label: optionLabel(rowTrade, TRADE_LABELS) });
+    byId.set(rowTrade, { id: rowTrade, label: tradeLabel(rowTrade, options) });
   }
   return Array.from(byId.values()).sort((left, right) => left.label.localeCompare(right.label));
 }
@@ -889,6 +931,37 @@ const PUNCH_LIST_STYLES = `
   .punch-date-clear:hover {
     border-color: rgb(248 113 113);
     color: rgb(185 28 28);
+  }
+
+  .punch-select-control {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .punch-select-control.has-action {
+    grid-template-columns: minmax(0, 1fr) 26px;
+  }
+
+  .punch-control-add {
+    display: inline-flex;
+    height: 28px;
+    width: 26px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    border: 1px solid rgb(191 219 254);
+    background: rgb(239 246 255);
+    color: rgb(29 78 216);
+    font-size: 16px;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .punch-control-add:hover {
+    border-color: rgb(37 99 235);
+    background: rgb(219 234 254);
+    color: rgb(30 64 175);
   }
 
   .punch-notes-panel {
@@ -1395,6 +1468,7 @@ function WorkflowControl({
   canEdit,
   saving,
   onChange,
+  onAddOption,
 }) {
   if (!canEdit) {
     return <ReadOnlyControl label={label} value={displayValue || value} style={style} />;
@@ -1446,22 +1520,39 @@ function WorkflowControl({
   return (
     <label className="punch-control">
       <span className="punch-control-label">{label}</span>
-      <select
-        value={value}
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => event.stopPropagation()}
-        onChange={(event) => handleChange(event.target.value)}
-        disabled={saving}
-        className="punch-control-input"
-        style={style}
-        aria-label={label}
-      >
-        {options.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+      <span className={`punch-select-control ${onAddOption ? "has-action" : ""}`}>
+        <select
+          value={value}
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+          onChange={(event) => handleChange(event.target.value)}
+          disabled={saving}
+          className="punch-control-input"
+          style={style}
+          aria-label={label}
+        >
+          {options.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        {onAddOption && (
+          <button
+            type="button"
+            className="punch-control-add"
+            onClick={(event) => {
+              event.stopPropagation();
+              onAddOption(row);
+            }}
+            disabled={saving}
+            aria-label={`Add ${label}`}
+            title={`Add ${label}`}
+          >
+            +
+          </button>
+        )}
+      </span>
     </label>
   );
 }
@@ -1560,6 +1651,7 @@ function NotesPanel({
 
 function RowDetail({
   row,
+  tradeOptions,
   onDownloadOriginal,
   downloadId,
   onPreview,
@@ -1614,7 +1706,7 @@ function RowDetail({
         <ReadOnlyField label="Code" value={issueCode(row)} />
         <ReadOnlyField label="Property" value={propertyLine(row.property)} />
         <ReadOnlyField label="Organization" value={row.org?.name} />
-        <ReadOnlyField label="Trade" value={optionLabel(row.trade, TRADE_LABELS)} />
+        <ReadOnlyField label="Trade" value={tradeLabel(row.trade, tradeOptions)} />
         <ReadOnlyField label="Source" value={sourceLabel(row.source)} />
         <ReadOnlyField label="Captured" value={formatDateTime(row.capturedAt)} />
         <ReadOnlyField
@@ -1666,6 +1758,7 @@ function IssueRow({
   onPreview,
   tradeOptions,
   onWorkflowChange,
+  onAddTrade,
   workflowSavingKey,
   notePanelOpen,
   onToggleNotePanel,
@@ -1682,7 +1775,7 @@ function IssueRow({
   const canEditWorkflow = canEditWorkflowForRow(row);
   const showNoteButton = canAddNote || notes.length > 0;
   const noteButtonLabel = notes.length > 0 ? `Notes (${notes.length})` : "Add Note";
-  const tradeValue = row.trade || "general";
+  const tradeValue = tradeKey(row.trade || "general") || "general";
   const dueDateValue = row.dueDate || "";
   const workflowTradeOptions = tradeOptionsForRow(row, tradeOptions);
 
@@ -1770,11 +1863,12 @@ function IssueRow({
             field="trade"
             label="Trade"
             value={tradeValue}
-            displayValue={optionLabel(row.trade, TRADE_LABELS)}
+            displayValue={tradeLabel(row.trade, tradeOptions)}
             options={workflowTradeOptions}
             canEdit={canEditWorkflow}
             saving={workflowSavingKey === `${row.id}:trade`}
             onChange={onWorkflowChange}
+            onAddOption={canEditWorkflow ? onAddTrade : null}
           />
         </div>
       </div>
@@ -1856,6 +1950,7 @@ export default function ScoutPunchListPage() {
   const [rows, setRows] = useState([]);
   const [orgOptions, setOrgOptions] = useState([]);
   const [allPropertyOptions, setAllPropertyOptions] = useState([]);
+  const [masterTradeOptions, setMasterTradeOptions] = useState([]);
   const [punchListError, setPunchListError] = useState("");
   const [filtersLoading, setFiltersLoading] = useState(false);
   const [filtersReady, setFiltersReady] = useState(false);
@@ -1927,6 +2022,12 @@ export default function ScoutPunchListPage() {
     const nextPropertyOptions = body.properties
       .map(propertyOption)
       .sort((left, right) => left.label.localeCompare(right.label));
+    const nextTradeOptions = Array.isArray(body.tradeOptions)
+      ? body.tradeOptions
+          .map(tradeOptionFromApi)
+          .filter(Boolean)
+          .sort((left, right) => left.label.localeCompare(right.label))
+      : [];
     const nextOrgId = nextOrgOptions.some((option) => option.id === selectedOrgId)
       ? selectedOrgId
       : nextOrgOptions[0]?.id || "";
@@ -1940,6 +2041,7 @@ export default function ScoutPunchListPage() {
 
     setOrgOptions(nextOrgOptions);
     setAllPropertyOptions(nextPropertyOptions);
+    setMasterTradeOptions(nextTradeOptions);
     setSelectedOrgId(nextOrgId);
     setSelectedPropertyId(nextPropertyId);
     setFiltersReady(true);
@@ -1979,6 +2081,7 @@ export default function ScoutPunchListPage() {
       const filterBody = {
         orgs: body.orgs,
         properties: body.properties,
+        tradeOptions: Array.isArray(body.tradeOptions) ? body.tradeOptions : [],
       };
       if (!isLatestRequest()) return;
       cacheSet(punchListFilterCache, cacheKey, filterBody);
@@ -1988,6 +2091,7 @@ export default function ScoutPunchListPage() {
       setPunchListError(error.message || "Unable to load punch list filters.");
       setOrgOptions([]);
       setAllPropertyOptions([]);
+      setMasterTradeOptions([]);
       setRows([]);
       setSelectedOrgId("");
       setSelectedPropertyId("");
@@ -2094,6 +2198,7 @@ export default function ScoutPunchListPage() {
         setRows([]);
         setOrgOptions([]);
         setAllPropertyOptions([]);
+        setMasterTradeOptions([]);
         setSelectedOrgId("");
         setSelectedPropertyId("");
         setSelectedElevation(ALL);
@@ -2117,6 +2222,7 @@ export default function ScoutPunchListPage() {
       setRows([]);
       setOrgOptions([]);
       setAllPropertyOptions([]);
+      setMasterTradeOptions([]);
       setSelectedOrgId("");
       setSelectedPropertyId("");
       setSelectedElevation(ALL);
@@ -2185,6 +2291,7 @@ export default function ScoutPunchListPage() {
     setRows([]);
     setOrgOptions([]);
     setAllPropertyOptions([]);
+    setMasterTradeOptions([]);
     setSelectedOrgId("");
     setSelectedPropertyId("");
     setSelectedElevation(ALL);
@@ -2250,6 +2357,33 @@ export default function ScoutPunchListPage() {
       setPunchListError(error.message || "Unable to update punch list field.");
     } finally {
       setWorkflowSavingKey("");
+    }
+  }
+
+  async function handleAddTrade(row) {
+    if (!session?.access_token || !canEditWorkflowForRow(row)) return;
+    const name = window.prompt("New trade name");
+    const tradeName = textValue(name).replace(/\s+/g, " ");
+    if (!tradeName) return;
+
+    setPunchListError("");
+    try {
+      const response = await fetch("/api/punch-list?mode=trade-options", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: tradeName }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.tradeOption) {
+        throw new Error(body.error || "Unable to add trade.");
+      }
+      clearPunchListCaches();
+      await loadPunchListFilters(session, { force: true });
+    } catch (error) {
+      setPunchListError(error.message || "Unable to add trade.");
     }
   }
 
@@ -2417,13 +2551,24 @@ export default function ScoutPunchListPage() {
   );
 
   const tradeOptions = useMemo(
-    () =>
-      uniqueOptions(
+    () => {
+      const byId = new Map();
+      for (const option of masterTradeOptions) {
+        if (option?.id) byId.set(option.id, option);
+      }
+      for (const option of uniqueOptions(
         orgFilteredRows,
-        (row) => row.trade || "general",
-        (trade) => optionLabel(trade, TRADE_LABELS)
-      ),
-    [orgFilteredRows]
+        (row) => tradeKey(row.trade || "general"),
+        (trade) => tradeLabel(trade, masterTradeOptions)
+      )) {
+        if (option?.id) byId.set(option.id, option);
+      }
+      if (!byId.has("general")) {
+        byId.set("general", { id: "general", label: "General" });
+      }
+      return Array.from(byId.values()).sort((left, right) => left.label.localeCompare(right.label));
+    },
+    [masterTradeOptions, orgFilteredRows]
   );
 
   const elevationOptions = useMemo(
@@ -2459,6 +2604,12 @@ export default function ScoutPunchListPage() {
     }
   }, [detailOptions, selectedDetail]);
 
+  useEffect(() => {
+    if (selectedTrade !== ALL && !tradeOptions.some((option) => option.id === selectedTrade)) {
+      setSelectedTrade(ALL);
+    }
+  }, [selectedTrade, tradeOptions]);
+
   const tabRows = useMemo(() => {
     const wantsResolved = selectedTab === TAB_RESOLVED;
     return orgFilteredRows.filter((row) =>
@@ -2470,7 +2621,7 @@ export default function ScoutPunchListPage() {
     return tabRows.filter((row) => {
       if (displayedPropertyId !== ALL && row.property?.id !== displayedPropertyId) return false;
       if (selectedPriority !== ALL && row.priority !== selectedPriority) return false;
-      if (selectedTrade !== ALL && row.trade !== selectedTrade) return false;
+      if (selectedTrade !== ALL && tradeKey(row.trade) !== selectedTrade) return false;
       if (selectedElevation !== ALL && normalizedOptionId(row.elevation) !== selectedElevation) return false;
       if (selectedDetail !== ALL && normalizedOptionId(row.detailType) !== selectedDetail) return false;
       return true;
@@ -2869,6 +3020,7 @@ export default function ScoutPunchListPage() {
                       onPreview={setPreviewRow}
                       tradeOptions={tradeOptions}
                       onWorkflowChange={handleWorkflowChange}
+                      onAddTrade={handleAddTrade}
                       workflowSavingKey={workflowSavingKey}
                       notePanelOpen={activeNoteRowId === row.id}
                       onToggleNotePanel={handleToggleNotePanel}
@@ -2885,6 +3037,7 @@ export default function ScoutPunchListPage() {
                   <div className="sticky top-4">
                     <RowDetail
                       row={selectedRow}
+                      tradeOptions={tradeOptions}
                       onDownloadOriginal={handleDownloadOriginal}
                       downloadId={downloadId}
                       onPreview={setPreviewRow}
