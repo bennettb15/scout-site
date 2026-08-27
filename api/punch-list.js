@@ -773,6 +773,20 @@ function isFlaggedShot(row) {
   return Boolean(row?.is_flagged || row?.issue_id || compactText(row?.issue_status));
 }
 
+function latestFlaggedShotForObservation(observation, shot, latestFlaggedShotByIssueId, latestFlaggedShotByLocationKey) {
+  if (!shot) return null;
+  const issueId = keyValue(shot.issue_id);
+  if (issueId && latestFlaggedShotByIssueId.has(issueId)) {
+    return latestFlaggedShotByIssueId.get(issueId);
+  }
+
+  const locationKey = locationKeyFromShot({ ...shot, property_id: observation.property_id || shot.property_id });
+  if (locationKey && latestFlaggedShotByLocationKey.has(locationKey)) {
+    return latestFlaggedShotByLocationKey.get(locationKey);
+  }
+  return null;
+}
+
 function promotedObservationStatus(shot) {
   return normalizedStatus(shot?.issue_status) === "resolved" ? "resolved" : "active";
 }
@@ -1644,6 +1658,19 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     const sessionShots = shotsBySession.get(reportPackage.session_id) || [];
     candidateShots.push(...sortPhotoRowsBySnapshot(sessionShots));
   }
+  const latestFlaggedShotByIssueId = new Map();
+  const latestFlaggedShotByLocationKey = new Map();
+  for (const shot of candidateShots) {
+    if (!isFlaggedShot(shot)) continue;
+    const issueId = keyValue(shot.issue_id);
+    const locationKey = locationKeyFromShot(shot);
+    if (issueId && !latestFlaggedShotByIssueId.has(issueId)) {
+      latestFlaggedShotByIssueId.set(issueId, shot);
+    }
+    if (locationKey && !latestFlaggedShotByLocationKey.has(locationKey)) {
+      latestFlaggedShotByLocationKey.set(locationKey, shot);
+    }
+  }
 
   const coverPhoto = includeCoverPhoto
     ? await publicCoverPhoto({
@@ -1659,8 +1686,15 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   const rows = [];
   const dedupKeys = new Set();
   for (const observation of observations) {
-    const shot = observation.shot_id ? shotsById.get(observation.shot_id) : null;
-    const reportPackage = packageBySession.get(observation.session_id) || null;
+    const observationShot = observation.shot_id ? shotsById.get(observation.shot_id) : null;
+    const shot =
+      latestFlaggedShotForObservation(
+        observation,
+        observationShot,
+        latestFlaggedShotByIssueId,
+        latestFlaggedShotByLocationKey
+      ) || observationShot;
+    const reportPackage = packageBySession.get(shot?.session_id || observation.session_id) || null;
     const row = publicObservationRow({
       observation,
       update: latestUpdateByObservationId.get(observation.id) || null,
@@ -1673,7 +1707,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       shot,
       org: orgById.get(observation.org_id) || null,
       property: propertyById.get(observation.property_id || shot?.property_id) || null,
-      session: sessionById.get(observation.session_id) || null,
+      session: sessionById.get(shot?.session_id || observation.session_id) || null,
       reportPackage,
       previewUrl: await previewForShot(shot),
     });

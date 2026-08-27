@@ -2584,6 +2584,7 @@ export default function ScoutPunchListPage() {
   const sessionScopeRef = useRef("");
   const filterRequestRef = useRef(0);
   const bootstrapTokenRef = useRef("");
+  const pendingManualRefreshRef = useRef(false);
 
   useEffect(() => {
     document.title = BRAND.siteTitle;
@@ -2656,7 +2657,7 @@ export default function ScoutPunchListPage() {
   }
 
   async function loadPunchListFilters(activeSession = session, { force = false } = {}) {
-    if (!activeSession?.access_token) return;
+    if (!activeSession?.access_token) return false;
     const requestId = filterRequestRef.current + 1;
     filterRequestRef.current = requestId;
     const isLatestRequest = () => filterRequestRef.current === requestId;
@@ -2669,7 +2670,7 @@ export default function ScoutPunchListPage() {
         setFiltersLoading(false);
         setFiltersReady(false);
         applyPunchListFilterBody(cachedFilters);
-        return;
+        return true;
       }
     }
     setFiltersLoading(true);
@@ -2695,6 +2696,7 @@ export default function ScoutPunchListPage() {
       if (!isLatestRequest()) return;
       cacheSet(punchListFilterCache, cacheKey, filterBody);
       applyPunchListFilterBody(filterBody);
+      return true;
     } catch (error) {
       if (!isLatestRequest()) return;
       setPunchListError(error.message || "Unable to load punch list filters.");
@@ -2706,6 +2708,7 @@ export default function ScoutPunchListPage() {
       setSelectedOrgId("");
       setSelectedPropertyId("");
       setFiltersReady(true);
+      return false;
     } finally {
       if (isLatestRequest()) {
         setFiltersLoading(false);
@@ -2791,6 +2794,7 @@ export default function ScoutPunchListPage() {
   useEffect(() => {
     if (!session?.access_token) {
       clearPunchListCaches();
+      pendingManualRefreshRef.current = false;
       sessionScopeRef.current = "";
       setCanOpenAdmin(false);
       return;
@@ -2895,7 +2899,19 @@ export default function ScoutPunchListPage() {
 
   useEffect(() => {
     if (!session?.access_token || !filtersReady || filtersLoading) return;
-    loadPunchList(session);
+    let active = true;
+    const force = pendingManualRefreshRef.current;
+    loadPunchList(session, { force }).then((refreshed) => {
+      if (!active || !force || !pendingManualRefreshRef.current) return;
+      pendingManualRefreshRef.current = false;
+      if (refreshed) {
+        setLastRefreshedAt(new Date());
+      }
+      setManualRefreshing(false);
+    });
+    return () => {
+      active = false;
+    };
   }, [
     session?.access_token,
     filtersReady,
@@ -2978,11 +2994,14 @@ export default function ScoutPunchListPage() {
 
   async function handleRefresh() {
     setManualRefreshing(true);
-    const refreshed = await loadPunchList(session, { force: true });
-    if (refreshed) {
-      setLastRefreshedAt(new Date());
+    setLastRefreshedAt(null);
+    clearPunchListCaches();
+    pendingManualRefreshRef.current = true;
+    const filtersRefreshed = await loadPunchListFilters(session, { force: true });
+    if (!filtersRefreshed) {
+      pendingManualRefreshRef.current = false;
+      setManualRefreshing(false);
     }
-    setManualRefreshing(false);
   }
 
   function handleNoteDraftChange(rowId, value) {
