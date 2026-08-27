@@ -2296,12 +2296,12 @@ function drawIndexPage(doc, entries, pageIndex = 0) {
   drawScoutLogo(doc, 221, 22, 170, 34);
   doc
     .font("Helvetica-Bold")
-    .fontSize(22)
+    .fontSize(23)
     .fillColor("#000000")
     .text("Documentation Index", 40, 86, { width: 532, height: 28, lineBreak: false });
   doc
     .font("Helvetica-Bold")
-    .fontSize(9.5)
+    .fontSize(10.5)
     .fillColor("#000000")
     .text(pageIndex === 0 ? "Flagged Items" : "Flagged Items Continued", 40, 118, {
       width: 532,
@@ -2314,7 +2314,7 @@ function drawIndexPage(doc, entries, pageIndex = 0) {
   const textWidth = 454;
   entries.forEach((entry) => {
     drawIndexFlagIcon(doc, 40, y);
-    doc.font("Helvetica").fontSize(8.5).fillColor("#000000");
+    doc.font("Helvetica").fontSize(9.5).fillColor("#000000");
     const label = truncateTextToWidth(doc, indexEntryText(entry.row), textWidth);
     doc.text(label, textX, y, { width: textWidth, height: 11, lineBreak: false });
     doc.text(String(entry.pageNumber), 516, y, { width: 56, height: 11, align: "right", lineBreak: false });
