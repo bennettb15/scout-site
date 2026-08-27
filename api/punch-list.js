@@ -42,6 +42,7 @@ const ISSUE_PHOTO_SLOT_WIDTH = 430;
 const ISSUE_PHOTO_SLOT_HEIGHT = 236;
 const ISSUE_SIDEBAR_TEXT_GAP = 12;
 const ISSUE_PAGE_RIGHT = 594;
+const INDEX_ENTRIES_PER_PAGE = 14;
 const PRIORITY_ORDER = ["critical", "high", "medium", "low"];
 const PRIORITY_BORDER_COLORS = {
   critical: "#dc2626",
@@ -1776,6 +1777,16 @@ function formatPdfLongDateTime(value) {
   return `${dateText} · ${timeText}`;
 }
 
+function formatPdfMonthYear(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
 function localDateOnly(value) {
   const text = compactText(value);
   if (!text) return null;
@@ -2141,6 +2152,17 @@ function drawCaptionFlagIcon(doc, x, y) {
   doc.restore();
 }
 
+function drawIndexFlagIcon(doc, x, y) {
+  const scale = 0.58;
+  doc.save();
+  doc.translate(x - 3, y - 1.5).scale(scale);
+  doc
+    .path("M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6z")
+    .fillColor("#dc2626")
+    .fill();
+  doc.restore();
+}
+
 function drawPriorityCaptionLine(doc, row, x, y, width) {
   const priorityKey = normalizedPriority(row.priority);
   const priority = titleCaseWords(priorityKey);
@@ -2227,6 +2249,90 @@ function drawIssueSidebar(doc, row, tradeLabel, x, y, width, height) {
     height: 118,
     lineGap: 1.15,
   });
+}
+
+function reportTradeGroups(rows) {
+  const rowsByTrade = new Map();
+  for (const row of rows) {
+    const tradeKey = normalizedTrade(row.trade);
+    const group = rowsByTrade.get(tradeKey) || [];
+    group.push(row);
+    rowsByTrade.set(tradeKey, group);
+  }
+  return Array.from(rowsByTrade.entries()).map(([tradeKey, tradeRows]) => ({ tradeKey, rows: tradeRows }));
+}
+
+function indexEntryText(row) {
+  const monthYear = formatPdfMonthYear(row?.capturedAt || row?.updatedAt);
+  return [locationCode(row), monthYear].filter(Boolean).join(" | ");
+}
+
+function truncateTextToWidth(doc, value, width) {
+  const text = singleLine(value);
+  if (!text) return "";
+  if (doc.widthOfString(text) <= width) return text;
+  let truncated = text;
+  while (truncated.length > 1 && doc.widthOfString(`${truncated}...`) > width) {
+    truncated = truncated.slice(0, -1).trim();
+  }
+  return `${truncated || text.slice(0, 1)}...`;
+}
+
+function indexEntriesForGroups(tradeGroups, indexPageCount) {
+  const entries = [];
+  let issuePageNumber = 2 + indexPageCount;
+  for (const group of tradeGroups) {
+    for (let index = 0; index < group.rows.length; index += 2) {
+      const pageRows = group.rows.slice(index, index + 2);
+      pageRows.forEach((row) => entries.push({ row, pageNumber: issuePageNumber }));
+      issuePageNumber += 1;
+    }
+  }
+  return entries;
+}
+
+function drawIndexPage(doc, entries, pageIndex = 0) {
+  doc.addPage({ size: "LETTER", margin: 42 });
+  drawScoutLogo(doc, 184, 44, 244, 58);
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(34)
+    .fillColor("#000000")
+    .text("Documentation Index", 40, 142, { width: 532, height: 42, lineBreak: false });
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(16)
+    .fillColor("#000000")
+    .text(pageIndex === 0 ? "Flagged Items" : "Flagged Items Continued", 40, 196, {
+      width: 532,
+      height: 22,
+      lineBreak: false,
+    });
+
+  let y = 246;
+  const textX = 52;
+  const textWidth = 450;
+  entries.forEach((entry) => {
+    drawIndexFlagIcon(doc, 40, y + 4);
+    doc.font("Helvetica").fontSize(13).fillColor("#000000");
+    const label = truncateTextToWidth(doc, indexEntryText(entry.row), textWidth);
+    doc.text(label, textX, y, { width: textWidth, height: 18, lineBreak: false });
+    doc.text(String(entry.pageNumber), 516, y, { width: 56, height: 18, align: "right", lineBreak: false });
+    y += 28;
+  });
+}
+
+function drawIndexPages(doc, tradeGroups) {
+  const rowCount = tradeGroups.reduce((total, group) => total + group.rows.length, 0);
+  const indexPageCount = Math.max(1, Math.ceil(rowCount / INDEX_ENTRIES_PER_PAGE));
+  const entries = indexEntriesForGroups(tradeGroups, indexPageCount);
+  for (let index = 0; index < indexPageCount; index += 1) {
+    drawIndexPage(
+      doc,
+      entries.slice(index * INDEX_ENTRIES_PER_PAGE, (index + 1) * INDEX_ENTRIES_PER_PAGE),
+      index
+    );
+  }
 }
 
 function issuePageSidebarX(doc, rows, imageBuffers) {
@@ -2439,16 +2545,11 @@ async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null) {
   const coverImageBuffer = await coverImagePromise;
 
   drawCoverPage(doc, rows, coverImageBuffer || imageBuffers.get(rows[0]?.id) || null, coverPhoto);
-  const rowsByTrade = new Map();
-  for (const row of rows) {
-    const tradeKey = normalizedTrade(row.trade);
-    const group = rowsByTrade.get(tradeKey) || [];
-    group.push(row);
-    rowsByTrade.set(tradeKey, group);
-  }
+  const tradeGroups = reportTradeGroups(rows);
+  drawIndexPages(doc, tradeGroups);
 
   const reportSidebarX = issuePageSidebarX(doc, rows, imageBuffers);
-  for (const [tradeKey, tradeRows] of rowsByTrade.entries()) {
+  for (const { tradeKey, rows: tradeRows } of tradeGroups) {
     const label = tradeLabelFromOptions(tradeKey, tradeOptions);
     for (let index = 0; index < tradeRows.length; index += 2) {
       const pageRows = tradeRows.slice(index, index + 2);
