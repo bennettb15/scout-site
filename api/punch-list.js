@@ -2296,20 +2296,20 @@ function drawIndexPage(doc, entries, pageIndex = 0) {
   drawScoutLogo(doc, 221, 22, 170, 34);
   doc
     .font("Helvetica-Bold")
-    .fontSize(18)
+    .fontSize(22)
     .fillColor("#000000")
-    .text("Documentation Index", 40, 112, { width: 532, height: 24, lineBreak: false });
+    .text("Documentation Index", 40, 86, { width: 532, height: 28, lineBreak: false });
   doc
     .font("Helvetica-Bold")
     .fontSize(9.5)
     .fillColor("#000000")
-    .text(pageIndex === 0 ? "Flagged Items" : "Flagged Items Continued", 40, 144, {
+    .text(pageIndex === 0 ? "Flagged Items" : "Flagged Items Continued", 40, 118, {
       width: 532,
       height: 12,
       lineBreak: false,
     });
 
-  let y = 182;
+  let y = 143;
   const textX = 49;
   const textWidth = 454;
   entries.forEach((entry) => {
