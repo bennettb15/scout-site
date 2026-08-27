@@ -2296,29 +2296,29 @@ function drawIndexPage(doc, entries, pageIndex = 0) {
   drawScoutLogo(doc, 184, 44, 244, 58);
   doc
     .font("Helvetica-Bold")
-    .fontSize(34)
+    .fontSize(28)
     .fillColor("#000000")
-    .text("Documentation Index", 40, 142, { width: 532, height: 42, lineBreak: false });
+    .text("Documentation Index", 40, 150, { width: 532, height: 36, lineBreak: false });
   doc
     .font("Helvetica-Bold")
-    .fontSize(16)
+    .fontSize(13)
     .fillColor("#000000")
-    .text(pageIndex === 0 ? "Flagged Items" : "Flagged Items Continued", 40, 196, {
+    .text(pageIndex === 0 ? "Flagged Items" : "Flagged Items Continued", 40, 197, {
       width: 532,
-      height: 22,
+      height: 18,
       lineBreak: false,
     });
 
-  let y = 246;
+  let y = 240;
   const textX = 52;
   const textWidth = 450;
   entries.forEach((entry) => {
-    drawIndexFlagIcon(doc, 40, y + 4);
-    doc.font("Helvetica").fontSize(13).fillColor("#000000");
+    drawIndexFlagIcon(doc, 40, y + 1);
+    doc.font("Helvetica").fontSize(10.5).fillColor("#000000");
     const label = truncateTextToWidth(doc, indexEntryText(entry.row), textWidth);
-    doc.text(label, textX, y, { width: textWidth, height: 18, lineBreak: false });
-    doc.text(String(entry.pageNumber), 516, y, { width: 56, height: 18, align: "right", lineBreak: false });
-    y += 28;
+    doc.text(label, textX, y, { width: textWidth, height: 14, lineBreak: false });
+    doc.text(String(entry.pageNumber), 516, y, { width: 56, height: 14, align: "right", lineBreak: false });
+    y += 22;
   });
 }
 
