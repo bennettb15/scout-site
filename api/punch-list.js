@@ -2124,10 +2124,21 @@ function priorityBorderColor(priority) {
 }
 
 function drawCaptionFlagIcon(doc, x, y) {
+  const poleX = x + 1.4;
+  const topY = y + 2.1;
+  const bottomY = y + 10.6;
   doc.save();
-  doc.lineWidth(0.8).strokeColor("#dc2626").moveTo(x, y + 1).lineTo(x, y + 10).stroke();
+  doc.lineWidth(0.8).strokeColor("#dc2626").moveTo(poleX, topY).lineTo(poleX, bottomY).stroke();
   doc
-    .path(`M ${x + 1} ${y + 1} L ${x + 8} ${y + 3} L ${x + 1} ${y + 5} Z`)
+    .path(
+      [
+        `M ${poleX} ${topY}`,
+        `L ${poleX + 8.4} ${topY + 1.4}`,
+        `C ${poleX + 5.8} ${topY + 2.7}, ${poleX + 5.2} ${topY + 4.3}, ${poleX + 8.1} ${topY + 5.8}`,
+        `L ${poleX} ${topY + 4.7}`,
+        "Z",
+      ].join(" ")
+    )
     .fillColor("#dc2626")
     .fill();
   doc.restore();
@@ -2152,7 +2163,7 @@ function drawPriorityCaptionLine(doc, row, x, y, width) {
   const totalWidth = dotSize + gap + priorityWidth + separatorWidth + flagWidth + gap + reasonWidth;
   let currentX = x + Math.max(0, (width - totalWidth) / 2);
 
-  doc.circle(currentX + dotSize / 2, y + 7, dotSize / 2).fillColor(priorityBorderColor(priorityKey)).fill();
+  doc.circle(currentX + dotSize / 2, y + 5.7, dotSize / 2).fillColor(priorityBorderColor(priorityKey)).fill();
   currentX += dotSize + gap;
   doc
     .font("Helvetica")
@@ -2162,7 +2173,7 @@ function drawPriorityCaptionLine(doc, row, x, y, width) {
   currentX += priorityWidth;
   doc.text(separator, currentX, y, { width: separatorWidth + 1, height: 14, lineBreak: false });
   currentX += separatorWidth;
-  drawCaptionFlagIcon(doc, currentX, y + 2);
+  drawCaptionFlagIcon(doc, currentX, y);
   currentX += flagWidth + gap;
   doc
     .font("Helvetica")
