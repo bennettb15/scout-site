@@ -42,7 +42,7 @@ const ISSUE_PHOTO_SLOT_WIDTH = 430;
 const ISSUE_PHOTO_SLOT_HEIGHT = 236;
 const ISSUE_SIDEBAR_TEXT_GAP = 12;
 const ISSUE_PAGE_RIGHT = 594;
-const INDEX_ENTRIES_PER_PAGE = 14;
+const INDEX_ENTRIES_PER_PAGE = 24;
 const PRIORITY_ORDER = ["critical", "high", "medium", "low"];
 const PRIORITY_BORDER_COLORS = {
   critical: "#dc2626",
@@ -2153,9 +2153,9 @@ function drawCaptionFlagIcon(doc, x, y) {
 }
 
 function drawIndexFlagIcon(doc, x, y) {
-  const scale = 0.55;
+  const scale = 0.46;
   doc.save();
-  doc.translate(x - 2.6, y - 4.8).scale(scale);
+  doc.translate(x - 2.2, y - 3.9).scale(scale);
   doc
     .path("M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6z")
     .fillColor("#dc2626")
@@ -2296,29 +2296,29 @@ function drawIndexPage(doc, entries, pageIndex = 0) {
   drawScoutLogo(doc, 221, 22, 170, 34);
   doc
     .font("Helvetica-Bold")
-    .fontSize(20)
+    .fontSize(18)
     .fillColor("#000000")
-    .text("Documentation Index", 40, 126, { width: 532, height: 28, lineBreak: false });
+    .text("Documentation Index", 40, 112, { width: 532, height: 24, lineBreak: false });
   doc
     .font("Helvetica-Bold")
-    .fontSize(11)
+    .fontSize(9.5)
     .fillColor("#000000")
-    .text(pageIndex === 0 ? "Flagged Items" : "Flagged Items Continued", 40, 166, {
+    .text(pageIndex === 0 ? "Flagged Items" : "Flagged Items Continued", 40, 144, {
       width: 532,
-      height: 16,
+      height: 12,
       lineBreak: false,
     });
 
-  let y = 214;
-  const textX = 52;
-  const textWidth = 450;
+  let y = 182;
+  const textX = 49;
+  const textWidth = 454;
   entries.forEach((entry) => {
     drawIndexFlagIcon(doc, 40, y);
-    doc.font("Helvetica").fontSize(10).fillColor("#000000");
+    doc.font("Helvetica").fontSize(8.5).fillColor("#000000");
     const label = truncateTextToWidth(doc, indexEntryText(entry.row), textWidth);
-    doc.text(label, textX, y, { width: textWidth, height: 14, lineBreak: false });
-    doc.text(String(entry.pageNumber), 516, y, { width: 56, height: 14, align: "right", lineBreak: false });
-    y += 22;
+    doc.text(label, textX, y, { width: textWidth, height: 11, lineBreak: false });
+    doc.text(String(entry.pageNumber), 516, y, { width: 56, height: 11, align: "right", lineBreak: false });
+    y += 15;
   });
 }
 
