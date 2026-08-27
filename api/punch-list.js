@@ -529,6 +529,18 @@ function rowTitle(...values) {
   return values.map(compactText).find(Boolean) || "Flagged observation";
 }
 
+function usesCarriedForwardObservationDisplay(observation, shot) {
+  if (!observation || !shot) return false;
+  const observationShotId = keyValue(observation.shot_id);
+  const observationSessionId = keyValue(observation.session_id);
+  const shotId = keyValue(shot.id);
+  const shotSessionId = keyValue(shot.session_id);
+  return Boolean(
+    (observationShotId && shotId && observationShotId !== shotId) ||
+      (observationSessionId && shotSessionId && observationSessionId !== shotSessionId)
+  );
+}
+
 function publicObservationRow({
   observation,
   update,
@@ -545,7 +557,15 @@ function publicObservationRow({
 }) {
   const baseState = baseWorkflowState({ observation, update, shot });
   const status = workflowOverride(workflowState, "status", baseState.status);
-  const title = rowTitle(observation.title, update?.message, shot?.reason, observation.detail);
+  const useLatestShotDisplay = usesCarriedForwardObservationDisplay(observation, shot);
+  const title = useLatestShotDisplay
+    ? rowTitle(shot?.reason)
+    : rowTitle(observation.title, update?.message, shot?.reason, observation.detail);
+  const priority = workflowOverride(
+    workflowState,
+    "priority",
+    useLatestShotDisplay ? normalizedPriority(shot?.priority) : baseState.priority
+  );
   const noteEditable = Boolean(canAddNote);
   const workflowEditable = Boolean(canEditWorkflow);
   return {
@@ -562,17 +582,21 @@ function publicObservationRow({
     shotId: shot?.id || observation.shot_id || null,
     packageId: reportPackage?.id || null,
     status,
-    priority: workflowOverride(workflowState, "priority", baseState.priority),
+    priority,
     trade: workflowOverride(workflowState, "trade", baseState.trade),
     dueDate: workflowOverride(workflowState, "dueDate", baseState.dueDate),
     title,
-    reason: compactText(observation.detail || update?.note || shot?.reason) || title,
+    reason: useLatestShotDisplay
+      ? compactText(shot?.reason) || title
+      : compactText(observation.detail || update?.note || shot?.reason) || title,
     building: compactText(shot?.building),
     elevation: compactText(shot?.elevation),
     detailType: compactText(shot?.detail_type),
     angleIndex: shot?.angle_index ?? null,
     shotKey: compactText(shot?.shot_key),
-    capturedAt: update?.captured_at || shot?.captured_at || observation.first_seen_at || observation.created_at,
+    capturedAt: useLatestShotDisplay
+      ? shot?.captured_at || shot?.created_at || update?.captured_at || observation.first_seen_at || observation.created_at
+      : update?.captured_at || shot?.captured_at || observation.first_seen_at || observation.created_at,
     updatedAt: update?.updated_at || observation.updated_at,
     resolvedAt: observation.resolved_at || (status === "resolved" ? update?.updated_at || observation.updated_at : null),
     locationKey: shot ? locationKeyFromShot({ ...shot, property_id: observation.property_id }) : "",
