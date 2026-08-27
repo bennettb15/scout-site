@@ -2447,15 +2447,15 @@ async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null) {
     rowsByTrade.set(tradeKey, group);
   }
 
+  const reportSidebarX = issuePageSidebarX(doc, rows, imageBuffers);
   for (const [tradeKey, tradeRows] of rowsByTrade.entries()) {
     const label = tradeLabelFromOptions(tradeKey, tradeOptions);
     for (let index = 0; index < tradeRows.length; index += 2) {
       const pageRows = tradeRows.slice(index, index + 2);
       addReportPage(doc, tradePageTitle(label), pageRows[0]);
-      const sidebarX = issuePageSidebarX(doc, pageRows, imageBuffers);
       pageRows.forEach((row, offset) => {
         const blockY = offset === 0 ? 98 : 410;
-        drawIssueBlock(doc, row, label, imageBuffers.get(row.id) || null, blockY, sidebarX);
+        drawIssueBlock(doc, row, label, imageBuffers.get(row.id) || null, blockY, reportSidebarX);
       });
     }
   }
