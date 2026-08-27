@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
+import { readPortalContext, writePortalContext } from "./lib/portalContext";
 
 const BRAND = {
   siteTitle: "Reports | SCOUT",
@@ -885,15 +886,28 @@ export default function ScoutReportsPortalPage() {
     );
   }, [orgs, packages]);
 
+  const reportsContextSettled =
+    reportsFetchStatus !== FETCH_IDLE &&
+    reportsFetchStatus !== FETCH_LOADING &&
+    orgsFetchStatus !== FETCH_IDLE &&
+    orgsFetchStatus !== FETCH_LOADING;
+  const reportsPropertyContextReady =
+    reportsContextSettled && reportsFetchStatus === FETCH_SUCCESS;
+
   useEffect(() => {
+    if (!session?.access_token || !reportsContextSettled) return;
     if (orgOptions.length === 0) {
       if (selectedOrgId) setSelectedOrgId("");
       return;
     }
-    if (!selectedOrgId || !orgOptions.some((org) => org.id === selectedOrgId)) {
-      setSelectedOrgId(orgOptions[0].id);
-    }
-  }, [orgOptions, selectedOrgId]);
+    if (selectedOrgId && orgOptions.some((org) => org.id === selectedOrgId)) return;
+
+    const savedContext = readPortalContext(session);
+    const savedOrgId = orgOptions.some((org) => org.id === savedContext.orgId)
+      ? savedContext.orgId
+      : "";
+    setSelectedOrgId(savedOrgId || orgOptions[0].id);
+  }, [orgOptions, reportsContextSettled, selectedOrgId, session]);
 
   const selectedOrg = useMemo(
     () => orgOptions.find((org) => org.id === selectedOrgId) || null,
@@ -920,13 +934,49 @@ export default function ScoutReportsPortalPage() {
   }, [orgFilteredPackages]);
 
   useEffect(() => {
+    if (!session?.access_token || !reportsPropertyContextReady) return;
+
+    const savedContext = readPortalContext(session);
+    if (
+      savedContext.propertyId &&
+      savedContext.propertyId !== ALL_PROPERTIES &&
+      propertyOptions.some((property) => property.id === savedContext.propertyId) &&
+      selectedPropertyId !== savedContext.propertyId
+    ) {
+      setSelectedPropertyId(savedContext.propertyId);
+      return;
+    }
+
     if (
       selectedPropertyId !== ALL_PROPERTIES &&
       !propertyOptions.some((property) => property.id === selectedPropertyId)
     ) {
       setSelectedPropertyId(ALL_PROPERTIES);
     }
-  }, [propertyOptions, selectedPropertyId]);
+  }, [propertyOptions, reportsPropertyContextReady, selectedPropertyId, session]);
+
+  useEffect(() => {
+    if (!session?.access_token || !reportsPropertyContextReady || !selectedOrgId) return;
+    if (!orgOptions.some((org) => org.id === selectedOrgId)) return;
+    if (
+      selectedPropertyId !== ALL_PROPERTIES &&
+      !propertyOptions.some((property) => property.id === selectedPropertyId)
+    ) {
+      return;
+    }
+
+    writePortalContext(session, {
+      orgId: selectedOrgId,
+      propertyId: selectedPropertyId,
+    });
+  }, [
+    orgOptions,
+    propertyOptions,
+    reportsPropertyContextReady,
+    selectedOrgId,
+    selectedPropertyId,
+    session,
+  ]);
 
   const selectedProperty = useMemo(
     () => propertyOptions.find((property) => property.id === selectedPropertyId) || null,
@@ -1118,8 +1168,13 @@ export default function ScoutReportsPortalPage() {
                     <select
                       value={selectedOrgId}
                       onChange={(event) => {
-                        setSelectedOrgId(event.target.value);
+                        const nextOrgId = event.target.value;
+                        setSelectedOrgId(nextOrgId);
                         setSelectedPropertyId(ALL_PROPERTIES);
+                        writePortalContext(session, {
+                          orgId: nextOrgId,
+                          propertyId: ALL_PROPERTIES,
+                        });
                       }}
                       disabled={orgsLoading}
                       className="h-9 max-w-[220px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
@@ -1136,7 +1191,13 @@ export default function ScoutReportsPortalPage() {
                   Property
                   <select
                     value={selectedPropertyId}
-                    onChange={(event) => setSelectedPropertyId(event.target.value)}
+                    onChange={(event) => {
+                      setSelectedPropertyId(event.target.value);
+                      writePortalContext(session, {
+                        orgId: selectedOrgId,
+                        propertyId: event.target.value,
+                      });
+                    }}
                     disabled={reportsLoading || propertyOptions.length === 0}
                     className="h-9 max-w-[280px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
                   >

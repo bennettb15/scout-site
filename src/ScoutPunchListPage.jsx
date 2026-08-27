@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
+import { readPortalContext, writePortalContext } from "./lib/portalContext";
 
 const BRAND = {
   siteTitle: "Punch List | SCOUT",
@@ -563,6 +564,13 @@ function propertyOptionsForOrg(options, orgId) {
 
 function defaultPropertyIdForOrg(options, orgId) {
   return propertyOptionsForOrg(options, orgId)[0]?.id || "";
+}
+
+function propertyIdIsValidForOrg(options, orgId, propertyId) {
+  const orgProperties = propertyOptionsForOrg(options, orgId);
+  if (!propertyId) return false;
+  if (propertyId === ALL) return orgProperties.length > 1;
+  return orgProperties.some((option) => option.id === propertyId);
 }
 
 function activityNotes(row) {
@@ -2625,7 +2633,7 @@ export default function ScoutPunchListPage() {
     };
   }, []);
 
-  function applyPunchListFilterBody(body) {
+  function applyPunchListFilterBody(body, activeSession = session) {
     const nextOrgOptions = body.orgs.map(orgOption);
     const nextPropertyOptions = body.properties
       .map(propertyOption)
@@ -2636,15 +2644,26 @@ export default function ScoutPunchListPage() {
           .filter(Boolean)
           .sort((left, right) => left.label.localeCompare(right.label))
       : [];
+    const savedContext = readPortalContext(activeSession);
     const nextOrgId = nextOrgOptions.some((option) => option.id === selectedOrgId)
       ? selectedOrgId
+      : nextOrgOptions.some((option) => option.id === savedContext.orgId)
+        ? savedContext.orgId
       : nextOrgOptions[0]?.id || "";
-    const orgProperties = propertyOptionsForOrg(nextPropertyOptions, nextOrgId);
-    const selectedPropertyStillAvailable =
-      selectedPropertyId !== ALL &&
-      orgProperties.some((option) => option.id === selectedPropertyId);
+    const selectedPropertyStillAvailable = propertyIdIsValidForOrg(
+      nextPropertyOptions,
+      nextOrgId,
+      selectedPropertyId
+    );
+    const savedPropertyStillAvailable = propertyIdIsValidForOrg(
+      nextPropertyOptions,
+      nextOrgId,
+      savedContext.propertyId
+    );
     const nextPropertyId = selectedPropertyStillAvailable
       ? selectedPropertyId
+      : savedPropertyStillAvailable
+        ? savedContext.propertyId
       : defaultPropertyIdForOrg(nextPropertyOptions, nextOrgId);
 
     setOrgOptions(nextOrgOptions);
@@ -2654,6 +2673,12 @@ export default function ScoutPunchListPage() {
     setSelectedOrgId(nextOrgId);
     setSelectedPropertyId(nextPropertyId);
     setFiltersReady(true);
+    if (nextOrgId) {
+      writePortalContext(activeSession, {
+        orgId: nextOrgId,
+        propertyId: nextPropertyId,
+      });
+    }
   }
 
   async function loadPunchListFilters(activeSession = session, { force = false } = {}) {
@@ -2669,7 +2694,7 @@ export default function ScoutPunchListPage() {
         setPunchListError("");
         setFiltersLoading(false);
         setFiltersReady(false);
-        applyPunchListFilterBody(cachedFilters);
+        applyPunchListFilterBody(cachedFilters, activeSession);
         return true;
       }
     }
@@ -2695,7 +2720,7 @@ export default function ScoutPunchListPage() {
       };
       if (!isLatestRequest()) return;
       cacheSet(punchListFilterCache, cacheKey, filterBody);
-      applyPunchListFilterBody(filterBody);
+      applyPunchListFilterBody(filterBody, activeSession);
       return true;
     } catch (error) {
       if (!isLatestRequest()) return;
@@ -3361,6 +3386,22 @@ export default function ScoutPunchListPage() {
   );
 
   useEffect(() => {
+    if (!session?.access_token || !filtersReady || !selectedOrgId) return;
+    if (!orgOptions.some((option) => option.id === selectedOrgId)) return;
+    if (
+      selectedPropertyId &&
+      !propertyIdIsValidForOrg(allPropertyOptions, selectedOrgId, selectedPropertyId)
+    ) {
+      return;
+    }
+
+    writePortalContext(session, {
+      orgId: selectedOrgId,
+      propertyId: selectedPropertyId,
+    });
+  }, [allPropertyOptions, filtersReady, orgOptions, selectedOrgId, selectedPropertyId, session]);
+
+  useEffect(() => {
     if (!filtersReady) return;
     if (propertyOptions.length === 0) {
       if (selectedPropertyId) setSelectedPropertyId("");
@@ -3605,6 +3646,10 @@ export default function ScoutPunchListPage() {
                       prepareRowsForScope(nextOrgId, nextPropertyId);
                       setSelectedOrgId(nextOrgId);
                       setSelectedPropertyId(nextPropertyId);
+                      writePortalContext(session, {
+                        orgId: nextOrgId,
+                        propertyId: nextPropertyId,
+                      });
                       setSelectedElevation(ALL);
                       setSelectedDetail(ALL);
                     }}
@@ -3629,6 +3674,10 @@ export default function ScoutPunchListPage() {
                       const nextPropertyId = event.target.value;
                       prepareRowsForScope(selectedOrgId, nextPropertyId);
                       setSelectedPropertyId(nextPropertyId);
+                      writePortalContext(session, {
+                        orgId: selectedOrgId,
+                        propertyId: nextPropertyId,
+                      });
                       setSelectedElevation(ALL);
                       setSelectedDetail(ALL);
                     }}
