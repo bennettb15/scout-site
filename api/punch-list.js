@@ -2042,7 +2042,6 @@ function drawIssuePhoto(doc, imageBuffer, x, y, width, height, options = {}) {
   } else {
     doc.rect(drawX, drawY, drawWidth, drawHeight).stroke();
   }
-  return { x: drawX, y: drawY, width: drawWidth, height: drawHeight };
 }
 
 function aspectFitBox(imageSize, container) {
@@ -2227,18 +2226,17 @@ function drawIssueBlock(doc, row, tradeLabel, imageBuffer, y) {
   const outerMargin = 12;
   const photoWidth = 430;
   const pageRight = 594;
-  const sidebarGap = 9;
+  const sidebarX = outerMargin + photoWidth + 14;
+  const sidebarWidth = Math.max(120, pageRight - sidebarX);
   const photoCaptionGap = 8;
   const photoHeight = 236;
   const captionY = y + photoHeight + photoCaptionGap;
-  const photoRect = drawIssuePhoto(doc, imageBuffer, outerMargin, y, photoWidth, photoHeight, {
+  drawIssuePhoto(doc, imageBuffer, outerMargin, y, photoWidth, photoHeight, {
     radius: 12,
     borderColor: priorityBorderColor(row.priority),
     borderWidth: 2,
     backgroundColor: "#f2f2f2",
   });
-  const sidebarX = Math.min(450, photoRect.x + photoRect.width + sidebarGap);
-  const sidebarWidth = Math.max(120, pageRight - sidebarX);
   drawIssueSidebar(doc, row, tradeLabel, sidebarX, y, sidebarWidth, photoHeight);
 
   doc
