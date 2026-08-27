@@ -2178,16 +2178,17 @@ function drawPriorityCaptionLine(doc, row, x, y, width) {
 }
 
 function drawSidebarItem(doc, label, value, x, y, width, options = {}) {
+  const fontSize = options.fontSize || 9.5;
   doc
     .font("Helvetica-Bold")
-    .fontSize(7.4)
+    .fontSize(fontSize)
     .fillColor("#000000")
-    .text(label || "", x, y, { width, height: 9, lineBreak: false });
+    .text(label || "", x, y, { width, height: 11, lineBreak: false });
   doc
     .font(options.font || "Helvetica")
-    .fontSize(options.fontSize || 8.8)
+    .fontSize(fontSize)
     .fillColor(options.color || "#111827")
-    .text(value || "None", x, y + 9, {
+    .text(value || "None", x, y + 12, {
       width,
       height: options.height || 20,
       lineGap: options.lineGap ?? 1,
@@ -2199,34 +2200,33 @@ function drawIssueSidebar(doc, row, tradeLabel, x, y, width, height) {
   const dueDate = formatPdfDueDate(row.dueDate);
   const notes = truncateTextForLines(doc, noteSummary(row), {
     width,
-    maxLines: 8,
+    maxLines: 7,
     font: "Helvetica",
-    fontSize: 7.8,
+    fontSize: 9.5,
   });
 
   doc.save();
   doc
     .lineWidth(0.5)
     .strokeColor("#cbd5e1")
-    .moveTo(x - 10, y + 4)
-    .lineTo(x - 10, y + height - 4)
+    .moveTo(x - 6, y + 4)
+    .lineTo(x - 6, y + height - 4)
     .stroke();
   doc.restore();
 
-  drawSidebarItem(doc, "Trade", tradeLabel, x, y + 6, width, { height: 25 });
-  drawSidebarItem(doc, "Due Date", dueDate, x, y + 45, width, { height: 30 });
-  drawSidebarItem(doc, "Notes", notes, x, y + 88, width, {
-    fontSize: 7.8,
-    height: 116,
-    lineGap: 1.25,
+  drawSidebarItem(doc, "Trade", tradeLabel, x, y + 4, width, { height: 32 });
+  drawSidebarItem(doc, "Due Date", dueDate, x, y + 52, width, { height: 36 });
+  drawSidebarItem(doc, "Notes", notes, x, y + 101, width, {
+    height: 118,
+    lineGap: 1.15,
   });
 }
 
 function drawIssueBlock(doc, row, tradeLabel, imageBuffer, y) {
   const outerMargin = 12;
   const photoWidth = 430;
-  const sidebarX = 462;
-  const sidebarWidth = 132;
+  const sidebarX = 450;
+  const sidebarWidth = 144;
   const photoCaptionGap = 8;
   const photoHeight = 236;
   const captionY = y + photoHeight + photoCaptionGap;
