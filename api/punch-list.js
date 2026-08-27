@@ -39,6 +39,7 @@ const SCOUT_NAVY = "#1C2742";
 const PRIORITY_ORDER = ["critical", "high", "medium", "low"];
 const PUNCHLIST_COORDINATION_NOTE =
   "This punch list is provided as a coordination aid for visible open items documented in the selected portal context. Field teams should verify scope, responsibility, sequencing, and completion requirements before work proceeds.";
+const SCOUT_ONLY_LOGO_PATH = path.join(process.cwd(), "public", "Scout Only Logo Navy Dark NEW.png");
 const NOTE_WRITER_ROLES = ["viewer", "field"];
 const WORKFLOW_EDITOR_ROLES = ["viewer", "field"];
 const WORKFLOW_ACTIVITY_FIELD_BY_TYPE = {
@@ -137,6 +138,43 @@ function compareFieldReviewOrder(left, right) {
   const shotCompare = compareShotOrder(left, right);
   if (shotCompare !== 0) return shotCompare;
   return compareNatural(left.capturedAt || left.updatedAt, right.capturedAt || right.updatedAt);
+}
+
+function compareCoverShotOrder(left, right) {
+  const rankCompare = coverShotRank(left) - coverShotRank(right);
+  if (rankCompare !== 0) return rankCompare;
+  const stableCompare = compareNumber(left.__coverOrder, right.__coverOrder);
+  if (stableCompare !== 0) return stableCompare;
+  return compareFieldReviewOrder(
+    publicShotRowSortProxy(left),
+    publicShotRowSortProxy(right)
+  );
+}
+
+function publicShotRowSortProxy(row) {
+  return {
+    id: row.id,
+    shotId: row.id,
+    property: { id: row.property_id },
+    building: row.building,
+    elevation: row.elevation,
+    detailType: row.detail_type,
+    angleIndex: row.angle_index,
+    shotKey: row.shot_key,
+    capturedAt: row.captured_at || row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function coverShotRank(row) {
+  const text = [row?.detail_type, row?.shot_key, row?.logical_shot_identity, row?.reason]
+    .map(readableSortText)
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (text.includes("overview")) return 0;
+  if (text.includes("elevation")) return 1;
+  return 2;
 }
 
 function unique(values) {
@@ -385,6 +423,30 @@ function publicPreview(row, previewUrl, reportPackage) {
         }
       : { available: false },
     stampedFilename: row ? stampedPhotoFilename(row) : null,
+  };
+}
+
+async function publicCoverPhoto({
+  candidateShots,
+  packageBySession,
+  orgById,
+  propertyById,
+  sessionById,
+  previewForShot,
+}) {
+  const orderedCandidates = candidateShots
+    .map((shot, index) => ({ ...shot, __coverOrder: index }))
+    .sort(compareCoverShotOrder);
+  const shot = orderedCandidates[0] || null;
+  if (!shot) return null;
+
+  const reportPackage = packageBySession.get(shot.session_id) || null;
+  return {
+    shotId: shot.id,
+    previewUrl: await previewForShot(shot),
+    org: orgById.get(shot.org_id) || null,
+    property: propertyById.get(shot.property_id || reportPackage?.property_id) || null,
+    session: sessionById.get(shot.session_id) || null,
   };
 }
 
@@ -1367,7 +1429,7 @@ async function handleDeleteNote(req, res) {
   }
 }
 
-async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URLS } = {}) {
+async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URLS, includeCoverPhoto = false } = {}) {
   const { client } = auth;
   const packageRows = await safeRows(
     applyScope(
@@ -1561,6 +1623,23 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     return previewUrl;
   }
 
+  const candidateShots = [];
+  for (const reportPackage of packageRows) {
+    const sessionShots = shotsBySession.get(reportPackage.session_id) || [];
+    candidateShots.push(...sortPhotoRowsBySnapshot(sessionShots));
+  }
+
+  const coverPhoto = includeCoverPhoto
+    ? await publicCoverPhoto({
+        candidateShots,
+        packageBySession,
+        orgById,
+        propertyById,
+        sessionById,
+        previewForShot,
+      })
+    : null;
+
   const rows = [];
   const dedupKeys = new Set();
   for (const observation of observations) {
@@ -1584,12 +1663,6 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     });
     addDedupKeys(dedupKeys, row);
     rows.push(row);
-  }
-
-  const candidateShots = [];
-  for (const reportPackage of packageRows) {
-    const sessionShots = shotsBySession.get(reportPackage.session_id) || [];
-    candidateShots.push(...sortPhotoRowsBySnapshot(sessionShots));
   }
 
   for (const shot of candidateShots) {
@@ -1623,7 +1696,8 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   }
 
   rows.sort(compareFieldReviewOrder);
-  return rows.slice(0, MAX_ROWS);
+  const limitedRows = rows.slice(0, MAX_ROWS);
+  return includeCoverPhoto ? { rows: limitedRows, coverPhoto } : limitedRows;
 }
 
 function priorityRank(value) {
@@ -1816,18 +1890,36 @@ function collectPdf(doc) {
   });
 }
 
-function addReportPage(doc, pageTitle = PDF_REPORT_TITLE) {
+function scoutLogoPath() {
+  if (fs.existsSync(SCOUT_ONLY_LOGO_PATH)) return SCOUT_ONLY_LOGO_PATH;
+  const error = new Error(`Required Scout logo asset missing. Looked in: ${SCOUT_ONLY_LOGO_PATH}`);
+  error.statusCode = 500;
+  throw error;
+}
+
+function drawScoutLogo(doc, x, y, width, height) {
+  doc.image(scoutLogoPath(), x, y, { fit: [width, height], align: "center", valign: "center" });
+}
+
+function addReportPage(doc, pageTitle = PDF_REPORT_TITLE, rows = []) {
   doc.addPage({ size: "LETTER", margin: 42 });
+  drawScoutLogo(doc, 238, 28, 136, 50);
   doc
     .font("Helvetica-Bold")
-    .fontSize(11)
+    .fontSize(10)
     .fillColor(SCOUT_NAVY)
-    .text("SCOUT", 42, 32, { width: 90 });
+    .text(pageTitle, 42, 38, { width: 170 });
+  const first = rows[0] || {};
   doc
     .font("Helvetica")
-    .fontSize(10)
+    .fontSize(8)
+    .fillColor("#334155")
+    .text(PUNCHLIST_COORDINATION_NOTE, 42, 708, { width: 500, height: 24, lineGap: 1 });
+  doc
+    .font("Helvetica")
+    .fontSize(8.5)
     .fillColor("#475569")
-    .text(pageTitle, 132, 34, { width: 320 });
+    .text(propertyAddress(first), 42, 738, { width: 360, height: 12 });
 }
 
 function drawLabelValue(doc, label, value, x, y, width) {
@@ -1839,9 +1931,16 @@ function drawLabelValue(doc, label, value, x, y, width) {
     .text(value || "None", x, y + 10, { width, height: 24 });
 }
 
-function drawIssuePhoto(doc, imageBuffer, x, y, width, height) {
+function drawIssuePhoto(doc, imageBuffer, x, y, width, height, options = {}) {
+  const radius = options.radius ?? 0;
+  const borderColor = options.borderColor || "#d8dee8";
+  const backgroundColor = options.backgroundColor || "#f1f5f9";
   doc.save();
-  doc.rect(x, y, width, height).fill("#f1f5f9");
+  if (radius > 0) {
+    doc.roundedRect(x, y, width, height, radius).fill(backgroundColor).clip();
+  } else {
+    doc.rect(x, y, width, height).fill(backgroundColor).clip();
+  }
   if (imageBuffer) {
     try {
       doc.image(imageBuffer, x, y, { fit: [width, height], align: "center", valign: "center" });
@@ -1860,127 +1959,242 @@ function drawIssuePhoto(doc, imageBuffer, x, y, width, height) {
       .text("Photo unavailable", x, y + height / 2 - 6, { width, align: "center" });
   }
   doc.restore();
+  doc.lineWidth(options.borderWidth ?? 1).strokeColor(borderColor);
+  if (radius > 0) {
+    doc.roundedRect(x, y, width, height, radius).stroke();
+  } else {
+    doc.rect(x, y, width, height).stroke();
+  }
+}
+
+function singleLine(value, fallback = "") {
+  return (compactText(value) || fallback).replace(/\s+/g, " ").trim();
+}
+
+function truncatedLine(value, maxLength = 130) {
+  const text = singleLine(value);
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}...`;
+}
+
+function noteSummary(row) {
+  const notes = (Array.isArray(row.activity) ? row.activity : [])
+    .filter((activity) => activity?.activityType === "note_added" && compactText(activity.note))
+    .slice(0, 2)
+    .map((note) => {
+      const date = formatPdfDateTime(note.createdAt) || "Recent";
+      return `${date}: ${singleLine(note.note)}`;
+    });
+  return notes.length ? notes.join("  |  ") : "No notes recorded.";
+}
+
+function contextLine(row) {
+  return [
+    propertyName(row),
+    propertyAddress(row),
+    row.org?.name,
+    formatPdfDateTime(row.capturedAt || row.updatedAt),
+  ]
+    .map((value) => singleLine(value))
+    .filter(Boolean)
+    .join("  |  ");
 }
 
 function drawIssueBlock(doc, row, tradeLabel, imageBuffer, y) {
-  const x = 42;
-  const width = 528;
-  const photoWidth = 172;
-  const photoHeight = 136;
-  doc.roundedRect(x, y, width, 282, 6).strokeColor("#dbe3ea").lineWidth(0.75).stroke();
-  drawIssuePhoto(doc, imageBuffer, x + 12, y + 18, photoWidth, photoHeight);
+  const photoWidth = 360;
+  const photoHeight = 188;
+  const photoX = (612 - photoWidth) / 2;
+  drawIssuePhoto(doc, imageBuffer, photoX, y, photoWidth, photoHeight, {
+    radius: 8,
+    borderColor: "#d3dae5",
+    borderWidth: 1,
+    backgroundColor: "#eef2f7",
+  });
 
-  const metaX = x + 200;
-  const metaWidth = width - 218;
+  const title = singleLine(row.title, "Flagged observation");
+  const reason = singleLine(row.reason, title);
+  const issueLine = reason === title ? title : `${title} - ${reason}`;
+  const priority = titleCaseWords(row.priority || "medium");
+  const dueDate = formatPdfDueDate(row.dueDate);
+  const metaLine = `${tradeLabel}  |  ${priority} priority  |  Due: ${dueDate}`;
+
   doc
     .font("Helvetica-Bold")
-    .fontSize(13)
+    .fontSize(10.5)
     .fillColor("#111827")
-    .text(compactText(row.title) || "Flagged observation", metaX, y + 18, { width: metaWidth, height: 34 });
+    .text(locationCode(row), 66, y + photoHeight + 11, { width: 480, align: "center", height: 14 });
   doc
     .font("Helvetica")
-    .fontSize(9.5)
-    .fillColor("#475569")
-    .text(compactText(row.reason) || compactText(row.title) || "", metaX, y + 54, { width: metaWidth, height: 34 });
-
-  const capturedAt = row.capturedAt || row.updatedAt;
-  drawLabelValue(doc, "Property", propertyName(row), metaX, y + 94, 146);
-  drawLabelValue(doc, "Address", propertyAddress(row), metaX + 154, y + 94, 156);
-  drawLabelValue(doc, "Organization", row.org?.name || "", metaX, y + 132, 146);
-  drawLabelValue(doc, "Date / Time", formatPdfDateTime(capturedAt), metaX + 154, y + 132, 156);
-  drawLabelValue(doc, "Location / Code", locationCode(row), x + 12, y + 168, 216);
-  drawLabelValue(doc, "Trade", tradeLabel, x + 236, y + 168, 92);
-  drawLabelValue(doc, "Priority", titleCaseWords(row.priority || "medium"), x + 336, y + 168, 80);
-  drawLabelValue(doc, "Due Date", formatPdfDueDate(row.dueDate), x + 424, y + 168, 132);
-
-  const notes = (Array.isArray(row.activity) ? row.activity : [])
-    .filter((activity) => activity?.activityType === "note_added" && compactText(activity.note))
-    .slice(0, 3);
-  doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#64748b").text("NOTES / HISTORY", x + 12, y + 216, { width: 160 });
-  if (notes.length === 0) {
-    doc.font("Helvetica").fontSize(9.25).fillColor("#475569").text("No notes recorded.", x + 12, y + 228, { width: 500 });
-  } else {
-    const noteText = notes
-      .map((note) => {
-        const date = formatPdfDateTime(note.createdAt) || "Recent";
-        return `${date}: ${compactText(note.note)}`;
-      })
-      .join("\n");
-    doc.font("Helvetica").fontSize(8.75).fillColor("#334155").text(noteText, x + 12, y + 228, {
-      width: 500,
-      height: 40,
-      lineGap: 1,
+    .fontSize(9.25)
+    .fillColor("#111827")
+    .text(metaLine, 66, y + photoHeight + 28, { width: 480, align: "center", height: 13 });
+  doc
+    .font("Helvetica")
+    .fontSize(8.8)
+    .fillColor("#111827")
+    .text(truncatedLine(issueLine, 120), 78, y + photoHeight + 45, {
+      width: 456,
+      align: "center",
+      height: 24,
     });
-  }
+  doc
+    .font("Helvetica")
+    .fontSize(7.6)
+    .fillColor("#475569")
+    .text(`Notes / History: ${truncatedLine(noteSummary(row), 150)}`, 78, y + photoHeight + 70, {
+      width: 456,
+      align: "center",
+      height: 18,
+    });
+  doc
+    .font("Helvetica")
+    .fontSize(7.4)
+    .fillColor("#64748b")
+    .text(truncatedLine(contextLine(row), 150), 78, y + photoHeight + 90, {
+      width: 456,
+      align: "center",
+      height: 16,
+    });
 }
 
-function drawCoverPage(doc, rows, coverImageBuffer) {
-  const first = rows[0] || {};
-  doc.addPage({ size: "LETTER", margin: 42 });
-  const logoPath = path.join(process.cwd(), "public", "Scout Complete Logo Navy Dark NEW.png");
-  if (fs.existsSync(logoPath)) {
-    doc.image(logoPath, 136, 78, { fit: [340, 120], align: "center" });
-  } else {
-    doc.font("Helvetica-Bold").fontSize(64).fillColor(SCOUT_NAVY).text("SCOUT", 0, 104, { align: "center" });
-  }
+function earliestDate(values) {
+  const dates = values
+    .map((value) => new Date(value))
+    .filter((date) => !Number.isNaN(date.getTime()))
+    .sort((left, right) => left.getTime() - right.getTime());
+  return dates[0] || null;
+}
 
-  drawIssuePhoto(doc, coverImageBuffer, 174, 214, 264, 190);
+function latestDate(values) {
+  const dates = values
+    .map((value) => new Date(value))
+    .filter((date) => !Number.isNaN(date.getTime()))
+    .sort((left, right) => right.getTime() - left.getTime());
+  return dates[0] || null;
+}
+
+function serviceDateValues(rows, coverPhoto) {
+  return [
+    coverPhoto?.session?.startedAt,
+    coverPhoto?.session?.completedAt,
+    ...rows.flatMap((row) => [row.session?.startedAt, row.session?.completedAt, row.capturedAt]),
+  ].filter(Boolean);
+}
+
+function coverContext(rows, coverPhoto) {
+  const first = rows[0] || {};
+  return {
+    property: coverPhoto?.property || first.property || null,
+    org: coverPhoto?.org || first.org || null,
+    session: coverPhoto?.session || first.session || null,
+    packageId: first.packageId || null,
+  };
+}
+
+function drawCoverMetadataRow(doc, label, value, y) {
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(11)
+    .fillColor("#000000")
+    .text(label, 74, y, { width: 210, align: "right" });
+  doc
+    .font("Helvetica")
+    .fontSize(11)
+    .fillColor("#000000")
+    .text(value || "None", 292, y, { width: 260 });
+}
+
+function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto) {
+  const context = coverContext(rows, coverPhoto);
+  const contextRow = { property: context.property, org: context.org, session: context.session };
+  const serviceDates = serviceDateValues(rows, coverPhoto);
+  const firstServiceDate = earliestDate(serviceDates);
+  const lastServiceDate = latestDate(serviceDates);
+  const serviceDate = firstServiceDate ? formatPdfDate(firstServiceDate) : "";
+  const timeWindow =
+    firstServiceDate && lastServiceDate
+      ? `${formatPdfTime(firstServiceDate)} to ${formatPdfTime(lastServiceDate)}`
+      : "";
+
+  doc.addPage({ size: "LETTER", margin: 42 });
+  drawScoutLogo(doc, 132, 82, 348, 122);
+
+  drawIssuePhoto(doc, coverImageBuffer, 174, 214, 264, 190, {
+    radius: 10,
+    borderColor: "#d3dae5",
+    borderWidth: 0.8,
+    backgroundColor: "#eef2f7",
+  });
   doc
     .font("Helvetica-Bold")
     .fontSize(24)
     .fillColor("#000000")
-    .text(PDF_REPORT_TITLE, 42, 446, { width: 528, align: "center" });
+    .text(PDF_REPORT_TITLE, 42, 430, { width: 528, align: "center", height: 32 });
 
-  const lineX = 112;
-  const valueX = 270;
-  let y = 506;
+  let y = 482;
   const coverRows = [
-    ["Property Name:", propertyName(first)],
-    ["Property Address:", propertyAddress(first)],
-    ["Organization:", first.org?.name || ""],
+    ["Property Name:", propertyName(contextRow)],
+    ["Property Address:", propertyAddress(contextRow)],
+    ["Date of Service:", serviceDate],
+    ["Time Window:", timeWindow],
+    ["Client / Organization:", context.org?.name || ""],
     ["Open Issues:", String(rows.length)],
+    ["Report Reference ID:", context.packageId],
     ["Report Date:", formatPdfDate(new Date())],
   ];
   for (const [label, value] of coverRows) {
-    doc.font("Helvetica-Bold").fontSize(13).fillColor("#000000").text(label, lineX, y, { width: 150, align: "right" });
-    doc.font("Helvetica").fontSize(13).fillColor("#000000").text(value || "None", valueX, y, { width: 250 });
-    y += 24;
+    drawCoverMetadataRow(doc, label, value, y);
+    y += 17;
   }
 
-  doc.font("Helvetica-Bold").fontSize(13).text("Prepared by:", 0, y + 12, { align: "center" });
-  doc.font("Helvetica").fontSize(13).text("SCOUT - Visual Documentation Services", 0, y + 44, { align: "center" });
+  doc.font("Helvetica-Bold").fontSize(12).text("Prepared by:", 42, y + 8, { width: 528, align: "center", height: 16 });
+  doc.font("Helvetica").fontSize(11.5).text("SCOUT - Visual Documentation Services", 42, y + 34, {
+    width: 528,
+    align: "center",
+    height: 16,
+  });
   doc
     .font("Helvetica")
-    .fontSize(9.5)
+    .fontSize(10)
+    .text("Clear, time-stamped visual documentation of observable property conditions.", 42, y + 54, {
+      width: 528,
+      align: "center",
+      height: 16,
+    });
+  doc
+    .font("Helvetica")
+    .fontSize(8.8)
     .fillColor("#475569")
-    .text(PUNCHLIST_COORDINATION_NOTE, 94, y + 82, { width: 424, align: "center", lineGap: 2 });
+    .text(PUNCHLIST_COORDINATION_NOTE, 94, y + 78, { width: 424, height: 42, align: "center", lineGap: 2 });
 }
 
-async function buildPunchListPdf(rows, tradeOptions) {
+async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null) {
   const doc = new PDFDocument({ autoFirstPage: false, bufferPages: true, size: "LETTER", margin: 42 });
   const result = collectPdf(doc);
   const imageBuffers = new Map();
+  const coverImagePromise = imageBufferFromUrl(coverPhoto?.previewUrl);
   await Promise.all(
     rows.map(async (row) => {
       const buffer = await imageBufferFromUrl(row.preview?.previewUrl);
       if (buffer) imageBuffers.set(row.id, buffer);
     })
   );
+  const coverImageBuffer = await coverImagePromise;
 
-  drawCoverPage(doc, rows, imageBuffers.get(rows[0]?.id) || null);
+  drawCoverPage(doc, rows, coverImageBuffer || imageBuffers.get(rows[0]?.id) || null, coverPhoto);
   let issueIndex = 0;
   let currentTradeKey = "";
   for (const row of rows) {
     const tradeKey = normalizedTrade(row.trade);
-    if (issueIndex % 2 === 0) addReportPage(doc);
-    const blockY = issueIndex % 2 === 0 ? 86 : 386;
+    if (issueIndex % 2 === 0) addReportPage(doc, PDF_REPORT_TITLE, rows);
+    const blockY = issueIndex % 2 === 0 ? 108 : 404;
     const label = tradeLabelFromOptions(tradeKey, tradeOptions);
     if (currentTradeKey !== tradeKey) {
       doc
         .font("Helvetica-Bold")
-        .fontSize(11)
+        .fontSize(9.5)
         .fillColor(SCOUT_NAVY)
-        .text(label, 42, blockY - 18, { width: 300 });
+        .text(label, 42, blockY - 22, { width: 300 });
       currentTradeKey = tradeKey;
     }
     drawIssueBlock(doc, row, label, imageBuffers.get(row.id) || null, blockY);
@@ -1994,7 +2208,7 @@ async function buildPunchListPdf(rows, tradeOptions) {
       .font("Helvetica")
       .fontSize(10)
       .fillColor("#111827")
-      .text(`Page ${index + 1}`, 500, 760, { width: 58, align: "right" });
+      .text(`Page ${index + 1}`, 500, 738, { width: 58, height: 12, align: "right" });
   }
 
   doc.end();
@@ -2017,7 +2231,11 @@ async function handleGeneratePdf(req, res) {
     const tradeOptions = await loadTradeOptions();
     const selectedTrades = validateSelectedTrades(body.trades, tradeOptions);
     const selectedTradeSet = new Set(selectedTrades);
-    const rows = await loadPunchListRows(auth, scope, { maxPreviewUrls: MAX_PDF_PREVIEW_URLS });
+    const punchListData = await loadPunchListRows(auth, scope, {
+      maxPreviewUrls: MAX_PDF_PREVIEW_URLS + 1,
+      includeCoverPhoto: true,
+    });
+    const { rows, coverPhoto } = punchListData;
     const activeRows = rows.filter((row) => row.status !== "resolved");
     const openTradeSet = new Set(activeRows.map((row) => normalizedTrade(row.trade)));
     const reportTradeOrder = tradeOptions
@@ -2034,7 +2252,7 @@ async function handleGeneratePdf(req, res) {
       return sendJson(res, 400, { error: "No open punch list issues found for the selected trades." });
     }
 
-    const pdf = await buildPunchListPdf(reportRows, tradeOptions);
+    const pdf = await buildPunchListPdf(reportRows, tradeOptions, coverPhoto);
     const filename = punchListReportFilename(reportRows);
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("Content-Type", "application/pdf");
