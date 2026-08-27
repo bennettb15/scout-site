@@ -35,7 +35,7 @@ const MAX_ACTIVITY_ROWS = 1000;
 const MAX_NOTE_LENGTH = 1000;
 const ALL_VALUE = "all";
 const PDF_REPORT_TITLE = "Punch List Report";
-const PDF_VERSION_MARKER = "Punchlist PDF v2";
+const PDF_VERSION_MARKER = "Punchlist PDF v3 ScoutProcess layout";
 const SCOUT_NAVY = "#1C2742";
 const PRIORITY_ORDER = ["critical", "high", "medium", "low"];
 const PUNCHLIST_COORDINATION_NOTE =
@@ -168,6 +168,9 @@ function publicShotRowSortProxy(row) {
 }
 
 function coverShotRank(row) {
+  const detail = keyValue(row?.detail_type).replace(/\s+/g, "_");
+  if (detail === "overview") return 0;
+  if (detail === "elevation") return 1;
   const text = [row?.detail_type, row?.shot_key, row?.logical_shot_identity, row?.reason]
     .map(readableSortText)
     .filter(Boolean)
@@ -1914,23 +1917,23 @@ function drawScoutLogo(doc, x, y, width, height) {
 
 function addReportPage(doc, pageTitle = PDF_REPORT_TITLE, rows = []) {
   doc.addPage({ size: "LETTER", margin: 42 });
-  drawScoutLogo(doc, 238, 28, 136, 50);
+  drawScoutLogo(doc, 221, 22, 170, 34);
   doc
     .font("Helvetica-Bold")
-    .fontSize(10)
+    .fontSize(11)
     .fillColor(SCOUT_NAVY)
-    .text(pageTitle, 42, 38, { width: 170 });
+    .text(pageTitle, 18, 18, { width: 220, height: 16 });
   const first = rows[0] || {};
   doc
     .font("Helvetica")
     .fontSize(8)
     .fillColor("#334155")
-    .text(PUNCHLIST_COORDINATION_NOTE, 42, 708, { width: 500, height: 24, lineGap: 1 });
+    .text(PUNCHLIST_COORDINATION_NOTE, 64, 724, { width: 484, height: 22, lineGap: 1 });
   doc
     .font("Helvetica")
-    .fontSize(8.5)
+    .fontSize(9)
     .fillColor("#475569")
-    .text(propertyAddress(first), 42, 738, { width: 360, height: 12 });
+    .text(propertyAddress(first) || "Unknown address", 64, 748, { width: 360, height: 12 });
 }
 
 function drawLabelValue(doc, label, value, x, y, width) {
@@ -1946,16 +1949,41 @@ function drawIssuePhoto(doc, imageBuffer, x, y, width, height, options = {}) {
   const radius = options.radius ?? 0;
   const borderColor = options.borderColor || "#d8dee8";
   const backgroundColor = options.backgroundColor || "#f1f5f9";
-  doc.save();
-  if (radius > 0) {
-    doc.roundedRect(x, y, width, height, radius).fill(backgroundColor).clip();
-  } else {
-    doc.rect(x, y, width, height).fill(backgroundColor).clip();
-  }
+  let drawX = x;
+  let drawY = y;
+  let drawWidth = width;
+  let drawHeight = height;
+
   if (imageBuffer) {
     try {
-      doc.image(imageBuffer, x, y, { fit: [width, height], align: "center", valign: "center" });
+      const image = doc.openImage(imageBuffer);
+      const fitted = aspectFitBox(
+        { width: image.width, height: image.height },
+        { x, y, width, height }
+      );
+      drawX = fitted.x;
+      drawY = fitted.y;
+      drawWidth = fitted.width;
+      drawHeight = fitted.height;
     } catch {
+      drawX = x;
+      drawY = y;
+      drawWidth = width;
+      drawHeight = height;
+    }
+  }
+
+  doc.save();
+  if (imageBuffer) {
+    try {
+      if (radius > 0) {
+        doc.roundedRect(drawX, drawY, drawWidth, drawHeight, radius).clip();
+      } else {
+        doc.rect(drawX, drawY, drawWidth, drawHeight).clip();
+      }
+      doc.image(imageBuffer, drawX, drawY, { width: drawWidth, height: drawHeight });
+    } catch {
+      doc.rect(x, y, width, height).fill(backgroundColor);
       doc
         .font("Helvetica")
         .fontSize(10)
@@ -1963,6 +1991,7 @@ function drawIssuePhoto(doc, imageBuffer, x, y, width, height, options = {}) {
         .text("Photo unavailable", x, y + height / 2 - 6, { width, align: "center" });
     }
   } else {
+    doc.rect(x, y, width, height).fill(backgroundColor);
     doc
       .font("Helvetica")
       .fontSize(10)
@@ -1972,10 +2001,35 @@ function drawIssuePhoto(doc, imageBuffer, x, y, width, height, options = {}) {
   doc.restore();
   doc.lineWidth(options.borderWidth ?? 1).strokeColor(borderColor);
   if (radius > 0) {
-    doc.roundedRect(x, y, width, height, radius).stroke();
+    doc.roundedRect(drawX, drawY, drawWidth, drawHeight, radius).stroke();
   } else {
-    doc.rect(x, y, width, height).stroke();
+    doc.rect(drawX, drawY, drawWidth, drawHeight).stroke();
   }
+}
+
+function aspectFitBox(imageSize, container) {
+  const imageWidth = Number(imageSize?.width);
+  const imageHeight = Number(imageSize?.height);
+  if (
+    !Number.isFinite(imageWidth) ||
+    !Number.isFinite(imageHeight) ||
+    imageWidth <= 0 ||
+    imageHeight <= 0 ||
+    container.width <= 0 ||
+    container.height <= 0
+  ) {
+    return container;
+  }
+
+  const scale = Math.min(container.width / imageWidth, container.height / imageHeight);
+  const width = imageWidth * scale;
+  const height = imageHeight * scale;
+  return {
+    x: container.x + (container.width - width) / 2,
+    y: container.y + (container.height - height) / 2,
+    width,
+    height,
+  };
 }
 
 function singleLine(value, fallback = "") {
@@ -2012,14 +2066,17 @@ function contextLine(row) {
 }
 
 function drawIssueBlock(doc, row, tradeLabel, imageBuffer, y) {
-  const photoWidth = 360;
-  const photoHeight = 188;
-  const photoX = (612 - photoWidth) / 2;
-  drawIssuePhoto(doc, imageBuffer, photoX, y, photoWidth, photoHeight, {
-    radius: 8,
-    borderColor: "#d3dae5",
+  const outerMargin = 18;
+  const slotWidth = 612 - outerMargin * 2;
+  const metadataHeight = 66;
+  const photoCaptionGap = 8;
+  const photoHeight = 236;
+  const captionY = y + photoHeight + photoCaptionGap;
+  drawIssuePhoto(doc, imageBuffer, outerMargin, y, slotWidth, photoHeight, {
+    radius: 12,
+    borderColor: "#111827",
     borderWidth: 1,
-    backgroundColor: "#eef2f7",
+    backgroundColor: "#f2f2f2",
   });
 
   const title = singleLine(row.title, "Flagged observation");
@@ -2027,44 +2084,41 @@ function drawIssueBlock(doc, row, tradeLabel, imageBuffer, y) {
   const issueLine = reason === title ? title : `${title} - ${reason}`;
   const priority = titleCaseWords(row.priority || "medium");
   const dueDate = formatPdfDueDate(row.dueDate);
-  const metaLine = `${tradeLabel}  |  ${priority} priority  |  Due: ${dueDate}`;
+  const flagLine = `${priority} - ${tradeLabel} - ${truncatedLine(issueLine, 84)}`;
+  const dueLine = `Due: ${dueDate} | Notes: ${truncatedLine(noteSummary(row), 92)}`;
 
   doc
     .font("Helvetica-Bold")
-    .fontSize(10.5)
+    .fontSize(11)
     .fillColor("#111827")
-    .text(locationCode(row), 66, y + photoHeight + 11, { width: 480, align: "center", height: 14 });
+    .text(locationCode(row), outerMargin, captionY, { width: slotWidth, align: "center", height: 14 });
   doc
     .font("Helvetica")
-    .fontSize(9.25)
+    .fontSize(10)
     .fillColor("#111827")
-    .text(metaLine, 66, y + photoHeight + 28, { width: 480, align: "center", height: 13 });
+    .text(flagLine, outerMargin, captionY + 14, { width: slotWidth, align: "center", height: 14 });
   doc
     .font("Helvetica")
-    .fontSize(8.8)
+    .fontSize(9.5)
     .fillColor("#111827")
-    .text(truncatedLine(issueLine, 120), 78, y + photoHeight + 45, {
-      width: 456,
+    .text(formatPdfDateTime(row.capturedAt || row.updatedAt) || "Unknown", outerMargin, captionY + 28, {
+      width: slotWidth,
       align: "center",
-      height: 24,
+      height: 14,
     });
   doc
     .font("Helvetica")
-    .fontSize(7.6)
+    .fontSize(7.5)
     .fillColor("#475569")
-    .text(`Notes / History: ${truncatedLine(noteSummary(row), 150)}`, 78, y + photoHeight + 70, {
-      width: 456,
-      align: "center",
-      height: 18,
-    });
+    .text(dueLine, outerMargin, captionY + 44, { width: slotWidth, align: "center", height: 10 });
   doc
     .font("Helvetica")
-    .fontSize(7.4)
+    .fontSize(7.2)
     .fillColor("#64748b")
-    .text(truncatedLine(contextLine(row), 150), 78, y + photoHeight + 90, {
-      width: 456,
+    .text(truncatedLine(contextLine(row), 140), outerMargin, captionY + 55, {
+      width: slotWidth,
       align: "center",
-      height: 16,
+      height: metadataHeight - 55,
     });
 }
 
@@ -2103,16 +2157,42 @@ function coverContext(rows, coverPhoto) {
 }
 
 function drawCoverMetadataRow(doc, label, value, y) {
+  const lineX = 72;
+  const lineWidth = 468;
+  const labelText = label || "";
+  const valueText = value || "None";
+  doc.font("Helvetica-Bold").fontSize(11);
+  const labelWidth = doc.widthOfString(labelText);
+  doc.font("Helvetica").fontSize(11);
+  const valueWidth = valueText ? doc.widthOfString(valueText) : 0;
+  const totalWidth = Math.ceil(labelWidth + (valueText ? 4 : 0) + valueWidth);
+  const startX = lineX + Math.max(0, (lineWidth - totalWidth) / 2);
+
   doc
     .font("Helvetica-Bold")
     .fontSize(11)
     .fillColor("#000000")
-    .text(label, 74, y, { width: 210, align: "right" });
+    .text(labelText, startX, y, { width: labelWidth + 1, height: 16, lineBreak: false });
+  if (valueText) {
+    doc
+      .font("Helvetica")
+      .fontSize(11)
+      .fillColor("#000000")
+      .text(valueText, startX + labelWidth + 4, y, { width: lineX + lineWidth - startX, height: 16, lineBreak: false });
+  }
+}
+
+function drawCoverCenteredText(doc, value, y, options = {}) {
   doc
-    .font("Helvetica")
-    .fontSize(11)
-    .fillColor("#000000")
-    .text(value || "None", 292, y, { width: 260 });
+    .font(options.bold ? "Helvetica-Bold" : "Helvetica")
+    .fontSize(options.fontSize || 11)
+    .fillColor(options.color || "#000000")
+    .text(value || "", 72, y, {
+      width: 468,
+      height: options.height || 16,
+      align: "center",
+      lineBreak: false,
+    });
 }
 
 function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto) {
@@ -2128,55 +2208,47 @@ function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto) {
       : "";
 
   doc.addPage({ size: "LETTER", margin: 42 });
-  drawScoutLogo(doc, 132, 82, 348, 122);
+  drawScoutLogo(doc, 72, 80, 468, 80);
 
-  drawIssuePhoto(doc, coverImageBuffer, 174, 214, 264, 190, {
-    radius: 10,
+  drawIssuePhoto(doc, coverImageBuffer, 126, 178, 360, 182, {
+    radius: 12,
     borderColor: "#d3dae5",
-    borderWidth: 0.8,
-    backgroundColor: "#eef2f7",
+    borderWidth: 0.5,
+    backgroundColor: "#ffffff",
   });
   doc
     .font("Helvetica-Bold")
-    .fontSize(24)
+    .fontSize(20)
     .fillColor("#000000")
-    .text(PDF_REPORT_TITLE, 42, 430, { width: 528, align: "center", height: 32 });
+    .text(PDF_REPORT_TITLE, 72, 386, { width: 468, align: "center", height: 28 });
 
-  let y = 482;
+  let y = 440;
   const coverRows = [
     ["Property Name:", propertyName(contextRow)],
     ["Property Address:", propertyAddress(contextRow)],
     ["Date of Service:", serviceDate],
     ["Time Window:", timeWindow],
-    ["Client / Organization:", context.org?.name || ""],
+    ["Organization:", context.org?.name || ""],
     ["Open Issues:", String(rows.length)],
     ["Report Reference ID:", context.packageId],
     ["Report Date:", formatPdfDate(new Date())],
   ];
   for (const [label, value] of coverRows) {
     drawCoverMetadataRow(doc, label, value, y);
-    y += 17;
+    y += 18;
   }
 
-  doc.font("Helvetica-Bold").fontSize(12).text("Prepared by:", 42, y + 8, { width: 528, align: "center", height: 16 });
-  doc.font("Helvetica").fontSize(11.5).text("SCOUT - Visual Documentation Services", 42, y + 34, {
-    width: 528,
-    align: "center",
-    height: 16,
+  y += 12;
+  drawCoverCenteredText(doc, "Prepared by:", y, { bold: true, fontSize: 11 });
+  drawCoverCenteredText(doc, "SCOUT - Visual Documentation Services", y + 26, { fontSize: 11 });
+  drawCoverCenteredText(doc, "Clear, time-stamped visual documentation of observable property conditions.", y + 46, {
+    fontSize: 11,
   });
   doc
     .font("Helvetica")
-    .fontSize(10)
-    .text("Clear, time-stamped visual documentation of observable property conditions.", 42, y + 54, {
-      width: 528,
-      align: "center",
-      height: 16,
-    });
-  doc
-    .font("Helvetica")
-    .fontSize(8.8)
+    .fontSize(8.5)
     .fillColor("#475569")
-    .text(PUNCHLIST_COORDINATION_NOTE, 94, y + 78, { width: 424, height: 42, align: "center", lineGap: 2 });
+    .text(PUNCHLIST_COORDINATION_NOTE, 94, y + 70, { width: 424, height: 42, align: "center", lineGap: 2 });
 }
 
 async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null) {
@@ -2200,7 +2272,7 @@ async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null) {
   for (const row of rows) {
     const tradeKey = normalizedTrade(row.trade);
     if (issueIndex % 2 === 0) addReportPage(doc, PDF_REPORT_TITLE, rows);
-    const blockY = issueIndex % 2 === 0 ? 108 : 404;
+    const blockY = issueIndex % 2 === 0 ? 98 : 410;
     const label = tradeLabelFromOptions(tradeKey, tradeOptions);
     if (currentTradeKey !== tradeKey) {
       doc
@@ -2221,12 +2293,12 @@ async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null) {
       .font("Helvetica")
       .fontSize(7.5)
       .fillColor("#94a3b8")
-      .text(PDF_VERSION_MARKER, 386, 740, { width: 104, height: 10, align: "right" });
+      .text(PDF_VERSION_MARKER, 320, 748, { width: 170, height: 10, align: "right", lineBreak: false });
     doc
       .font("Helvetica")
       .fontSize(10)
       .fillColor("#111827")
-      .text(`Page ${index + 1}`, 500, 738, { width: 58, height: 12, align: "right" });
+      .text(`Page ${index + 1}`, 500, 748, { width: 58, height: 12, align: "right", lineBreak: false });
   }
 
   doc.end();
