@@ -261,6 +261,20 @@ function optionLabel(value, labels) {
   return labels[key] || textValue(value) || "General";
 }
 
+function filenameFromContentDisposition(value, fallback) {
+  const header = textValue(value);
+  const encodedMatch = header.match(/filename\*=UTF-8''([^;]+)/i);
+  if (encodedMatch) {
+    try {
+      return decodeURIComponent(encodedMatch[1]);
+    } catch {
+      return fallback;
+    }
+  }
+  const match = header.match(/filename="?([^";]+)"?/i);
+  return match?.[1] || fallback;
+}
+
 function readableToken(value) {
   return textValue(value)
     .replace(/[_-]+/g, " ")
@@ -1331,6 +1345,174 @@ const PUNCH_LIST_STYLES = `
     color: rgb(15 23 42);
   }
 
+  .punch-report-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  .punch-report-button {
+    display: inline-flex;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 8px;
+    border: 1px solid rgb(203 213 225);
+    background: white;
+    padding: 0 12px;
+    color: rgb(28 39 66);
+    font-size: 14px;
+    font-weight: 800;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  }
+
+  .punch-report-button:disabled {
+    cursor: wait;
+    opacity: 0.55;
+  }
+
+  .punch-report-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(15, 23, 42, 0.54);
+  }
+
+  .punch-report-panel {
+    width: min(520px, 100%);
+    max-height: calc(100vh - 36px);
+    overflow: hidden;
+    border-radius: 10px;
+    border: 1px solid rgb(226 232 240);
+    background: white;
+    box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
+  }
+
+  .punch-report-header,
+  .punch-report-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .punch-report-header {
+    border-bottom: 1px solid rgb(226 232 240);
+  }
+
+  .punch-report-footer {
+    border-top: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252);
+  }
+
+  .punch-report-title {
+    color: rgb(15 23 42);
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  .punch-report-subtitle {
+    margin-top: 4px;
+    color: rgb(71 85 105);
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1.35;
+  }
+
+  .punch-report-close {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid rgb(226 232 240);
+    color: rgb(15 23 42);
+  }
+
+  .punch-report-body {
+    max-height: min(520px, calc(100vh - 190px));
+    overflow: auto;
+    padding: 14px 16px;
+  }
+
+  .punch-report-trades {
+    display: grid;
+    gap: 8px;
+  }
+
+  .punch-report-trade {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    border-radius: 8px;
+    border: 1px solid rgb(226 232 240);
+    background: white;
+    padding: 10px;
+    color: rgb(15 23 42);
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  .punch-report-trade.is-disabled {
+    background: rgb(248 250 252);
+    color: rgb(148 163 184);
+  }
+
+  .punch-report-trade input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--brand);
+  }
+
+  .punch-report-trade-count {
+    color: rgb(100 116 139);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .punch-report-generate,
+  .punch-report-cancel {
+    display: inline-flex;
+    height: 38px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 8px;
+    padding: 0 13px;
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  .punch-report-generate {
+    background: var(--brand);
+    color: white;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  }
+
+  .punch-report-cancel {
+    border: 1px solid rgb(203 213 225);
+    background: white;
+    color: rgb(30 41 59);
+  }
+
+  .punch-report-generate:disabled,
+  .punch-report-cancel:disabled {
+    cursor: wait;
+    opacity: 0.55;
+  }
+
   @media (max-width: 767px) {
     .punch-filter-row {
       align-items: stretch;
@@ -1550,6 +1732,10 @@ const PUNCH_LIST_STYLES = `
 
     .punch-lightbox-issue span {
       white-space: normal;
+    }
+
+    .punch-report-actions {
+      justify-content: flex-start;
     }
   }
 `;
@@ -2207,6 +2393,97 @@ function IssueRow({
   );
 }
 
+function PunchReportModal({
+  open,
+  tradeItems,
+  selectedTrades,
+  generating,
+  onToggleTrade,
+  onGenerate,
+  onClose,
+}) {
+  if (!open) return null;
+
+  const selectedCount = tradeItems.filter((item) => item.enabled && selectedTrades[item.id]).length;
+
+  return (
+    <div
+      className="punch-report-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Generate punch list report"
+      onClick={() => {
+        if (!generating) onClose();
+      }}
+    >
+      <div className="punch-report-panel" onClick={(event) => event.stopPropagation()}>
+        <div className="punch-report-header">
+          <div>
+            <div className="punch-report-title">Generate Punchlist</div>
+            <div className="punch-report-subtitle">Open issues only. Choose trades to include.</div>
+          </div>
+          <button
+            type="button"
+            className="punch-report-close"
+            onClick={onClose}
+            disabled={generating}
+            aria-label="Close report options"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="punch-report-body">
+          {tradeItems.length === 0 ? (
+            <div className="rounded-lg border border-border bg-slate-50 p-4 text-sm font-semibold text-foreground/60">
+              No master trades are available.
+            </div>
+          ) : (
+            <div className="punch-report-trades">
+              {tradeItems.map((item) => (
+                <label
+                  key={item.id}
+                  className={`punch-report-trade ${item.enabled ? "" : "is-disabled"}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={Boolean(item.enabled && selectedTrades[item.id])}
+                    onChange={() => onToggleTrade(item.id)}
+                    disabled={!item.enabled || generating}
+                    aria-label={item.label}
+                  />
+                  <span>{item.label}</span>
+                  <span className="punch-report-trade-count">
+                    {item.count > 0 ? compactCount(item.count, "issue") : "No open issues"}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="punch-report-footer">
+          <button
+            type="button"
+            className="punch-report-cancel"
+            onClick={onClose}
+            disabled={generating}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="punch-report-generate"
+            onClick={onGenerate}
+            disabled={generating || selectedCount === 0}
+          >
+            <Download className="h-4 w-4" />
+            {generating ? "Generating..." : "Generate"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ImagePreviewModal({ row, onClose }) {
   if (!row?.preview?.previewUrl) return null;
   const flagNote = row.title || row.reason || "Flagged observation";
@@ -2293,6 +2570,9 @@ export default function ScoutPunchListPage() {
   const [workflowSavingKey, setWorkflowSavingKey] = useState("");
   const [activeNoteRowId, setActiveNoteRowId] = useState("");
   const [activeNoteEditId, setActiveNoteEditId] = useState("");
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportSelectedTrades, setReportSelectedTrades] = useState({});
+  const [reportGenerating, setReportGenerating] = useState(false);
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
   const sessionScopeRef = useRef("");
   const filterRequestRef = useRef(0);
@@ -2569,6 +2849,9 @@ export default function ScoutPunchListPage() {
         setWorkflowSavingKey("");
         setActiveNoteRowId("");
         setActiveNoteEditId("");
+        setReportModalOpen(false);
+        setReportSelectedTrades({});
+        setReportGenerating(false);
         setFiltersReady(false);
       }
       bootstrapTokenRef.current = nextBootstrapScope;
@@ -2596,6 +2879,9 @@ export default function ScoutPunchListPage() {
       setWorkflowSavingKey("");
       setActiveNoteRowId("");
       setActiveNoteEditId("");
+      setReportModalOpen(false);
+      setReportSelectedTrades({});
+      setReportGenerating(false);
       setFiltersReady(false);
     }
   }, [session?.access_token]);
@@ -2622,6 +2908,15 @@ export default function ScoutPunchListPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [previewRow]);
+
+  useEffect(() => {
+    if (!reportModalOpen) return undefined;
+    function handleKeyDown(event) {
+      if (event.key === "Escape" && !reportGenerating) setReportModalOpen(false);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [reportGenerating, reportModalOpen]);
 
   async function handleSignIn(event) {
     event.preventDefault();
@@ -2669,6 +2964,9 @@ export default function ScoutPunchListPage() {
     setWorkflowSavingKey("");
     setActiveNoteRowId("");
     setActiveNoteEditId("");
+    setReportModalOpen(false);
+    setReportSelectedTrades({});
+    setReportGenerating(false);
   }
 
   async function handleRefresh() {
@@ -2924,6 +3222,71 @@ export default function ScoutPunchListPage() {
     }
   }
 
+  function handleOpenReportModal() {
+    const selected = {};
+    for (const item of reportTradeItems) {
+      if (item.enabled) selected[item.id] = true;
+    }
+    setReportSelectedTrades(selected);
+    setReportModalOpen(true);
+  }
+
+  function handleToggleReportTrade(tradeId) {
+    const item = reportTradeItems.find((trade) => trade.id === tradeId);
+    if (!item?.enabled || reportGenerating) return;
+    setReportSelectedTrades((current) => ({
+      ...current,
+      [tradeId]: !current[tradeId],
+    }));
+  }
+
+  async function handleGenerateReport() {
+    if (!session?.access_token || !selectedOrgId || selectedReportTradeIds.length === 0) return;
+    setReportGenerating(true);
+    setPunchListError("");
+    try {
+      const response = await fetch("/api/punch-list?mode=pdf", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          orgId: selectedOrgId,
+          propertyId: selectedPropertyId || ALL,
+          trades: selectedReportTradeIds,
+        }),
+      });
+
+      if (!response.ok) {
+        const contentType = response.headers.get("content-type") || "";
+        const body = contentType.includes("application/json")
+          ? await response.json().catch(() => ({}))
+          : {};
+        throw new Error(body.error || "Unable to generate punch list PDF.");
+      }
+
+      const blob = await response.blob();
+      const filename = filenameFromContentDisposition(
+        response.headers.get("content-disposition"),
+        "Punch_List_Report.pdf"
+      );
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      setReportModalOpen(false);
+    } catch (error) {
+      setPunchListError(error.message || "Unable to generate punch list PDF.");
+    } finally {
+      setReportGenerating(false);
+    }
+  }
+
   function hasCachedRowsForScope(orgId, propertyId) {
     if (!session?.access_token || !orgId) return false;
     const propertyScope = propertyId && propertyId !== ALL ? propertyId : ALL;
@@ -3091,6 +3454,47 @@ export default function ScoutPunchListPage() {
   const selectedRow = useMemo(
     () => filteredRows.find((row) => row.id === selectedRowId) || null,
     [filteredRows, selectedRowId]
+  );
+
+  const reportOpenRows = useMemo(
+    () =>
+      orgFilteredRows.filter(
+        (row) =>
+          row.status !== "resolved" &&
+          (displayedPropertyId === ALL || row.property?.id === displayedPropertyId)
+      ),
+    [displayedPropertyId, orgFilteredRows]
+  );
+
+  const reportTradeCounts = useMemo(() => {
+    const counts = new Map();
+    for (const row of reportOpenRows) {
+      const id = tradeKey(row.trade || "general") || "general";
+      counts.set(id, (counts.get(id) || 0) + 1);
+    }
+    return counts;
+  }, [reportOpenRows]);
+
+  const reportTradeItems = useMemo(
+    () =>
+      masterTradeOptions.map((option) => {
+        const count = reportTradeCounts.get(option.id) || 0;
+        return {
+          id: option.id,
+          label: option.label,
+          count,
+          enabled: count > 0,
+        };
+      }),
+    [masterTradeOptions, reportTradeCounts]
+  );
+
+  const selectedReportTradeIds = useMemo(
+    () =>
+      reportTradeItems
+        .filter((item) => item.enabled && reportSelectedTrades[item.id])
+        .map((item) => item.id),
+    [reportSelectedTrades, reportTradeItems]
   );
 
   const openCount = orgFilteredRows.filter((row) => row.status !== "resolved").length;
@@ -3402,30 +3806,41 @@ export default function ScoutPunchListPage() {
                 </span>
                 . {compactCount(filteredRows.length, "visible issue")}.
               </div>
-              <div className="inline-flex w-fit rounded-lg border border-border bg-slate-50 p-1">
+              <div className="punch-report-actions">
                 <button
                   type="button"
-                  onClick={() => setSelectedTab(TAB_OPEN)}
-                  className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-semibold ${
-                    selectedTab === TAB_OPEN
-                      ? "bg-[var(--brand)] text-white shadow-sm"
-                      : "text-foreground/65"
-                  }`}
+                  onClick={handleOpenReportModal}
+                  disabled={filtersLoading || punchListLoading || reportGenerating || !selectedOrgId}
+                  className="punch-report-button"
                 >
-                  <ClipboardList className="h-4 w-4" />
-                  Open {openCount}
+                  <Download className="h-4 w-4" />
+                  Generate Punchlist
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTab(TAB_RESOLVED)}
-                  className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-semibold ${
-                    selectedTab === TAB_RESOLVED
-                      ? "bg-[var(--brand)] text-white shadow-sm"
-                      : "text-foreground/65"
-                  }`}
-                >
-                  Resolved {resolvedCount}
-                </button>
+                <div className="inline-flex w-fit rounded-lg border border-border bg-slate-50 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTab(TAB_OPEN)}
+                    className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-semibold ${
+                      selectedTab === TAB_OPEN
+                        ? "bg-[var(--brand)] text-white shadow-sm"
+                        : "text-foreground/65"
+                    }`}
+                  >
+                    <ClipboardList className="h-4 w-4" />
+                    Open {openCount}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTab(TAB_RESOLVED)}
+                    className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-semibold ${
+                      selectedTab === TAB_RESOLVED
+                        ? "bg-[var(--brand)] text-white shadow-sm"
+                        : "text-foreground/65"
+                    }`}
+                  >
+                    Resolved {resolvedCount}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -3525,6 +3940,15 @@ export default function ScoutPunchListPage() {
           </section>
         )}
       </main>
+      <PunchReportModal
+        open={reportModalOpen}
+        tradeItems={reportTradeItems}
+        selectedTrades={reportSelectedTrades}
+        generating={reportGenerating}
+        onToggleTrade={handleToggleReportTrade}
+        onGenerate={handleGenerateReport}
+        onClose={() => setReportModalOpen(false)}
+      />
       <ImagePreviewModal row={previewRow} onClose={() => setPreviewRow(null)} />
     </div>
   );

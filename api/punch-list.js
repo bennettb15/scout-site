@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+import PDFDocument from "pdfkit";
 import {
   DELIVERABLES_BUCKET,
   ORIGINALS_BUCKET,
@@ -27,9 +30,15 @@ import {
 
 const MAX_ROWS = 250;
 const MAX_PREVIEW_URLS = 60;
+const MAX_PDF_PREVIEW_URLS = 250;
 const MAX_ACTIVITY_ROWS = 1000;
 const MAX_NOTE_LENGTH = 1000;
 const ALL_VALUE = "all";
+const PDF_REPORT_TITLE = "Punch List Report";
+const SCOUT_NAVY = "#1C2742";
+const PRIORITY_ORDER = ["critical", "high", "medium", "low"];
+const PUNCHLIST_COORDINATION_NOTE =
+  "This punch list is provided as a coordination aid for visible open items documented in the selected portal context. Field teams should verify scope, responsibility, sequencing, and completion requirements before work proceeds.";
 const NOTE_WRITER_ROLES = ["viewer", "field"];
 const WORKFLOW_EDITOR_ROLES = ["viewer", "field"];
 const WORKFLOW_ACTIVITY_FIELD_BY_TYPE = {
@@ -1358,6 +1367,686 @@ async function handleDeleteNote(req, res) {
   }
 }
 
+async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URLS } = {}) {
+  const { client } = auth;
+  const packageRows = await safeRows(
+    applyScope(
+      client
+        .from("report_packages")
+        .select("id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at")
+        .eq("status", "ready")
+        .is("deleted_at", null),
+      scope
+    )
+      .order("session_completed_at", { ascending: false })
+      .limit(100)
+  );
+
+  const observations = await safeRows(
+    applyScope(
+      client
+        .from("observations")
+        .select(safeObservationSelect())
+        .is("deleted_at", null),
+      scope
+    )
+      .order("updated_at", { ascending: false })
+      .limit(MAX_ROWS)
+  );
+
+  const observationIds = observations.map((row) => row.id);
+  const observationUpdates = observationIds.length
+    ? await safeRows(
+        client
+          .from("observation_updates")
+          .select("id,org_id,property_id,observation_id,session_id,shot_id,update_type,status,message,note,priority,trade,captured_at,created_at,updated_at,deleted_at")
+          .in("observation_id", observationIds)
+          .is("deleted_at", null)
+          .order("updated_at", { ascending: false })
+          .limit(MAX_ROWS * 3)
+      )
+    : [];
+  const punchListActivity = observationIds.length
+    ? await safeRows(
+        client
+          .from("punchlist_activity")
+          .select("id,org_id,property_id,observation_id,shot_id,activity_type,from_value,to_value,note,created_by,created_at,deleted_at")
+          .in("observation_id", observationIds)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(MAX_ACTIVITY_ROWS)
+      )
+    : [];
+
+  const packageBySession = latestPackageBySession(packageRows);
+  const sessionIds = unique([
+    ...packageRows.map((row) => row.session_id),
+    ...observations.map((row) => row.session_id),
+    ...observationUpdates.map((row) => row.session_id),
+  ]);
+  const shotIds = unique([
+    ...observations.map((row) => row.shot_id),
+    ...observationUpdates.map((row) => row.shot_id),
+  ]);
+
+  const [packageSessionShots, observationShots] = await Promise.all([
+    sessionIds.length
+      ? safeRows(
+          client
+            .from("shots")
+            .select(shotSelect())
+            .in("session_id", sessionIds)
+            .eq("storage_bucket", ORIGINALS_BUCKET)
+            .eq("upload_state", "uploaded")
+            .is("deleted_at", null)
+            .not("storage_path", "is", null)
+            .order("position", { ascending: true, nullsFirst: false })
+            .order("captured_at", { ascending: true })
+            .limit(5000)
+        )
+      : [],
+    shotIds.length
+      ? safeRows(
+          client
+            .from("shots")
+            .select(shotSelect())
+            .in("id", shotIds)
+            .is("deleted_at", null)
+            .limit(shotIds.length)
+        )
+      : [],
+  ]);
+
+  const service = await maybeServiceClient();
+  const snapshotMetadataByPackageId = new Map();
+  if (service) {
+    for (const reportPackage of packageRows) {
+      const metadata = await loadSnapshotPhotoMetadata(service, reportPackage);
+      if (metadata) snapshotMetadataByPackageId.set(reportPackage.id, metadata);
+    }
+  }
+
+  const shotsById = new Map();
+  const shotsBySession = new Map();
+  for (const rawShot of [...packageSessionShots, ...observationShots]) {
+    const reportPackage = packageBySession.get(rawShot.session_id);
+    const snapshotMetadata = reportPackage
+      ? snapshotMetadataByPackageId.get(reportPackage.id)
+      : null;
+    const row = enrichPhotoRowWithSnapshotMetadata(rawShot, snapshotMetadata);
+    if (!row.property_id && reportPackage?.property_id) {
+      row.property_id = reportPackage.property_id;
+    }
+    if (!originalPathIsExpected(row)) continue;
+    shotsById.set(row.id, row);
+    const rows = shotsBySession.get(row.session_id) || [];
+    rows.push(row);
+    shotsBySession.set(row.session_id, rows);
+  }
+
+  const orgIds = unique([
+    ...packageRows.map((row) => row.org_id),
+    ...observations.map((row) => row.org_id),
+    ...Array.from(shotsById.values()).map((row) => row.org_id),
+  ]);
+  const propertyIds = unique([
+    ...packageRows.map((row) => row.property_id),
+    ...observations.map((row) => row.property_id),
+    ...Array.from(shotsById.values()).map((row) => row.property_id),
+  ]);
+
+  const [{ data: orgRows }, { data: propertyRows }, { data: sessionRows }] =
+    await Promise.all([
+      orgIds.length
+        ? client.from("orgs").select("id,name").in("id", orgIds).is("deleted_at", null)
+        : { data: [] },
+      propertyIds.length
+        ? client
+            .from("properties")
+            .select("id,org_id,name,address_line1,city,state,postal_code")
+            .in("id", propertyIds)
+            .is("deleted_at", null)
+        : { data: [] },
+      sessionIds.length
+        ? client
+            .from("sessions")
+            .select("id,org_id,property_id,title,started_at,completed_at")
+            .in("id", sessionIds)
+            .is("deleted_at", null)
+        : { data: [] },
+    ]);
+
+  const orgById = new Map((orgRows || []).map((row) => [row.id, toOrg(row)]));
+  const propertyById = new Map((propertyRows || []).map((row) => [row.id, toProperty(row)]));
+  const sessionById = new Map((sessionRows || []).map((row) => [row.id, toSession(row)]));
+  const noteWriterOrgIds = await noteWriterOrgIdSet(auth, orgIds);
+  const workflowEditorOrgIds = await workflowEditorOrgIdSet(auth, orgIds);
+  const adminAllowed = isApprovedAdminEmail(auth.user?.email);
+  const latestUpdateByObservationId = new Map();
+  for (const update of observationUpdates) {
+    if (!latestUpdateByObservationId.has(update.observation_id)) {
+      latestUpdateByObservationId.set(update.observation_id, update);
+    }
+  }
+  const activityByObservationId = new Map();
+  const workflowActivityByObservationId = new Map();
+  for (const activityRow of punchListActivity) {
+    const workflowField = WORKFLOW_ACTIVITY_FIELD_BY_TYPE[activityRow.activity_type];
+    if (workflowField) {
+      const rows = workflowActivityByObservationId.get(activityRow.observation_id) || [];
+      rows.push(activityRow);
+      workflowActivityByObservationId.set(activityRow.observation_id, rows);
+      continue;
+    }
+    if (activityRow.activity_type !== "note_added") continue;
+    const ownNoteWriterNote =
+      noteWriterOrgIds.has(activityRow.org_id) && activityRow.created_by === auth.user.id;
+    const publicRow = publicActivityRow(activityRow, {
+      canEdit: adminAllowed || ownNoteWriterNote,
+      canDelete: adminAllowed || ownNoteWriterNote,
+    });
+    if (!publicRow?.note) continue;
+    const rows = activityByObservationId.get(activityRow.observation_id) || [];
+    rows.push(publicRow);
+    activityByObservationId.set(activityRow.observation_id, rows);
+  }
+
+  const previewCache = new Map();
+  async function previewForShot(shot) {
+    if (!shot) return null;
+    if (previewCache.has(shot.id)) return previewCache.get(shot.id);
+    if (previewCache.size >= maxPreviewUrls) return null;
+    const previewUrl = await signedPreviewUrlForPhoto(service, shot);
+    previewCache.set(shot.id, previewUrl);
+    return previewUrl;
+  }
+
+  const rows = [];
+  const dedupKeys = new Set();
+  for (const observation of observations) {
+    const shot = observation.shot_id ? shotsById.get(observation.shot_id) : null;
+    const reportPackage = packageBySession.get(observation.session_id) || null;
+    const row = publicObservationRow({
+      observation,
+      update: latestUpdateByObservationId.get(observation.id) || null,
+      activity: activityRowsForObservation(activityByObservationId, observation.id),
+      canAddNote: noteWriterOrgIds.has(observation.org_id),
+      canEditWorkflow: workflowEditorOrgIds.has(observation.org_id),
+      workflowState: workflowStateFromActivity(
+        activityRowsForObservation(workflowActivityByObservationId, observation.id)
+      ),
+      shot,
+      org: orgById.get(observation.org_id) || null,
+      property: propertyById.get(observation.property_id || shot?.property_id) || null,
+      session: sessionById.get(observation.session_id) || null,
+      reportPackage,
+      previewUrl: await previewForShot(shot),
+    });
+    addDedupKeys(dedupKeys, row);
+    rows.push(row);
+  }
+
+  const candidateShots = [];
+  for (const reportPackage of packageRows) {
+    const sessionShots = shotsBySession.get(reportPackage.session_id) || [];
+    candidateShots.push(...sortPhotoRowsBySnapshot(sessionShots));
+  }
+
+  for (const shot of candidateShots) {
+    const isFlagged = Boolean(shot.is_flagged || shot.issue_id || compactText(shot.issue_status));
+    if (!isFlagged) continue;
+    const candidate = {
+      shotId: shot.id,
+      issueId: shot.issue_id,
+      locationKey: locationKeyFromShot(shot),
+    };
+    const duplicate =
+      (candidate.shotId && dedupKeys.has(`shot:${keyValue(candidate.shotId)}`)) ||
+      (candidate.issueId && dedupKeys.has(`issue:${keyValue(candidate.issueId)}`)) ||
+      (candidate.locationKey && dedupKeys.has(`loc:${candidate.locationKey}`));
+    if (duplicate) continue;
+
+    const reportPackage = packageBySession.get(shot.session_id) || null;
+    const row = publicShotRow({
+      shot,
+      org: orgById.get(shot.org_id) || null,
+      property: propertyById.get(shot.property_id || reportPackage?.property_id) || null,
+      session: sessionById.get(shot.session_id) || null,
+      reportPackage,
+      previewUrl: await previewForShot(shot),
+      canAddNote: noteWriterOrgIds.has(shot.org_id),
+      canEditWorkflow: workflowEditorOrgIds.has(shot.org_id),
+    });
+    addDedupKeys(dedupKeys, row);
+    rows.push(row);
+    if (rows.length >= MAX_ROWS) break;
+  }
+
+  rows.sort(compareFieldReviewOrder);
+  return rows.slice(0, MAX_ROWS);
+}
+
+function priorityRank(value) {
+  const index = PRIORITY_ORDER.indexOf(normalizedPriority(value));
+  return index >= 0 ? index : PRIORITY_ORDER.length;
+}
+
+function comparePunchReportRows(left, right) {
+  const priorityCompare = priorityRank(left.priority) - priorityRank(right.priority);
+  if (priorityCompare !== 0) return priorityCompare;
+  return compareFieldReviewOrder(left, right);
+}
+
+function formatPdfDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatPdfTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatPdfDateTime(value) {
+  const date = formatPdfDate(value);
+  const time = formatPdfTime(value);
+  return [date, time].filter(Boolean).join(" ");
+}
+
+function localDateOnly(value) {
+  const text = compactText(value);
+  if (!text) return null;
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function todayDateOnlyString() {
+  const date = new Date();
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function formatPdfDueDate(value) {
+  const date = localDateOnly(value);
+  if (!date || Number.isNaN(date.getTime())) return "Not set";
+  const formatted = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+  return String(value) < todayDateOnlyString() ? `${formatted} (Overdue)` : formatted;
+}
+
+function titleCaseWords(value) {
+  return compactText(value)
+    ?.replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => {
+      if (word.toLowerCase() === "hvac") return "HVAC";
+      return `${word.slice(0, 1).toUpperCase()}${word.slice(1).toLowerCase()}`;
+    })
+    .join(" ") || "";
+}
+
+function tradeLabelFromOptions(value, tradeOptions) {
+  const key = normalizedTrade(value);
+  const option = tradeOptions.find((item) => item.key === key || item.id === key);
+  return option?.label || option?.name || titleCaseWords(key) || "General";
+}
+
+function propertyName(row) {
+  return compactText(row?.property?.name) || "Property";
+}
+
+function propertyAddress(row) {
+  const property = row?.property;
+  if (!property) return "";
+  const cityState = [property.city, property.state].filter(Boolean).join(", ");
+  return [property.addressLine1, cityState, property.postalCode].filter(Boolean).join(" ");
+}
+
+function locationCode(row) {
+  if (!row) return "";
+  const angle = row.angleIndex ? `A${row.angleIndex}` : "";
+  const line = [row.building, row.elevation, row.detailType, angle]
+    .map((value) => compactText(value)?.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join(" | ")
+    .toUpperCase();
+  return line || compactText(row.shotKey)?.toUpperCase() || row.shotId?.slice(0, 8).toUpperCase() || "ISSUE";
+}
+
+function safeFilenamePart(value) {
+  return (compactText(value) || "Punch_List")
+    .replace(/[^A-Za-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80) || "Punch_List";
+}
+
+function punchListReportFilename(rows) {
+  const first = rows[0] || {};
+  const property = propertyName(first);
+  const date = new Date().toISOString().slice(0, 10);
+  return `${safeFilenamePart(property)}_Punch_List_Report_${date}.pdf`;
+}
+
+function validatePdfScope(body) {
+  const orgId = validateUuid(body.orgId);
+  const propertyId =
+    body.propertyId && String(body.propertyId).toLowerCase() !== ALL_VALUE
+      ? validateUuid(body.propertyId)
+      : "";
+
+  if (!orgId) {
+    const error = new Error("Valid organization is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (body.propertyId && String(body.propertyId).toLowerCase() !== ALL_VALUE && !propertyId) {
+    const error = new Error("Valid property is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+  return { orgId, propertyId };
+}
+
+function validateSelectedTrades(value, tradeOptions) {
+  if (!Array.isArray(value)) {
+    const error = new Error("At least one trade is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+  const activeTradeKeys = new Set(tradeOptions.map((option) => option.key).filter(Boolean));
+  const selected = unique(value.map(normalizedTrade)).filter(Boolean);
+  if (selected.length === 0) {
+    const error = new Error("At least one trade is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (selected.length > activeTradeKeys.size) {
+    const error = new Error("Too many trades selected.");
+    error.statusCode = 400;
+    throw error;
+  }
+  const invalid = selected.find((trade) => !activeTradeKeys.has(trade));
+  if (invalid) {
+    const error = new Error("Selected trades must be active punch list trade options.");
+    error.statusCode = 400;
+    throw error;
+  }
+  return selected;
+}
+
+async function imageBufferFromUrl(url) {
+  if (!url || typeof fetch !== "function") return null;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const type = response.headers.get("content-type") || "";
+    if (!type.includes("image/jpeg") && !type.includes("image/png")) return null;
+    return Buffer.from(await response.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+function collectPdf(doc) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+  });
+}
+
+function addReportPage(doc, pageTitle = PDF_REPORT_TITLE) {
+  doc.addPage({ size: "LETTER", margin: 42 });
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(11)
+    .fillColor(SCOUT_NAVY)
+    .text("SCOUT", 42, 32, { width: 90 });
+  doc
+    .font("Helvetica")
+    .fontSize(10)
+    .fillColor("#475569")
+    .text(pageTitle, 132, 34, { width: 320 });
+}
+
+function drawLabelValue(doc, label, value, x, y, width) {
+  doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#64748b").text(label.toUpperCase(), x, y, { width });
+  doc
+    .font("Helvetica")
+    .fontSize(9.5)
+    .fillColor("#111827")
+    .text(value || "None", x, y + 10, { width, height: 24 });
+}
+
+function drawIssuePhoto(doc, imageBuffer, x, y, width, height) {
+  doc.save();
+  doc.rect(x, y, width, height).fill("#f1f5f9");
+  if (imageBuffer) {
+    try {
+      doc.image(imageBuffer, x, y, { fit: [width, height], align: "center", valign: "center" });
+    } catch {
+      doc
+        .font("Helvetica")
+        .fontSize(10)
+        .fillColor("#64748b")
+        .text("Photo unavailable", x, y + height / 2 - 6, { width, align: "center" });
+    }
+  } else {
+    doc
+      .font("Helvetica")
+      .fontSize(10)
+      .fillColor("#64748b")
+      .text("Photo unavailable", x, y + height / 2 - 6, { width, align: "center" });
+  }
+  doc.restore();
+}
+
+function drawIssueBlock(doc, row, tradeLabel, imageBuffer, y) {
+  const x = 42;
+  const width = 528;
+  const photoWidth = 172;
+  const photoHeight = 136;
+  doc.roundedRect(x, y, width, 282, 6).strokeColor("#dbe3ea").lineWidth(0.75).stroke();
+  drawIssuePhoto(doc, imageBuffer, x + 12, y + 18, photoWidth, photoHeight);
+
+  const metaX = x + 200;
+  const metaWidth = width - 218;
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(13)
+    .fillColor("#111827")
+    .text(compactText(row.title) || "Flagged observation", metaX, y + 18, { width: metaWidth, height: 34 });
+  doc
+    .font("Helvetica")
+    .fontSize(9.5)
+    .fillColor("#475569")
+    .text(compactText(row.reason) || compactText(row.title) || "", metaX, y + 54, { width: metaWidth, height: 34 });
+
+  const capturedAt = row.capturedAt || row.updatedAt;
+  drawLabelValue(doc, "Property", propertyName(row), metaX, y + 94, 146);
+  drawLabelValue(doc, "Address", propertyAddress(row), metaX + 154, y + 94, 156);
+  drawLabelValue(doc, "Organization", row.org?.name || "", metaX, y + 132, 146);
+  drawLabelValue(doc, "Date / Time", formatPdfDateTime(capturedAt), metaX + 154, y + 132, 156);
+  drawLabelValue(doc, "Location / Code", locationCode(row), x + 12, y + 168, 216);
+  drawLabelValue(doc, "Trade", tradeLabel, x + 236, y + 168, 92);
+  drawLabelValue(doc, "Priority", titleCaseWords(row.priority || "medium"), x + 336, y + 168, 80);
+  drawLabelValue(doc, "Due Date", formatPdfDueDate(row.dueDate), x + 424, y + 168, 132);
+
+  const notes = (Array.isArray(row.activity) ? row.activity : [])
+    .filter((activity) => activity?.activityType === "note_added" && compactText(activity.note))
+    .slice(0, 3);
+  doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#64748b").text("NOTES / HISTORY", x + 12, y + 216, { width: 160 });
+  if (notes.length === 0) {
+    doc.font("Helvetica").fontSize(9.25).fillColor("#475569").text("No notes recorded.", x + 12, y + 228, { width: 500 });
+  } else {
+    const noteText = notes
+      .map((note) => {
+        const date = formatPdfDateTime(note.createdAt) || "Recent";
+        return `${date}: ${compactText(note.note)}`;
+      })
+      .join("\n");
+    doc.font("Helvetica").fontSize(8.75).fillColor("#334155").text(noteText, x + 12, y + 228, {
+      width: 500,
+      height: 40,
+      lineGap: 1,
+    });
+  }
+}
+
+function drawCoverPage(doc, rows, coverImageBuffer) {
+  const first = rows[0] || {};
+  doc.addPage({ size: "LETTER", margin: 42 });
+  const logoPath = path.join(process.cwd(), "public", "Scout Complete Logo Navy Dark NEW.png");
+  if (fs.existsSync(logoPath)) {
+    doc.image(logoPath, 136, 78, { fit: [340, 120], align: "center" });
+  } else {
+    doc.font("Helvetica-Bold").fontSize(64).fillColor(SCOUT_NAVY).text("SCOUT", 0, 104, { align: "center" });
+  }
+
+  drawIssuePhoto(doc, coverImageBuffer, 174, 214, 264, 190);
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(24)
+    .fillColor("#000000")
+    .text(PDF_REPORT_TITLE, 42, 446, { width: 528, align: "center" });
+
+  const lineX = 112;
+  const valueX = 270;
+  let y = 506;
+  const coverRows = [
+    ["Property Name:", propertyName(first)],
+    ["Property Address:", propertyAddress(first)],
+    ["Organization:", first.org?.name || ""],
+    ["Open Issues:", String(rows.length)],
+    ["Report Date:", formatPdfDate(new Date())],
+  ];
+  for (const [label, value] of coverRows) {
+    doc.font("Helvetica-Bold").fontSize(13).fillColor("#000000").text(label, lineX, y, { width: 150, align: "right" });
+    doc.font("Helvetica").fontSize(13).fillColor("#000000").text(value || "None", valueX, y, { width: 250 });
+    y += 24;
+  }
+
+  doc.font("Helvetica-Bold").fontSize(13).text("Prepared by:", 0, y + 12, { align: "center" });
+  doc.font("Helvetica").fontSize(13).text("SCOUT - Visual Documentation Services", 0, y + 44, { align: "center" });
+  doc
+    .font("Helvetica")
+    .fontSize(9.5)
+    .fillColor("#475569")
+    .text(PUNCHLIST_COORDINATION_NOTE, 94, y + 82, { width: 424, align: "center", lineGap: 2 });
+}
+
+async function buildPunchListPdf(rows, tradeOptions) {
+  const doc = new PDFDocument({ autoFirstPage: false, bufferPages: true, size: "LETTER", margin: 42 });
+  const result = collectPdf(doc);
+  const imageBuffers = new Map();
+  await Promise.all(
+    rows.map(async (row) => {
+      const buffer = await imageBufferFromUrl(row.preview?.previewUrl);
+      if (buffer) imageBuffers.set(row.id, buffer);
+    })
+  );
+
+  drawCoverPage(doc, rows, imageBuffers.get(rows[0]?.id) || null);
+  let issueIndex = 0;
+  let currentTradeKey = "";
+  for (const row of rows) {
+    const tradeKey = normalizedTrade(row.trade);
+    if (issueIndex % 2 === 0) addReportPage(doc);
+    const blockY = issueIndex % 2 === 0 ? 86 : 386;
+    const label = tradeLabelFromOptions(tradeKey, tradeOptions);
+    if (currentTradeKey !== tradeKey) {
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(11)
+        .fillColor(SCOUT_NAVY)
+        .text(label, 42, blockY - 18, { width: 300 });
+      currentTradeKey = tradeKey;
+    }
+    drawIssueBlock(doc, row, label, imageBuffers.get(row.id) || null, blockY);
+    issueIndex += 1;
+  }
+
+  const range = doc.bufferedPageRange();
+  for (let index = range.start; index < range.start + range.count; index += 1) {
+    doc.switchToPage(index);
+    doc
+      .font("Helvetica")
+      .fontSize(10)
+      .fillColor("#111827")
+      .text(`Page ${index + 1}`, 500, 760, { width: 58, align: "right" });
+  }
+
+  doc.end();
+  return result;
+}
+
+async function handleGeneratePdf(req, res) {
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body." });
+  }
+
+  try {
+    const auth = await authenticateRequest(req);
+    if (auth.error) return sendJson(res, 401, { error: auth.error });
+
+    const scope = validatePdfScope(body);
+    const tradeOptions = await loadTradeOptions();
+    const selectedTrades = validateSelectedTrades(body.trades, tradeOptions);
+    const selectedTradeSet = new Set(selectedTrades);
+    const rows = await loadPunchListRows(auth, scope, { maxPreviewUrls: MAX_PDF_PREVIEW_URLS });
+    const activeRows = rows.filter((row) => row.status !== "resolved");
+    const openTradeSet = new Set(activeRows.map((row) => normalizedTrade(row.trade)));
+    const reportTradeOrder = tradeOptions
+      .map((option) => option.key)
+      .filter((key) => selectedTradeSet.has(key) && openTradeSet.has(key));
+
+    const reportRows = reportTradeOrder.flatMap((trade) =>
+      activeRows
+        .filter((row) => normalizedTrade(row.trade) === trade)
+        .sort(comparePunchReportRows)
+    );
+
+    if (reportRows.length === 0) {
+      return sendJson(res, 400, { error: "No open punch list issues found for the selected trades." });
+    }
+
+    const pdf = await buildPunchListPdf(reportRows, tradeOptions);
+    const filename = punchListReportFilename(reportRows);
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    return res.status(200).send(pdf);
+  } catch (error) {
+    return sendJson(res, error.statusCode || 500, {
+      error: error.message || "Unable to generate punch list PDF.",
+    });
+  }
+}
+
 async function handleFilters(req, res) {
   try {
     const auth = await authenticateRequest(req);
@@ -1431,6 +2120,9 @@ export default async function handler(req, res) {
   if (!methodAllowed(req, res, ["GET", "POST", "PATCH", "DELETE", "OPTIONS"])) return;
 
   if (req.method === "POST") {
+    if (getQueryValue(req, "mode") === "pdf") {
+      return handleGeneratePdf(req, res);
+    }
     if (getQueryValue(req, "mode") === "trade-options") {
       return handleAddTradeOption(req, res);
     }
@@ -1460,267 +2152,12 @@ export default async function handler(req, res) {
     const auth = await authenticateRequest(req);
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
-    const { client } = auth;
-    const scope = {
+    const rows = await loadPunchListRows(auth, {
       orgId: scopeId(req, "orgId"),
       propertyId: scopeId(req, "propertyId"),
-    };
-    const packageRows = await safeRows(
-      applyScope(
-        client
-          .from("report_packages")
-          .select("id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at")
-          .eq("status", "ready")
-          .is("deleted_at", null),
-        scope
-      )
-        .order("session_completed_at", { ascending: false })
-        .limit(100)
-    );
+    });
 
-    const observations = await safeRows(
-      applyScope(
-        client
-          .from("observations")
-          .select(safeObservationSelect())
-          .is("deleted_at", null),
-        scope
-      )
-        .order("updated_at", { ascending: false })
-        .limit(MAX_ROWS)
-    );
-
-    const observationIds = observations.map((row) => row.id);
-    const observationUpdates = observationIds.length
-      ? await safeRows(
-          client
-            .from("observation_updates")
-            .select("id,org_id,property_id,observation_id,session_id,shot_id,update_type,status,message,note,priority,trade,captured_at,created_at,updated_at,deleted_at")
-            .in("observation_id", observationIds)
-            .is("deleted_at", null)
-            .order("updated_at", { ascending: false })
-            .limit(MAX_ROWS * 3)
-        )
-      : [];
-    const punchListActivity = observationIds.length
-      ? await safeRows(
-          client
-            .from("punchlist_activity")
-            .select("id,org_id,property_id,observation_id,shot_id,activity_type,from_value,to_value,note,created_by,created_at,deleted_at")
-            .in("observation_id", observationIds)
-            .is("deleted_at", null)
-            .order("created_at", { ascending: false })
-            .limit(MAX_ACTIVITY_ROWS)
-        )
-      : [];
-
-    const packageBySession = latestPackageBySession(packageRows);
-    const sessionIds = unique([
-      ...packageRows.map((row) => row.session_id),
-      ...observations.map((row) => row.session_id),
-      ...observationUpdates.map((row) => row.session_id),
-    ]);
-    const shotIds = unique([
-      ...observations.map((row) => row.shot_id),
-      ...observationUpdates.map((row) => row.shot_id),
-    ]);
-
-    const [packageSessionShots, observationShots] = await Promise.all([
-      sessionIds.length
-        ? safeRows(
-            client
-              .from("shots")
-              .select(shotSelect())
-              .in("session_id", sessionIds)
-              .eq("storage_bucket", ORIGINALS_BUCKET)
-              .eq("upload_state", "uploaded")
-              .is("deleted_at", null)
-              .not("storage_path", "is", null)
-              .order("position", { ascending: true, nullsFirst: false })
-              .order("captured_at", { ascending: true })
-              .limit(5000)
-          )
-        : [],
-      shotIds.length
-        ? safeRows(
-            client
-              .from("shots")
-              .select(shotSelect())
-              .in("id", shotIds)
-              .is("deleted_at", null)
-              .limit(shotIds.length)
-          )
-        : [],
-    ]);
-
-    const service = await maybeServiceClient();
-    const snapshotMetadataByPackageId = new Map();
-    if (service) {
-      for (const reportPackage of packageRows) {
-        const metadata = await loadSnapshotPhotoMetadata(service, reportPackage);
-        if (metadata) snapshotMetadataByPackageId.set(reportPackage.id, metadata);
-      }
-    }
-
-    const shotsById = new Map();
-    const shotsBySession = new Map();
-    for (const rawShot of [...packageSessionShots, ...observationShots]) {
-      const reportPackage = packageBySession.get(rawShot.session_id);
-      const snapshotMetadata = reportPackage
-        ? snapshotMetadataByPackageId.get(reportPackage.id)
-        : null;
-      const row = enrichPhotoRowWithSnapshotMetadata(rawShot, snapshotMetadata);
-      if (!row.property_id && reportPackage?.property_id) {
-        row.property_id = reportPackage.property_id;
-      }
-      if (!originalPathIsExpected(row)) continue;
-      shotsById.set(row.id, row);
-      const rows = shotsBySession.get(row.session_id) || [];
-      rows.push(row);
-      shotsBySession.set(row.session_id, rows);
-    }
-
-    const orgIds = unique([
-      ...packageRows.map((row) => row.org_id),
-      ...observations.map((row) => row.org_id),
-      ...Array.from(shotsById.values()).map((row) => row.org_id),
-    ]);
-    const propertyIds = unique([
-      ...packageRows.map((row) => row.property_id),
-      ...observations.map((row) => row.property_id),
-      ...Array.from(shotsById.values()).map((row) => row.property_id),
-    ]);
-
-    const [{ data: orgRows }, { data: propertyRows }, { data: sessionRows }] =
-      await Promise.all([
-        orgIds.length
-          ? client.from("orgs").select("id,name").in("id", orgIds).is("deleted_at", null)
-          : { data: [] },
-        propertyIds.length
-          ? client
-              .from("properties")
-              .select("id,org_id,name,address_line1,city,state,postal_code")
-              .in("id", propertyIds)
-              .is("deleted_at", null)
-          : { data: [] },
-        sessionIds.length
-          ? client
-              .from("sessions")
-              .select("id,org_id,property_id,title,started_at,completed_at")
-              .in("id", sessionIds)
-              .is("deleted_at", null)
-          : { data: [] },
-      ]);
-
-    const orgById = new Map((orgRows || []).map((row) => [row.id, toOrg(row)]));
-    const propertyById = new Map((propertyRows || []).map((row) => [row.id, toProperty(row)]));
-    const sessionById = new Map((sessionRows || []).map((row) => [row.id, toSession(row)]));
-    const noteWriterOrgIds = await noteWriterOrgIdSet(auth, orgIds);
-    const workflowEditorOrgIds = await workflowEditorOrgIdSet(auth, orgIds);
-    const adminAllowed = isApprovedAdminEmail(auth.user?.email);
-    const latestUpdateByObservationId = new Map();
-    for (const update of observationUpdates) {
-      if (!latestUpdateByObservationId.has(update.observation_id)) {
-        latestUpdateByObservationId.set(update.observation_id, update);
-      }
-    }
-    const activityByObservationId = new Map();
-    const workflowActivityByObservationId = new Map();
-    for (const activityRow of punchListActivity) {
-      const workflowField = WORKFLOW_ACTIVITY_FIELD_BY_TYPE[activityRow.activity_type];
-      if (workflowField) {
-        const rows = workflowActivityByObservationId.get(activityRow.observation_id) || [];
-        rows.push(activityRow);
-        workflowActivityByObservationId.set(activityRow.observation_id, rows);
-        continue;
-      }
-      if (activityRow.activity_type !== "note_added") continue;
-      const ownNoteWriterNote =
-        noteWriterOrgIds.has(activityRow.org_id) && activityRow.created_by === auth.user.id;
-      const publicRow = publicActivityRow(activityRow, {
-        canEdit: adminAllowed || ownNoteWriterNote,
-        canDelete: adminAllowed || ownNoteWriterNote,
-      });
-      if (!publicRow?.note) continue;
-      const rows = activityByObservationId.get(activityRow.observation_id) || [];
-      rows.push(publicRow);
-      activityByObservationId.set(activityRow.observation_id, rows);
-    }
-
-    const previewCache = new Map();
-    async function previewForShot(shot) {
-      if (!shot) return null;
-      if (previewCache.has(shot.id)) return previewCache.get(shot.id);
-      if (previewCache.size >= MAX_PREVIEW_URLS) return null;
-      const previewUrl = await signedPreviewUrlForPhoto(service, shot);
-      previewCache.set(shot.id, previewUrl);
-      return previewUrl;
-    }
-
-    const rows = [];
-    const dedupKeys = new Set();
-    for (const observation of observations) {
-      const shot = observation.shot_id ? shotsById.get(observation.shot_id) : null;
-      const reportPackage = packageBySession.get(observation.session_id) || null;
-      const row = publicObservationRow({
-        observation,
-        update: latestUpdateByObservationId.get(observation.id) || null,
-        activity: activityRowsForObservation(activityByObservationId, observation.id),
-        canAddNote: noteWriterOrgIds.has(observation.org_id),
-        canEditWorkflow: workflowEditorOrgIds.has(observation.org_id),
-        workflowState: workflowStateFromActivity(
-          activityRowsForObservation(workflowActivityByObservationId, observation.id)
-        ),
-        shot,
-        org: orgById.get(observation.org_id) || null,
-        property: propertyById.get(observation.property_id || shot?.property_id) || null,
-        session: sessionById.get(observation.session_id) || null,
-        reportPackage,
-        previewUrl: await previewForShot(shot),
-      });
-      addDedupKeys(dedupKeys, row);
-      rows.push(row);
-    }
-
-    const candidateShots = [];
-    for (const reportPackage of packageRows) {
-      const sessionShots = shotsBySession.get(reportPackage.session_id) || [];
-      candidateShots.push(...sortPhotoRowsBySnapshot(sessionShots));
-    }
-
-    for (const shot of candidateShots) {
-      const isFlagged = Boolean(shot.is_flagged || shot.issue_id || compactText(shot.issue_status));
-      if (!isFlagged) continue;
-      const candidate = {
-        shotId: shot.id,
-        issueId: shot.issue_id,
-        locationKey: locationKeyFromShot(shot),
-      };
-      const duplicate =
-        (candidate.shotId && dedupKeys.has(`shot:${keyValue(candidate.shotId)}`)) ||
-        (candidate.issueId && dedupKeys.has(`issue:${keyValue(candidate.issueId)}`)) ||
-        (candidate.locationKey && dedupKeys.has(`loc:${candidate.locationKey}`));
-      if (duplicate) continue;
-
-      const reportPackage = packageBySession.get(shot.session_id) || null;
-      const row = publicShotRow({
-        shot,
-        org: orgById.get(shot.org_id) || null,
-        property: propertyById.get(shot.property_id || reportPackage?.property_id) || null,
-        session: sessionById.get(shot.session_id) || null,
-        reportPackage,
-        previewUrl: await previewForShot(shot),
-        canAddNote: noteWriterOrgIds.has(shot.org_id),
-        canEditWorkflow: workflowEditorOrgIds.has(shot.org_id),
-      });
-      addDedupKeys(dedupKeys, row);
-      rows.push(row);
-      if (rows.length >= MAX_ROWS) break;
-    }
-
-    rows.sort(compareFieldReviewOrder);
-
-    return sendJson(res, 200, { rows: rows.slice(0, MAX_ROWS) });
+    return sendJson(res, 200, { rows });
   } catch {
     return sendJson(res, 500, { error: "Unable to load punch list." });
   }
