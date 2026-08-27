@@ -35,9 +35,15 @@ const MAX_ACTIVITY_ROWS = 1000;
 const MAX_NOTE_LENGTH = 1000;
 const ALL_VALUE = "all";
 const PDF_REPORT_TITLE = "Punch List Report";
-const PDF_VERSION_MARKER = "Punchlist PDF v3 ScoutProcess layout";
+const PDF_VERSION_MARKER = "Punchlist PDF v4 trade sidebar layout";
 const SCOUT_NAVY = "#1C2742";
 const PRIORITY_ORDER = ["critical", "high", "medium", "low"];
+const PRIORITY_BORDER_COLORS = {
+  critical: "#dc2626",
+  high: "#f97316",
+  medium: "#facc15",
+  low: "#0ea5e9",
+};
 const PUNCHLIST_COORDINATION_NOTE =
   "This punch list is provided as a coordination aid for visible open items documented in the selected portal context. Field teams should verify scope, responsibility, sequencing, and completion requirements before work proceeds.";
 const SCOUT_ONLY_LOGO_PATH = path.join(process.cwd(), "public", "Scout Only Logo Navy Dark NEW.png");
@@ -1736,6 +1742,13 @@ function formatPdfTime(value) {
   }).format(date);
 }
 
+function clockMinutes(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.getHours() * 60 + date.getMinutes();
+}
+
 function formatPdfDateTime(value) {
   const date = formatPdfDate(value);
   const time = formatPdfTime(value);
@@ -1915,7 +1928,16 @@ function drawScoutLogo(doc, x, y, width, height) {
   doc.image(scoutLogoPath(), x, y, { fit: [width, height], align: "center", valign: "center" });
 }
 
-function addReportPage(doc, pageTitle = PDF_REPORT_TITLE, rows = []) {
+function footerPropertyLine(row) {
+  return [propertyName(row), propertyAddress(row)].map(singleLine).filter(Boolean).join(" · ");
+}
+
+function tradePageTitle(tradeLabel) {
+  const label = singleLine(tradeLabel, "General");
+  return `${label} Trade Items`;
+}
+
+function addReportPage(doc, pageTitle = PDF_REPORT_TITLE, footerRow = null) {
   doc.addPage({ size: "LETTER", margin: 42 });
   drawScoutLogo(doc, 221, 22, 170, 34);
   doc
@@ -1923,17 +1945,16 @@ function addReportPage(doc, pageTitle = PDF_REPORT_TITLE, rows = []) {
     .fontSize(11)
     .fillColor(SCOUT_NAVY)
     .text(pageTitle, 18, 18, { width: 220, height: 16 });
-  const first = rows[0] || {};
   doc
     .font("Helvetica")
-    .fontSize(8)
-    .fillColor("#334155")
-    .text(PUNCHLIST_COORDINATION_NOTE, 64, 724, { width: 484, height: 22, lineGap: 1 });
+    .fontSize(7)
+    .fillColor("#64748b")
+    .text(PUNCHLIST_COORDINATION_NOTE, 64, 724, { width: 484, height: 18, lineGap: 0.5 });
   doc
     .font("Helvetica")
     .fontSize(9)
-    .fillColor("#475569")
-    .text(propertyAddress(first) || "Unknown address", 64, 748, { width: 360, height: 12 });
+    .fillColor("#111827")
+    .text(footerPropertyLine(footerRow) || "Unknown property", 64, 748, { width: 380, height: 12 });
 }
 
 function drawLabelValue(doc, label, value, x, y, width) {
@@ -2042,6 +2063,35 @@ function truncatedLine(value, maxLength = 130) {
   return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}...`;
 }
 
+function truncateTextForLines(doc, value, { width, maxLines, font = "Helvetica", fontSize = 8 }) {
+  const text = singleLine(value);
+  if (!text) return "";
+  doc.font(font).fontSize(fontSize);
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = "";
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (doc.widthOfString(candidate) <= width) {
+      current = candidate;
+      continue;
+    }
+    if (current) lines.push(current);
+    current = word;
+    if (lines.length >= maxLines) break;
+  }
+  if (lines.length < maxLines && current) lines.push(current);
+  const consumed = lines.join(" ").split(/\s+/).filter(Boolean).length;
+  if (consumed < words.length && lines.length > 0) {
+    let last = lines[lines.length - 1];
+    while (last.length > 0 && doc.widthOfString(`${last}...`) > width) {
+      last = last.slice(0, -1).trim();
+    }
+    lines[lines.length - 1] = `${last || lines[lines.length - 1].slice(0, 1)}...`;
+  }
+  return lines.slice(0, maxLines).join("\n");
+}
+
 function noteSummary(row) {
   const notes = (Array.isArray(row.activity) ? row.activity : [])
     .filter((activity) => activity?.activityType === "note_added" && compactText(activity.note))
@@ -2065,85 +2115,142 @@ function contextLine(row) {
     .join("  |  ");
 }
 
+function priorityBorderColor(priority) {
+  return PRIORITY_BORDER_COLORS[normalizedPriority(priority)] || PRIORITY_BORDER_COLORS.medium;
+}
+
+function drawSidebarItem(doc, label, value, x, y, width, options = {}) {
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(6.7)
+    .fillColor("#64748b")
+    .text(String(label || "").toUpperCase(), x, y, { width, height: 8, lineBreak: false });
+  doc
+    .font(options.font || "Helvetica")
+    .fontSize(options.fontSize || 8.5)
+    .fillColor(options.color || "#111827")
+    .text(value || "None", x, y + 9, {
+      width,
+      height: options.height || 20,
+      lineGap: options.lineGap ?? 1,
+      ellipsis: true,
+    });
+}
+
+function drawIssueSidebar(doc, row, tradeLabel, x, y, width, height) {
+  const dueDate = formatPdfDueDate(row.dueDate);
+  const notes = truncateTextForLines(doc, noteSummary(row), {
+    width,
+    maxLines: 6,
+    font: "Helvetica",
+    fontSize: 7.6,
+  });
+
+  doc.save();
+  doc
+    .lineWidth(0.5)
+    .strokeColor("#cbd5e1")
+    .moveTo(x - 10, y + 4)
+    .lineTo(x - 10, y + height - 4)
+    .stroke();
+  doc.restore();
+
+  drawSidebarItem(doc, "Trade", tradeLabel, x, y + 8, width, { height: 24 });
+  drawSidebarItem(doc, "Due Date", dueDate, x, y + 48, width, { height: 28 });
+  drawSidebarItem(doc, "Notes", notes, x, y + 92, width, {
+    fontSize: 7.6,
+    height: 88,
+    lineGap: 1.1,
+  });
+}
+
 function drawIssueBlock(doc, row, tradeLabel, imageBuffer, y) {
   const outerMargin = 18;
-  const slotWidth = 612 - outerMargin * 2;
+  const photoWidth = 444;
+  const sidebarX = 480;
+  const sidebarWidth = 114;
   const metadataHeight = 66;
   const photoCaptionGap = 8;
   const photoHeight = 236;
   const captionY = y + photoHeight + photoCaptionGap;
-  drawIssuePhoto(doc, imageBuffer, outerMargin, y, slotWidth, photoHeight, {
+  drawIssuePhoto(doc, imageBuffer, outerMargin, y, photoWidth, photoHeight, {
     radius: 12,
-    borderColor: "#111827",
-    borderWidth: 1,
+    borderColor: priorityBorderColor(row.priority),
+    borderWidth: 2,
     backgroundColor: "#f2f2f2",
   });
+  drawIssueSidebar(doc, row, tradeLabel, sidebarX, y, sidebarWidth, photoHeight);
 
   const title = singleLine(row.title, "Flagged observation");
   const reason = singleLine(row.reason, title);
   const issueLine = reason === title ? title : `${title} - ${reason}`;
   const priority = titleCaseWords(row.priority || "medium");
-  const dueDate = formatPdfDueDate(row.dueDate);
-  const flagLine = `${priority} - ${tradeLabel} - ${truncatedLine(issueLine, 84)}`;
-  const dueLine = `Due: ${dueDate} | Notes: ${truncatedLine(noteSummary(row), 92)}`;
+  const flagLine = `${priority} Priority · Flag · ${truncatedLine(issueLine, 62)}`;
+  const context = [row.org?.name, propertyName(row)].map(singleLine).filter(Boolean).join(" · ");
 
   doc
     .font("Helvetica-Bold")
     .fontSize(11)
     .fillColor("#111827")
-    .text(locationCode(row), outerMargin, captionY, { width: slotWidth, align: "center", height: 14 });
+    .text(locationCode(row), outerMargin, captionY, { width: photoWidth, align: "center", height: 14 });
   doc
     .font("Helvetica")
     .fontSize(10)
     .fillColor("#111827")
-    .text(flagLine, outerMargin, captionY + 14, { width: slotWidth, align: "center", height: 14 });
+    .text(flagLine, outerMargin, captionY + 14, { width: photoWidth, align: "center", height: 14 });
   doc
     .font("Helvetica")
     .fontSize(9.5)
     .fillColor("#111827")
     .text(formatPdfDateTime(row.capturedAt || row.updatedAt) || "Unknown", outerMargin, captionY + 28, {
-      width: slotWidth,
+      width: photoWidth,
       align: "center",
       height: 14,
     });
   doc
     .font("Helvetica")
-    .fontSize(7.5)
-    .fillColor("#475569")
-    .text(dueLine, outerMargin, captionY + 44, { width: slotWidth, align: "center", height: 10 });
-  doc
-    .font("Helvetica")
     .fontSize(7.2)
     .fillColor("#64748b")
-    .text(truncatedLine(contextLine(row), 140), outerMargin, captionY + 55, {
-      width: slotWidth,
+    .text(truncatedLine(context || contextLine(row), 98), outerMargin, captionY + 45, {
+      width: photoWidth,
       align: "center",
-      height: metadataHeight - 55,
+      height: metadataHeight - 45,
     });
 }
 
-function earliestDate(values) {
-  const dates = values
-    .map((value) => new Date(value))
-    .filter((date) => !Number.isNaN(date.getTime()))
-    .sort((left, right) => left.getTime() - right.getTime());
-  return dates[0] || null;
-}
+function coverServiceWindow(rows, coverPhoto) {
+  const contextSession = coverPhoto?.session || rows.find((row) => row.session)?.session || null;
+  const candidates = contextSession?.startedAt || contextSession?.completedAt
+    ? [contextSession.startedAt, contextSession.completedAt]
+    : rows.map((row) => row.capturedAt);
+  const dates = candidates
+    .filter(Boolean)
+    .map((value) => ({ raw: value, date: new Date(value) }))
+    .filter((entry) => !Number.isNaN(entry.date.getTime()))
+    .sort((left, right) => left.date.getTime() - right.date.getTime());
+  const first = dates[0] || null;
+  const last = dates[dates.length - 1] || null;
+  if (!first) return { serviceDate: "", timeWindow: "" };
 
-function latestDate(values) {
-  const dates = values
-    .map((value) => new Date(value))
-    .filter((date) => !Number.isNaN(date.getTime()))
-    .sort((left, right) => right.getTime() - left.getTime());
-  return dates[0] || null;
-}
+  const serviceDate = formatPdfDate(first.raw);
+  if (!last || first.raw === last.raw) {
+    return { serviceDate, timeWindow: formatPdfTime(first.raw) };
+  }
 
-function serviceDateValues(rows, coverPhoto) {
-  return [
-    coverPhoto?.session?.startedAt,
-    coverPhoto?.session?.completedAt,
-    ...rows.flatMap((row) => [row.session?.startedAt, row.session?.completedAt, row.capturedAt]),
-  ].filter(Boolean);
+  const firstClock = clockMinutes(first.raw);
+  const lastClock = clockMinutes(last.raw);
+  const firstDate = formatPdfDate(first.raw);
+  const lastDate = formatPdfDate(last.raw);
+  if (firstDate === lastDate && firstClock != null && lastClock != null && lastClock < firstClock) {
+    return { serviceDate, timeWindow: formatPdfTime(first.raw) };
+  }
+  if (firstDate !== lastDate) {
+    return {
+      serviceDate,
+      timeWindow: `${formatPdfTime(first.raw)} to ${formatPdfDateTime(last.raw)}`,
+    };
+  }
+  return { serviceDate, timeWindow: `${formatPdfTime(first.raw)} to ${formatPdfTime(last.raw)}` };
 }
 
 function coverContext(rows, coverPhoto) {
@@ -2198,14 +2305,7 @@ function drawCoverCenteredText(doc, value, y, options = {}) {
 function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto) {
   const context = coverContext(rows, coverPhoto);
   const contextRow = { property: context.property, org: context.org, session: context.session };
-  const serviceDates = serviceDateValues(rows, coverPhoto);
-  const firstServiceDate = earliestDate(serviceDates);
-  const lastServiceDate = latestDate(serviceDates);
-  const serviceDate = firstServiceDate ? formatPdfDate(firstServiceDate) : "";
-  const timeWindow =
-    firstServiceDate && lastServiceDate
-      ? `${formatPdfTime(firstServiceDate)} to ${formatPdfTime(lastServiceDate)}`
-      : "";
+  const { serviceDate, timeWindow } = coverServiceWindow(rows, coverPhoto);
 
   doc.addPage({ size: "LETTER", margin: 42 });
   drawScoutLogo(doc, 72, 80, 468, 80);
@@ -2267,23 +2367,24 @@ async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null) {
   const coverImageBuffer = await coverImagePromise;
 
   drawCoverPage(doc, rows, coverImageBuffer || imageBuffers.get(rows[0]?.id) || null, coverPhoto);
-  let issueIndex = 0;
-  let currentTradeKey = "";
+  const rowsByTrade = new Map();
   for (const row of rows) {
     const tradeKey = normalizedTrade(row.trade);
-    if (issueIndex % 2 === 0) addReportPage(doc, PDF_REPORT_TITLE, rows);
-    const blockY = issueIndex % 2 === 0 ? 98 : 410;
+    const group = rowsByTrade.get(tradeKey) || [];
+    group.push(row);
+    rowsByTrade.set(tradeKey, group);
+  }
+
+  for (const [tradeKey, tradeRows] of rowsByTrade.entries()) {
     const label = tradeLabelFromOptions(tradeKey, tradeOptions);
-    if (currentTradeKey !== tradeKey) {
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(9.5)
-        .fillColor(SCOUT_NAVY)
-        .text(label, 42, blockY - 22, { width: 300 });
-      currentTradeKey = tradeKey;
+    for (let index = 0; index < tradeRows.length; index += 1) {
+      if (index % 2 === 0) {
+        addReportPage(doc, tradePageTitle(label), tradeRows[index]);
+      }
+      const blockY = index % 2 === 0 ? 98 : 410;
+      const row = tradeRows[index];
+      drawIssueBlock(doc, row, label, imageBuffers.get(row.id) || null, blockY);
     }
-    drawIssueBlock(doc, row, label, imageBuffers.get(row.id) || null, blockY);
-    issueIndex += 1;
   }
 
   const range = doc.bufferedPageRange();
