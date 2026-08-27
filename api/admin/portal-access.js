@@ -147,6 +147,8 @@ async function loadPortalAccess(service) {
       .from("org_memberships")
       .select("id,org_id,user_id,role,access_scope,created_at,updated_at,deleted_at")
       .is("deleted_at", null)
+      .in("role", Array.from(ORDINARY_ACCESS_ROLES))
+      .or("access_scope.eq.org,access_scope.is.null")
       .order("created_at", { ascending: false }),
   ]);
 
