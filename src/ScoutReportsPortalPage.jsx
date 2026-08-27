@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Camera,
   Check,
@@ -39,6 +39,10 @@ const REPORT_ORDER = {
 const ALL_PROPERTIES = "all";
 const DATE_FILTER_LATEST = "latest";
 const DATE_FILTER_ALL = "all";
+const FETCH_IDLE = "idle";
+const FETCH_LOADING = "loading";
+const FETCH_SUCCESS = "success";
+const FETCH_ERROR = "error";
 
 function formatDate(value) {
   if (!value) return "Not dated";
@@ -181,8 +185,10 @@ export default function ScoutReportsPortalPage() {
   const [packages, setPackages] = useState([]);
   const [reportsError, setReportsError] = useState("");
   const [reportsLoading, setReportsLoading] = useState(false);
+  const [reportsFetchStatus, setReportsFetchStatus] = useState(FETCH_IDLE);
   const [orgs, setOrgs] = useState([]);
   const [orgsLoading, setOrgsLoading] = useState(false);
+  const [orgsFetchStatus, setOrgsFetchStatus] = useState(FETCH_IDLE);
   const [selectedOrgId, setSelectedOrgId] = useState("");
   const [selectedPropertyId, setSelectedPropertyId] = useState(ALL_PROPERTIES);
   const [dateFilter, setDateFilter] = useState(DATE_FILTER_LATEST);
@@ -196,6 +202,9 @@ export default function ScoutReportsPortalPage() {
   const [flaggedOnlyByPackageId, setFlaggedOnlyByPackageId] = useState({});
   const [activePhotoViewer, setActivePhotoViewer] = useState(null);
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
+  const reportsRequestIdRef = useRef(0);
+  const orgsRequestIdRef = useRef(0);
+  const reportsRetrySessionKeyRef = useRef("");
 
   useEffect(() => {
     document.title = BRAND.siteTitle;
@@ -228,9 +237,39 @@ export default function ScoutReportsPortalPage() {
     };
   }, []);
 
-  async function loadReports(activeSession = session) {
+  function sessionRequestKey(activeSession = session) {
+    return [
+      activeSession?.user?.id || "",
+      activeSession?.access_token || "",
+    ].join(":");
+  }
+
+  function shouldRetryAfterSessionSettles(error) {
+    const status = Number(error?.status || 0);
+    const message = String(error?.message || "").toLowerCase();
+    return (
+      status === 401 ||
+      message.includes("authentication required") ||
+      message.includes("session") ||
+      message.includes("jwt")
+    );
+  }
+
+  async function getSettledSession(fallbackSession) {
+    if (!supabase) return fallbackSession;
+    await wait(300);
+    const { data } = await supabase.auth.getSession();
+    return data.session || fallbackSession;
+  }
+
+  async function loadReports(activeSession = session, options = {}) {
     if (!activeSession?.access_token) return;
+    const requestId = reportsRequestIdRef.current + 1;
+    reportsRequestIdRef.current = requestId;
+    const initialSessionKey = sessionRequestKey(activeSession);
+    const allowSessionRetry = options.allowSessionRetry !== false;
     setReportsLoading(true);
+    setReportsFetchStatus(FETCH_LOADING);
     setReportsError("");
     try {
       const response = await fetch("/api/report-packages", {
@@ -240,20 +279,47 @@ export default function ScoutReportsPortalPage() {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(body.error || "Unable to load reports.");
+        const error = new Error(body.error || "Unable to load reports.");
+        error.status = response.status;
+        throw error;
       }
+      if (requestId !== reportsRequestIdRef.current) return;
       setPackages(Array.isArray(body.packages) ? body.packages : []);
+      setReportsFetchStatus(FETCH_SUCCESS);
     } catch (error) {
+      if (requestId !== reportsRequestIdRef.current) return;
+      if (
+        allowSessionRetry &&
+        reportsRetrySessionKeyRef.current !== initialSessionKey &&
+        shouldRetryAfterSessionSettles(error)
+      ) {
+        reportsRetrySessionKeyRef.current = initialSessionKey;
+        const settledSession = await getSettledSession(activeSession);
+        if (requestId !== reportsRequestIdRef.current) return;
+        if (
+          settledSession?.access_token &&
+          (!activeSession.user?.id || settledSession.user?.id === activeSession.user.id)
+        ) {
+          await loadReports(settledSession, { allowSessionRetry: false });
+          return;
+        }
+      }
       setReportsError(error.message || "Unable to load reports.");
       setPackages([]);
+      setReportsFetchStatus(FETCH_ERROR);
     } finally {
-      setReportsLoading(false);
+      if (requestId === reportsRequestIdRef.current) {
+        setReportsLoading(false);
+      }
     }
   }
 
   async function loadOrgs(activeSession = session) {
     if (!activeSession?.access_token) return;
+    const requestId = orgsRequestIdRef.current + 1;
+    orgsRequestIdRef.current = requestId;
     setOrgsLoading(true);
+    setOrgsFetchStatus(FETCH_LOADING);
     try {
       const response = await fetch("/api/report-orgs", {
         headers: {
@@ -264,25 +330,37 @@ export default function ScoutReportsPortalPage() {
       if (!response.ok || !Array.isArray(body.orgs)) {
         throw new Error(body.error || "Unable to load organizations.");
       }
+      if (requestId !== orgsRequestIdRef.current) return;
       setOrgs(body.orgs);
+      setOrgsFetchStatus(FETCH_SUCCESS);
     } catch (error) {
+      if (requestId !== orgsRequestIdRef.current) return;
       setReportsError(error.message || "Unable to load organizations.");
       setOrgs([]);
+      setOrgsFetchStatus(FETCH_ERROR);
     } finally {
-      setOrgsLoading(false);
+      if (requestId === orgsRequestIdRef.current) {
+        setOrgsLoading(false);
+      }
     }
   }
 
   useEffect(() => {
     if (session?.access_token) {
-      loadReports(session);
+      loadReports(session, { allowSessionRetry: true });
       loadOrgs(session);
     } else {
+      reportsRequestIdRef.current += 1;
+      orgsRequestIdRef.current += 1;
       setPackages([]);
       setOrgs([]);
       setSelectedOrgId("");
       setSelectedPropertyId(ALL_PROPERTIES);
       setReportsError("");
+      setReportsLoading(false);
+      setOrgsLoading(false);
+      setReportsFetchStatus(FETCH_IDLE);
+      setOrgsFetchStatus(FETCH_IDLE);
       setCanOpenAdmin(false);
     }
   }, [session?.access_token]);
@@ -885,10 +963,30 @@ export default function ScoutReportsPortalPage() {
     );
   }, [dateFilter, latestPackageIdsForPropertyFilter, propertyFilteredPackages]);
 
+  const orgSelectionSettled =
+    orgOptions.length === 0 ||
+    Boolean(selectedOrgId && orgOptions.some((org) => org.id === selectedOrgId));
+  const propertySelectionSettled =
+    selectedPropertyId === ALL_PROPERTIES ||
+    propertyOptions.some((property) => property.id === selectedPropertyId);
+  const reportsViewSettled =
+    reportsFetchStatus === FETCH_SUCCESS &&
+    orgsFetchStatus === FETCH_SUCCESS &&
+    orgSelectionSettled &&
+    propertySelectionSettled;
+  const hasActiveLoadError =
+    reportsFetchStatus === FETCH_ERROR || orgsFetchStatus === FETCH_ERROR;
+
   const packageCountLabel = useMemo(() => {
     if (filteredPackages.length === 1) return "1 ready package";
     return `${filteredPackages.length} ready packages`;
   }, [filteredPackages.length]);
+
+  const sessionReportsStatusLabel = useMemo(() => {
+    if (reportsViewSettled) return packageCountLabel;
+    if (hasActiveLoadError) return "Report packages unavailable";
+    return "Loading ready packages";
+  }, [hasActiveLoadError, packageCountLabel, reportsViewSettled]);
 
   const newestPackageIds = useMemo(() => {
     const newestByProperty = new Map();
@@ -1145,7 +1243,7 @@ export default function ScoutReportsPortalPage() {
               <span className="font-semibold text-foreground">
                 {session.user?.email || "authenticated user"}
               </span>
-              . {packageCountLabel}.
+              . {sessionReportsStatusLabel}.
             </div>
 
             {reportsError && (
@@ -1154,13 +1252,13 @@ export default function ScoutReportsPortalPage() {
               </div>
             )}
 
-            {!reportsLoading && filteredPackages.length === 0 && (
+            {reportsViewSettled && filteredPackages.length === 0 && (
               <div className="rounded-lg border border-border bg-background p-6 text-sm text-foreground/70 shadow-sm">
                 {emptyPackagesMessage}
               </div>
             )}
 
-            {propertyGroups.map((group) => (
+            {reportsViewSettled && propertyGroups.map((group) => (
               <div key={group.id} className="grid gap-3">
                 {group.packages.map((reportPackage) => (
                   <article
