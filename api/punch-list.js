@@ -35,6 +35,7 @@ const MAX_ACTIVITY_ROWS = 1000;
 const MAX_NOTE_LENGTH = 1000;
 const ALL_VALUE = "all";
 const PDF_REPORT_TITLE = "Punch List Report";
+const PDF_VERSION_MARKER = "Punchlist PDF v2";
 const SCOUT_NAVY = "#1C2742";
 const PRIORITY_ORDER = ["critical", "high", "medium", "low"];
 const PUNCHLIST_COORDINATION_NOTE =
@@ -1814,11 +1815,21 @@ function safeFilenamePart(value) {
     .slice(0, 80) || "Punch_List";
 }
 
+function pdfFilenameTimestamp(date = new Date()) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+    String(date.getHours()).padStart(2, "0"),
+    String(date.getMinutes()).padStart(2, "0"),
+    String(date.getSeconds()).padStart(2, "0"),
+  ].join("-");
+}
+
 function punchListReportFilename(rows) {
   const first = rows[0] || {};
   const property = propertyName(first);
-  const date = new Date().toISOString().slice(0, 10);
-  return `${safeFilenamePart(property)}_Punch_List_Report_${date}.pdf`;
+  return `${safeFilenamePart(property)}_Punch_List_Report_${pdfFilenameTimestamp()}.pdf`;
 }
 
 function validatePdfScope(body) {
@@ -2170,6 +2181,8 @@ function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto) {
 
 async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null) {
   const doc = new PDFDocument({ autoFirstPage: false, bufferPages: true, size: "LETTER", margin: 42 });
+  doc.info.Title = PDF_REPORT_TITLE;
+  doc.info.Subject = PDF_VERSION_MARKER;
   const result = collectPdf(doc);
   const imageBuffers = new Map();
   const coverImagePromise = imageBufferFromUrl(coverPhoto?.previewUrl);
@@ -2204,6 +2217,11 @@ async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null) {
   const range = doc.bufferedPageRange();
   for (let index = range.start; index < range.start + range.count; index += 1) {
     doc.switchToPage(index);
+    doc
+      .font("Helvetica")
+      .fontSize(7.5)
+      .fillColor("#94a3b8")
+      .text(PDF_VERSION_MARKER, 386, 740, { width: 104, height: 10, align: "right" });
     doc
       .font("Helvetica")
       .fontSize(10)

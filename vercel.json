@@ -2,10 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "api/punch-list.js": {
-      "includeFiles": [
-        "node_modules/pdfkit/js/standard-fonts/**",
-        "public/Scout Only Logo Navy Dark NEW.png"
-      ]
+      "includeFiles": "{node_modules/pdfkit/js/standard-fonts/**,public/Scout Only Logo Navy Dark NEW.png}"
     }
   },
   "rewrites": [
