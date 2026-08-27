@@ -35,7 +35,7 @@ const MAX_ACTIVITY_ROWS = 1000;
 const MAX_NOTE_LENGTH = 1000;
 const ALL_VALUE = "all";
 const PDF_REPORT_TITLE = "Punch List Report";
-const PDF_VERSION_MARKER = "Punchlist PDF v4 trade sidebar layout";
+const PDF_VERSION_MARKER = "Punchlist PDF v5 caption sidebar polish";
 const SCOUT_NAVY = "#1C2742";
 const PRIORITY_ORDER = ["critical", "high", "medium", "low"];
 const PRIORITY_BORDER_COLORS = {
@@ -1755,6 +1755,22 @@ function formatPdfDateTime(value) {
   return [date, time].filter(Boolean).join(" ");
 }
 
+function formatPdfLongDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const dateText = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+  const timeText = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+  return `${dateText} · ${timeText}`;
+}
+
 function localDateOnly(value) {
   const text = compactText(value);
   if (!text) return null;
@@ -1948,7 +1964,7 @@ function addReportPage(doc, pageTitle = PDF_REPORT_TITLE, footerRow = null) {
   doc
     .font("Helvetica")
     .fontSize(7)
-    .fillColor("#64748b")
+    .fillColor("#000000")
     .text(PUNCHLIST_COORDINATION_NOTE, 64, 724, { width: 484, height: 18, lineGap: 0.5 });
   doc
     .font("Helvetica")
@@ -2103,31 +2119,72 @@ function noteSummary(row) {
   return notes.length ? notes.join("  |  ") : "No notes recorded.";
 }
 
-function contextLine(row) {
-  return [
-    propertyName(row),
-    propertyAddress(row),
-    row.org?.name,
-    formatPdfDateTime(row.capturedAt || row.updatedAt),
-  ]
-    .map((value) => singleLine(value))
-    .filter(Boolean)
-    .join("  |  ");
-}
-
 function priorityBorderColor(priority) {
   return PRIORITY_BORDER_COLORS[normalizedPriority(priority)] || PRIORITY_BORDER_COLORS.medium;
+}
+
+function drawCaptionFlagIcon(doc, x, y) {
+  doc.save();
+  doc.lineWidth(0.8).strokeColor("#dc2626").moveTo(x, y + 1).lineTo(x, y + 10).stroke();
+  doc
+    .path(`M ${x + 1} ${y + 1} L ${x + 8} ${y + 3} L ${x + 1} ${y + 5} Z`)
+    .fillColor("#dc2626")
+    .fill();
+  doc.restore();
+}
+
+function drawPriorityCaptionLine(doc, row, x, y, width) {
+  const priorityKey = normalizedPriority(row.priority);
+  const priority = titleCaseWords(priorityKey);
+  const title = singleLine(row.title);
+  const fallbackReason = title && title.toLowerCase() !== "flagged observation" ? title : "No reason recorded";
+  const reason = singleLine(row.reason, fallbackReason);
+  const reasonText = truncatedLine(reason, 64);
+  const dotSize = 7;
+  const gap = 5;
+  const flagWidth = 9;
+  const separator = " · ";
+
+  doc.font("Helvetica").fontSize(10);
+  const priorityWidth = doc.widthOfString(priority);
+  const separatorWidth = doc.widthOfString(separator);
+  const reasonWidth = doc.widthOfString(reasonText);
+  const totalWidth = dotSize + gap + priorityWidth + separatorWidth + flagWidth + gap + reasonWidth;
+  let currentX = x + Math.max(0, (width - totalWidth) / 2);
+
+  doc.circle(currentX + dotSize / 2, y + 7, dotSize / 2).fillColor(priorityBorderColor(priorityKey)).fill();
+  currentX += dotSize + gap;
+  doc
+    .font("Helvetica")
+    .fontSize(10)
+    .fillColor("#111827")
+    .text(priority, currentX, y, { width: priorityWidth + 1, height: 14, lineBreak: false });
+  currentX += priorityWidth;
+  doc.text(separator, currentX, y, { width: separatorWidth + 1, height: 14, lineBreak: false });
+  currentX += separatorWidth;
+  drawCaptionFlagIcon(doc, currentX, y + 2);
+  currentX += flagWidth + gap;
+  doc
+    .font("Helvetica")
+    .fontSize(10)
+    .fillColor("#dc2626")
+    .text(reasonText, currentX, y, {
+      width: Math.max(20, x + width - currentX),
+      height: 14,
+      lineBreak: false,
+      ellipsis: true,
+    });
 }
 
 function drawSidebarItem(doc, label, value, x, y, width, options = {}) {
   doc
     .font("Helvetica-Bold")
-    .fontSize(6.7)
-    .fillColor("#64748b")
-    .text(String(label || "").toUpperCase(), x, y, { width, height: 8, lineBreak: false });
+    .fontSize(7.4)
+    .fillColor("#000000")
+    .text(label || "", x, y, { width, height: 9, lineBreak: false });
   doc
     .font(options.font || "Helvetica")
-    .fontSize(options.fontSize || 8.5)
+    .fontSize(options.fontSize || 8.8)
     .fillColor(options.color || "#111827")
     .text(value || "None", x, y + 9, {
       width,
@@ -2141,9 +2198,9 @@ function drawIssueSidebar(doc, row, tradeLabel, x, y, width, height) {
   const dueDate = formatPdfDueDate(row.dueDate);
   const notes = truncateTextForLines(doc, noteSummary(row), {
     width,
-    maxLines: 6,
+    maxLines: 8,
     font: "Helvetica",
-    fontSize: 7.6,
+    fontSize: 7.8,
   });
 
   doc.save();
@@ -2155,21 +2212,20 @@ function drawIssueSidebar(doc, row, tradeLabel, x, y, width, height) {
     .stroke();
   doc.restore();
 
-  drawSidebarItem(doc, "Trade", tradeLabel, x, y + 8, width, { height: 24 });
-  drawSidebarItem(doc, "Due Date", dueDate, x, y + 48, width, { height: 28 });
-  drawSidebarItem(doc, "Notes", notes, x, y + 92, width, {
-    fontSize: 7.6,
-    height: 88,
-    lineGap: 1.1,
+  drawSidebarItem(doc, "Trade", tradeLabel, x, y + 6, width, { height: 25 });
+  drawSidebarItem(doc, "Due Date", dueDate, x, y + 45, width, { height: 30 });
+  drawSidebarItem(doc, "Notes", notes, x, y + 88, width, {
+    fontSize: 7.8,
+    height: 116,
+    lineGap: 1.25,
   });
 }
 
 function drawIssueBlock(doc, row, tradeLabel, imageBuffer, y) {
-  const outerMargin = 18;
-  const photoWidth = 444;
-  const sidebarX = 480;
-  const sidebarWidth = 114;
-  const metadataHeight = 66;
+  const outerMargin = 12;
+  const photoWidth = 430;
+  const sidebarX = 462;
+  const sidebarWidth = 132;
   const photoCaptionGap = 8;
   const photoHeight = 236;
   const captionY = y + photoHeight + photoCaptionGap;
@@ -2181,40 +2237,20 @@ function drawIssueBlock(doc, row, tradeLabel, imageBuffer, y) {
   });
   drawIssueSidebar(doc, row, tradeLabel, sidebarX, y, sidebarWidth, photoHeight);
 
-  const title = singleLine(row.title, "Flagged observation");
-  const reason = singleLine(row.reason, title);
-  const issueLine = reason === title ? title : `${title} - ${reason}`;
-  const priority = titleCaseWords(row.priority || "medium");
-  const flagLine = `${priority} Priority · Flag · ${truncatedLine(issueLine, 62)}`;
-  const context = [row.org?.name, propertyName(row)].map(singleLine).filter(Boolean).join(" · ");
-
   doc
     .font("Helvetica-Bold")
     .fontSize(11)
     .fillColor("#111827")
     .text(locationCode(row), outerMargin, captionY, { width: photoWidth, align: "center", height: 14 });
-  doc
-    .font("Helvetica")
-    .fontSize(10)
-    .fillColor("#111827")
-    .text(flagLine, outerMargin, captionY + 14, { width: photoWidth, align: "center", height: 14 });
+  drawPriorityCaptionLine(doc, row, outerMargin, captionY + 14, photoWidth);
   doc
     .font("Helvetica")
     .fontSize(9.5)
     .fillColor("#111827")
-    .text(formatPdfDateTime(row.capturedAt || row.updatedAt) || "Unknown", outerMargin, captionY + 28, {
+    .text(formatPdfLongDateTime(row.capturedAt || row.updatedAt) || "Unknown", outerMargin, captionY + 29, {
       width: photoWidth,
       align: "center",
       height: 14,
-    });
-  doc
-    .font("Helvetica")
-    .fontSize(7.2)
-    .fillColor("#64748b")
-    .text(truncatedLine(context || contextLine(row), 98), outerMargin, captionY + 45, {
-      width: photoWidth,
-      align: "center",
-      height: metadataHeight - 45,
     });
 }
 
