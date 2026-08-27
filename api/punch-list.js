@@ -37,6 +37,11 @@ const ALL_VALUE = "all";
 const PDF_REPORT_TITLE = "Punch List Report";
 const PDF_VERSION_MARKER = "Punchlist PDF v5 caption sidebar polish";
 const SCOUT_NAVY = "#1C2742";
+const ISSUE_PHOTO_SLOT_X = 12;
+const ISSUE_PHOTO_SLOT_WIDTH = 430;
+const ISSUE_PHOTO_SLOT_HEIGHT = 236;
+const ISSUE_SIDEBAR_TEXT_GAP = 9;
+const ISSUE_PAGE_RIGHT = 594;
 const PRIORITY_ORDER = ["critical", "high", "medium", "low"];
 const PRIORITY_BORDER_COLORS = {
   critical: "#dc2626",
@@ -1982,33 +1987,35 @@ function drawLabelValue(doc, label, value, x, y, width) {
     .text(value || "None", x, y + 10, { width, height: 24 });
 }
 
+function issuePhotoFitRect(doc, imageBuffer, x, y, width, height) {
+  if (imageBuffer) {
+    try {
+      const image = doc.openImage(imageBuffer);
+      const fitted = aspectFitBox({ width: image.width, height: image.height }, { x, y, width, height });
+      return {
+        ...fitted,
+        hasImage: true,
+        isLandscape: image.width >= image.height,
+      };
+    } catch {
+      return { x, y, width, height, hasImage: false, isLandscape: false };
+    }
+  }
+  return { x, y, width, height, hasImage: false, isLandscape: false };
+}
+
 function drawIssuePhoto(doc, imageBuffer, x, y, width, height, options = {}) {
   const radius = options.radius ?? 0;
   const borderColor = options.borderColor || "#d8dee8";
   const backgroundColor = options.backgroundColor || "#f1f5f9";
-  let drawX = x;
-  let drawY = y;
-  let drawWidth = width;
-  let drawHeight = height;
-
-  if (imageBuffer) {
-    try {
-      const image = doc.openImage(imageBuffer);
-      const fitted = aspectFitBox(
-        { width: image.width, height: image.height },
-        { x, y, width, height }
-      );
-      drawX = fitted.x;
-      drawY = fitted.y;
-      drawWidth = fitted.width;
-      drawHeight = fitted.height;
-    } catch {
-      drawX = x;
-      drawY = y;
-      drawWidth = width;
-      drawHeight = height;
-    }
-  }
+  const { x: drawX, y: drawY, width: drawWidth, height: drawHeight } = issuePhotoFitRect(
+    doc,
+    imageBuffer,
+    x,
+    y,
+    width,
+    height
+  );
 
   doc.save();
   if (imageBuffer) {
@@ -2222,35 +2229,62 @@ function drawIssueSidebar(doc, row, tradeLabel, x, y, width, height) {
   });
 }
 
-function drawIssueBlock(doc, row, tradeLabel, imageBuffer, y) {
-  const outerMargin = 12;
-  const photoWidth = 430;
-  const pageRight = 594;
-  const sidebarX = outerMargin + photoWidth + 14;
-  const sidebarWidth = Math.max(120, pageRight - sidebarX);
+function issuePageSidebarX(doc, rows, imageBuffers) {
+  const landscapeRightEdges = rows
+    .map((row) =>
+      issuePhotoFitRect(
+        doc,
+        imageBuffers.get(row.id),
+        ISSUE_PHOTO_SLOT_X,
+        0,
+        ISSUE_PHOTO_SLOT_WIDTH,
+        ISSUE_PHOTO_SLOT_HEIGHT
+      )
+    )
+    .filter((rect) => rect.hasImage && rect.isLandscape)
+    .map((rect) => rect.x + rect.width);
+  const referenceRight =
+    landscapeRightEdges.length > 0
+      ? Math.max(...landscapeRightEdges)
+      : ISSUE_PHOTO_SLOT_X + ISSUE_PHOTO_SLOT_WIDTH;
+  return Math.min(450, referenceRight + ISSUE_SIDEBAR_TEXT_GAP);
+}
+
+function drawIssueBlock(
+  doc,
+  row,
+  tradeLabel,
+  imageBuffer,
+  y,
+  sidebarX = ISSUE_PHOTO_SLOT_X + ISSUE_PHOTO_SLOT_WIDTH + ISSUE_SIDEBAR_TEXT_GAP
+) {
+  const sidebarWidth = Math.max(120, ISSUE_PAGE_RIGHT - sidebarX);
   const photoCaptionGap = 8;
-  const photoHeight = 236;
-  const captionY = y + photoHeight + photoCaptionGap;
-  drawIssuePhoto(doc, imageBuffer, outerMargin, y, photoWidth, photoHeight, {
+  const captionY = y + ISSUE_PHOTO_SLOT_HEIGHT + photoCaptionGap;
+  drawIssuePhoto(doc, imageBuffer, ISSUE_PHOTO_SLOT_X, y, ISSUE_PHOTO_SLOT_WIDTH, ISSUE_PHOTO_SLOT_HEIGHT, {
     radius: 12,
     borderColor: priorityBorderColor(row.priority),
     borderWidth: 2,
     backgroundColor: "#f2f2f2",
   });
-  drawIssueSidebar(doc, row, tradeLabel, sidebarX, y, sidebarWidth, photoHeight);
+  drawIssueSidebar(doc, row, tradeLabel, sidebarX, y, sidebarWidth, ISSUE_PHOTO_SLOT_HEIGHT);
 
   doc
     .font("Helvetica-Bold")
     .fontSize(11)
     .fillColor("#111827")
-    .text(locationCode(row), outerMargin, captionY, { width: photoWidth, align: "center", height: 14 });
-  drawPriorityCaptionLine(doc, row, outerMargin, captionY + 14, photoWidth);
+    .text(locationCode(row), ISSUE_PHOTO_SLOT_X, captionY, {
+      width: ISSUE_PHOTO_SLOT_WIDTH,
+      align: "center",
+      height: 14,
+    });
+  drawPriorityCaptionLine(doc, row, ISSUE_PHOTO_SLOT_X, captionY + 14, ISSUE_PHOTO_SLOT_WIDTH);
   doc
     .font("Helvetica")
     .fontSize(9.5)
     .fillColor("#111827")
-    .text(formatPdfLongDateTime(row.capturedAt || row.updatedAt) || "Unknown", outerMargin, captionY + 29, {
-      width: photoWidth,
+    .text(formatPdfLongDateTime(row.capturedAt || row.updatedAt) || "Unknown", ISSUE_PHOTO_SLOT_X, captionY + 29, {
+      width: ISSUE_PHOTO_SLOT_WIDTH,
       align: "center",
       height: 14,
     });
@@ -2415,13 +2449,14 @@ async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null) {
 
   for (const [tradeKey, tradeRows] of rowsByTrade.entries()) {
     const label = tradeLabelFromOptions(tradeKey, tradeOptions);
-    for (let index = 0; index < tradeRows.length; index += 1) {
-      if (index % 2 === 0) {
-        addReportPage(doc, tradePageTitle(label), tradeRows[index]);
-      }
-      const blockY = index % 2 === 0 ? 98 : 410;
-      const row = tradeRows[index];
-      drawIssueBlock(doc, row, label, imageBuffers.get(row.id) || null, blockY);
+    for (let index = 0; index < tradeRows.length; index += 2) {
+      const pageRows = tradeRows.slice(index, index + 2);
+      addReportPage(doc, tradePageTitle(label), pageRows[0]);
+      const sidebarX = issuePageSidebarX(doc, pageRows, imageBuffers);
+      pageRows.forEach((row, offset) => {
+        const blockY = offset === 0 ? 98 : 410;
+        drawIssueBlock(doc, row, label, imageBuffers.get(row.id) || null, blockY, sidebarX);
+      });
     }
   }
 
