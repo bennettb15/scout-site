@@ -2126,7 +2126,7 @@ function priorityBorderColor(priority) {
 function drawCaptionFlagIcon(doc, x, y) {
   const scale = 0.55;
   doc.save();
-  doc.translate(x - 2.6, y - 2.6).scale(scale);
+  doc.translate(x - 2.6, y - 3.3).scale(scale);
   doc
     .path("M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6z")
     .fillColor("#dc2626")
