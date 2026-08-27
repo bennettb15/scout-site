@@ -2405,6 +2405,13 @@ function PunchReportModal({
   if (!open) return null;
 
   const selectedCount = tradeItems.filter((item) => item.enabled && selectedTrades[item.id]).length;
+  const orderedTradeItems = tradeItems
+    .map((item, index) => ({ item, index }))
+    .sort((left, right) => {
+      if (left.item.enabled !== right.item.enabled) return left.item.enabled ? -1 : 1;
+      return left.index - right.index;
+    })
+    .map(({ item }) => item);
 
   return (
     <div
@@ -2439,7 +2446,7 @@ function PunchReportModal({
             </div>
           ) : (
             <div className="punch-report-trades">
-              {tradeItems.map((item) => (
+              {orderedTradeItems.map((item) => (
                 <label
                   key={item.id}
                   className={`punch-report-trade ${item.enabled ? "" : "is-disabled"}`}
