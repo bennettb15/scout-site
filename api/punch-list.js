@@ -2126,7 +2126,7 @@ function priorityBorderColor(priority) {
 function drawCaptionFlagIcon(doc, x, y) {
   const scale = 0.55;
   doc.save();
-  doc.translate(x - 2.6, y - 1.6).scale(scale);
+  doc.translate(x - 2.6, y - 2.6).scale(scale);
   doc
     .path("M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6z")
     .fillColor("#dc2626")
@@ -2153,7 +2153,7 @@ function drawPriorityCaptionLine(doc, row, x, y, width) {
   const totalWidth = dotSize + gap + priorityWidth + separatorWidth + flagWidth + gap + reasonWidth;
   let currentX = x + Math.max(0, (width - totalWidth) / 2);
 
-  doc.circle(currentX + dotSize / 2, y + 4.7, dotSize / 2).fillColor(priorityBorderColor(priorityKey)).fill();
+  doc.circle(currentX + dotSize / 2, y + 3.8, dotSize / 2).fillColor(priorityBorderColor(priorityKey)).fill();
   currentX += dotSize + gap;
   doc
     .font("Helvetica")
