@@ -1893,9 +1893,12 @@ export default function ScoutReportsPortalPage() {
                     {activePhotoLabel}
                   </div>
                   {activePhotoResolved ? (
-                    <div className="mt-1.5 flex justify-center text-xs font-semibold text-green-700">
+                    <div
+                      className="mt-1.5 flex justify-center text-xs font-semibold"
+                      style={{ color: "#15803d" }}
+                    >
                       <span className="inline-flex max-w-full items-center justify-center gap-1">
-                        <Check className="h-3.5 w-3.5 text-green-600" strokeWidth={4} />
+                        <Check className="h-3.5 w-3.5" strokeWidth={4} style={{ color: "#16a34a" }} />
                         <span className="truncate">
                           {activePhotoFlaggedReason
                             ? `Resolved: ${activePhotoFlaggedReason}`
