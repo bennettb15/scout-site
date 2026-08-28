@@ -40,7 +40,8 @@ export default async function handler(req, res) {
       return sendJson(res, 404, { error: "Original photo not found." });
     }
 
-    const { data: shotRow, error: shotError } = await auth.client
+    const service = createServiceClient();
+    const { data: shotRow, error: shotError } = await service
       .from("shots")
       .select(
         "id,org_id,property_id,session_id,building,elevation,detail_type,angle_index,shot_key,storage_bucket,storage_path,upload_state,deleted_at,captured_at,is_flagged,reason,priority"
@@ -64,7 +65,6 @@ export default async function handler(req, res) {
       return sendJson(res, 404, { error: "Original photo not found." });
     }
 
-    const service = createServiceClient();
     const snapshotMetadata = await loadSnapshotPhotoMetadata(service, reportPackage);
     const enrichedShotRow = enrichPhotoRowWithSnapshotMetadata(safeShotRow, snapshotMetadata);
     const filename = friendlyOriginalDownloadFilename(enrichedShotRow);

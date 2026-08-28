@@ -1,5 +1,6 @@
 import {
   authenticateRequest,
+  createServiceClient,
   methodAllowed,
   publicReportTypeLabel,
   sendJson,
@@ -84,6 +85,7 @@ export default async function handler(req, res) {
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
     const { client } = auth;
+    const service = createServiceClient();
     const { data: packageRows, error: packagesError } = await client
       .from("report_packages")
       .select(
@@ -153,7 +155,7 @@ export default async function handler(req, res) {
           .in("session_id", sessionIds)
           .is("deleted_at", null)
           .order("requested_at", { ascending: false }),
-        client
+        service
           .from("shots")
           .select("id,session_id")
           .in("session_id", sessionIds)

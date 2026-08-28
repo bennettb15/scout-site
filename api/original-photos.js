@@ -117,7 +117,8 @@ export default async function handler(req, res) {
       return sendJson(res, 404, { error: "Report package not found." });
     }
 
-    const { data: rows, error: shotsError } = await auth.client
+    const service = createServiceClient();
+    const { data: rows, error: shotsError } = await service
       .from("shots")
       .select(
         "id,org_id,property_id,session_id,building,elevation,detail_type,angle_index,captured_at,position,storage_bucket,storage_path,byte_size,upload_state,is_flagged,issue_id,issue_status,reason,priority,image_width,image_height"
@@ -139,7 +140,6 @@ export default async function handler(req, res) {
     const safeRows = (rows || [])
       .filter(originalPathIsExpected)
       .map((row) => ({ ...row, property_id: row.property_id || reportPackage.property_id }));
-    const service = createServiceClient();
     const snapshotMetadata = await loadSharedSnapshotPhotoMetadata(service, reportPackage);
     const enrichedRows = sortPhotoRowsBySnapshot(
       safeRows.map((row) => enrichPhotoRowWithSnapshotMetadata(row, snapshotMetadata))

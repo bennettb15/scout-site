@@ -377,9 +377,9 @@ async function enqueueStampedExport(client, reportPackage, cacheKey) {
   throw error;
 }
 
-export async function validateSelectedPhotoIds(auth, reportPackage, photoIds) {
+export async function validateSelectedPhotoIds(_auth, reportPackage, photoIds) {
   if (photoIds.length === 0) return [];
-  const { data, error } = await auth.client
+  const { data, error } = await createServiceClient()
     .from("shots")
     .select("id,session_id,property_id,storage_path")
     .in("id", photoIds)
@@ -396,9 +396,10 @@ export async function validateSelectedPhotoIds(auth, reportPackage, photoIds) {
   return photoIds;
 }
 
-export async function loadShotRowsForPhotoIds(auth, reportPackage, photoIds) {
+export async function loadShotRowsForPhotoIds(_auth, reportPackage, photoIds) {
   if (photoIds.length === 0) return [];
-  const { data, error } = await auth.client
+  const service = createServiceClient();
+  const { data, error } = await service
     .from("shots")
     .select(
       "id,org_id,property_id,session_id,building,elevation,detail_type,angle_index,shot_key,is_flagged,issue_status,reason,priority,storage_bucket,storage_path,upload_state,deleted_at,position,captured_at"
@@ -420,7 +421,7 @@ export async function loadShotRowsForPhotoIds(auth, reportPackage, photoIds) {
     property_id: row.property_id || reportPackage.property_id,
     is_resolved_in_session: String(row.issue_status || "").toLowerCase() === "resolved",
   }));
-  const snapshotMetadata = await loadSnapshotPhotoMetadata(createServiceClient(), reportPackage);
+  const snapshotMetadata = await loadSnapshotPhotoMetadata(service, reportPackage);
   return safeRows.map((row) => enrichShotRow(row, snapshotMetadata));
 }
 

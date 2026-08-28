@@ -204,7 +204,8 @@ export default async function handler(req, res) {
       return sendJson(res, 500, { error: "Unable to prepare original photos download." });
     }
 
-    const { data: rows, error: shotsError } = await auth.client
+    const service = createServiceClient();
+    const { data: rows, error: shotsError } = await service
       .from("shots")
       .select(
         "id,org_id,property_id,session_id,building,elevation,detail_type,angle_index,shot_key,storage_bucket,storage_path,upload_state,deleted_at,position,captured_at,is_flagged,reason,priority"
@@ -237,7 +238,6 @@ export default async function handler(req, res) {
       return sendJson(res, 404, { error: "Original photos not found." });
     }
 
-    const service = createServiceClient();
     const snapshotMetadata = await loadSnapshotPhotoMetadata(service, reportPackage);
     const enrichedRows = sortPhotoRowsBySnapshot(
       safeRows.map((row) => enrichPhotoRowWithSnapshotMetadata(row, snapshotMetadata))
