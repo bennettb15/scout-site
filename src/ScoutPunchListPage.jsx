@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Camera,
+  Check,
   ChevronDown,
   ClipboardList,
   Download,
@@ -841,6 +842,10 @@ const PUNCH_LIST_STYLES = `
     line-height: 1.25;
   }
 
+  .punch-flag-line.is-resolved {
+    color: rgb(21 128 61);
+  }
+
   .punch-flag-line span {
     min-width: 0;
     overflow: hidden;
@@ -1300,6 +1305,10 @@ const PUNCH_LIST_STYLES = `
     font-size: 14px;
     font-weight: 800;
     line-height: 1.3;
+  }
+
+  .punch-lightbox-issue.is-resolved {
+    color: rgb(21 128 61);
   }
 
   .punch-lightbox-issue span {
@@ -2279,6 +2288,7 @@ function IssueRow({
   const tradeValue = tradeKey(row.trade || "general") || "general";
   const dueDateValue = row.dueDate || "";
   const workflowTradeOptions = tradeOptionsForRow(row, tradeOptions);
+  const resolved = row.status === "resolved";
 
   return (
     <article
@@ -2304,9 +2314,13 @@ function IssueRow({
         </div>
         <div className="punch-row-main">
           <PunchMetadataHeader row={row} />
-          <div className="punch-flag-line">
-            <Flag className="h-3.5 w-3.5 shrink-0 fill-current" />
-            <span>{flagNote}</span>
+          <div className={`punch-flag-line ${resolved ? "is-resolved" : ""}`}>
+            {resolved ? (
+              <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={4} />
+            ) : (
+              <Flag className="h-3.5 w-3.5 shrink-0 fill-current" />
+            )}
+            <span>{resolved ? `Resolved: ${flagNote}` : flagNote}</span>
             {showNoteButton && (
               <button
                 type="button"
@@ -2502,6 +2516,7 @@ function PunchReportModal({
 function ImagePreviewModal({ row, onClose }) {
   if (!row?.preview?.previewUrl) return null;
   const flagNote = row.title || row.reason || "Flagged observation";
+  const resolved = row.status === "resolved";
   return (
     <div
       className="punch-lightbox"
@@ -2532,9 +2547,13 @@ function ImagePreviewModal({ row, onClose }) {
           />
         </div>
         <div className="punch-lightbox-summary">
-          <div className="punch-lightbox-issue">
-            <Flag className="h-3.5 w-3.5 shrink-0 fill-current" />
-            <span>{flagNote}</span>
+          <div className={`punch-lightbox-issue ${resolved ? "is-resolved" : ""}`}>
+            {resolved ? (
+              <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={4} />
+            ) : (
+              <Flag className="h-3.5 w-3.5 shrink-0 fill-current" />
+            )}
+            <span>{resolved ? `Resolved: ${flagNote}` : flagNote}</span>
           </div>
           <div className="punch-lightbox-priority">
             Priority

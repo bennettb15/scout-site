@@ -58,6 +58,12 @@ async function signedPreviewUrlForPhoto(service, row) {
 
 function publicPhoto(row, previewUrl = null) {
   const flaggedReason = String(row.reason || "").trim() || null;
+  const normalizedIssueStatus = String(row.issue_status || "").trim().toLowerCase();
+  const isResolvedInSession =
+    Boolean(row.is_resolved_in_session) ||
+    normalizedIssueStatus === "resolved" ||
+    normalizedIssueStatus === "closed";
+  const issueStatus = isResolvedInSession ? "resolved" : String(row.issue_status || "").trim() || null;
   return {
     id: row.id,
     displayName: friendlyPhotoDisplayName(row),
@@ -66,6 +72,11 @@ function publicPhoto(row, previewUrl = null) {
     byteSize: row.byte_size,
     mimeType: originalMimeType(row),
     isFlagged: Boolean(row.is_flagged),
+    isResolved: isResolvedInSession,
+    isResolvedInSession,
+    is_resolved_in_session: isResolvedInSession,
+    issueStatus,
+    issue_status: issueStatus,
     flaggedReason,
     flagReason: flaggedReason,
     reason: flaggedReason,
@@ -109,7 +120,7 @@ export default async function handler(req, res) {
     const { data: rows, error: shotsError } = await auth.client
       .from("shots")
       .select(
-        "id,org_id,property_id,session_id,building,elevation,detail_type,angle_index,captured_at,position,storage_bucket,storage_path,byte_size,upload_state,is_flagged,reason,priority,image_width,image_height"
+        "id,org_id,property_id,session_id,building,elevation,detail_type,angle_index,captured_at,position,storage_bucket,storage_path,byte_size,upload_state,is_flagged,issue_id,issue_status,reason,priority,image_width,image_height"
       )
       .eq("org_id", reportPackage.org_id)
       .eq("session_id", reportPackage.session_id)

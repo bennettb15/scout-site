@@ -556,7 +556,10 @@ function publicObservationRow({
   previewUrl,
 }) {
   const baseState = baseWorkflowState({ observation, update, shot });
-  const status = workflowOverride(workflowState, "status", baseState.status);
+  const latestShotResolved = isResolvedShot(shot);
+  const status = latestShotResolved
+    ? "resolved"
+    : workflowOverride(workflowState, "status", baseState.status);
   const useLatestShotDisplay = usesCarriedForwardObservationDisplay(observation, shot);
   const title = useLatestShotDisplay
     ? rowTitle(shot?.reason)
@@ -598,7 +601,13 @@ function publicObservationRow({
       ? shot?.captured_at || shot?.created_at || update?.captured_at || observation.first_seen_at || observation.created_at
       : update?.captured_at || shot?.captured_at || observation.first_seen_at || observation.created_at,
     updatedAt: update?.updated_at || observation.updated_at,
-    resolvedAt: observation.resolved_at || (status === "resolved" ? update?.updated_at || observation.updated_at : null),
+    resolvedAt:
+      observation.resolved_at ||
+      (status === "resolved"
+        ? (latestShotResolved && (shot?.updated_at || shot?.captured_at || shot?.created_at)) ||
+          update?.updated_at ||
+          observation.updated_at
+        : null),
     locationKey: shot ? locationKeyFromShot({ ...shot, property_id: observation.property_id }) : "",
     preview: publicPreview(shot, previewUrl, reportPackage),
     activity,
@@ -610,7 +619,7 @@ function publicObservationRow({
 }
 
 function publicShotRow({ shot, org, property, session, reportPackage, previewUrl, canAddNote, canEditWorkflow }) {
-  const status = normalizedStatus(shot.issue_status);
+  const status = statusFromLatestShot(shot);
   const title = rowTitle(shot.reason);
   const noteEditable = Boolean(canAddNote);
   const workflowEditable = Boolean(canEditWorkflow);
@@ -794,7 +803,15 @@ function workflowActivityErrorMessage(error, field) {
 }
 
 function isFlaggedShot(row) {
-  return Boolean(row?.is_flagged || row?.issue_id || compactText(row?.issue_status));
+  return Boolean(row?.is_flagged || row?.issue_id || compactText(row?.issue_status) || isResolvedShot(row));
+}
+
+function isResolvedShot(row) {
+  return Boolean(row?.is_resolved_in_session || normalizedStatus(row?.issue_status) === "resolved");
+}
+
+function statusFromLatestShot(row) {
+  return isResolvedShot(row) ? "resolved" : "active";
 }
 
 function latestFlaggedShotForObservation(observation, shot, latestFlaggedShotByIssueId, latestFlaggedShotByLocationKey) {
@@ -812,7 +829,7 @@ function latestFlaggedShotForObservation(observation, shot, latestFlaggedShotByI
 }
 
 function promotedObservationStatus(shot) {
-  return normalizedStatus(shot?.issue_status) === "resolved" ? "resolved" : "active";
+  return statusFromLatestShot(shot);
 }
 
 async function loadReadyReportPackageForShot(auth, shot, packageId) {
@@ -1740,7 +1757,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   }
 
   for (const shot of candidateShots) {
-    const isFlagged = Boolean(shot.is_flagged || shot.issue_id || compactText(shot.issue_status));
+    const isFlagged = isFlaggedShot(shot);
     if (!isFlagged) continue;
     const candidate = {
       shotId: shot.id,

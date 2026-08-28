@@ -203,7 +203,9 @@ function snapshotIssueId(shot) {
       shot?.flaggedIssueID ||
       shot?.flaggedIssueId ||
       shot?.activeIssueID ||
-      shot?.activeIssueId
+      shot?.activeIssueId ||
+      shot?.resolvedIssueID ||
+      shot?.resolvedIssueId
   );
 }
 
@@ -239,6 +241,12 @@ function snapshotResolvedInSession(shot, issuesById) {
         shot?.resolved_in_session
     )
   ) {
+    return true;
+  }
+  const captureKind = textValue(shot?.captureKind || shot?.capture_kind || shot?.kind)
+    ?.replace(/([a-z])([A-Z])/g, "$1_$2")
+    .toLowerCase();
+  if (captureKind === "resolved_capture") {
     return true;
   }
   const issue = issuesById.get(snapshotIssueId(shot));

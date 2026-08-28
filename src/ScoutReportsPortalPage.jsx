@@ -177,6 +177,25 @@ function photoFlaggedReason(photo) {
   return String(photo.flaggedReason || photo.flagReason || photo.reason || "").trim();
 }
 
+function photoIsResolved(photo) {
+  const status = String(photo?.issueStatus || photo?.issue_status || "").toLowerCase();
+  return Boolean(
+    photo?.isResolved ||
+      photo?.isResolvedInSession ||
+      photo?.is_resolved_in_session ||
+      status === "resolved" ||
+      status === "closed"
+  );
+}
+
+function photoIsFlagged(photo) {
+  return Boolean(photo?.isFlagged || photo?.flagged || photo?.is_flagged);
+}
+
+function photoHasIssueState(photo) {
+  return photoIsFlagged(photo) || photoIsResolved(photo);
+}
+
 export default function ScoutReportsPortalPage() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -712,7 +731,7 @@ export default function ScoutReportsPortalPage() {
   function visiblePhotos(reportPackage) {
     const photos = photosByPackageId[reportPackage.id] || [];
     if (!isFlaggedOnly(reportPackage)) return photos;
-    return photos.filter((photo) => photo.isFlagged);
+    return photos.filter(photoHasIssueState);
   }
 
   function photoViewerPhotos(viewer) {
@@ -1517,9 +1536,8 @@ export default function ScoutReportsPortalPage() {
                               {visiblePhotos(reportPackage).map((photo) => {
                                 const selected = isPhotoSelected(reportPackage, photo);
                                 const photoLabel = compactPhotoLabel(photo);
-                                const flagged = Boolean(
-                                  photo.isFlagged || photo.flagged || photo.is_flagged
-                                );
+                                const resolved = photoIsResolved(photo);
+                                const flagged = photoIsFlagged(photo);
                                 return (
                                   <div key={photo.id} className="min-w-0">
                                     <div
@@ -1599,7 +1617,33 @@ export default function ScoutReportsPortalPage() {
                                           }}
                                         />
                                       </button>
-                                      {flagged && (
+                                      {resolved ? (
+                                        <span
+                                          className="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/95 shadow-md ring-1 ring-green-100"
+                                          style={{
+                                            alignItems: "center",
+                                            background: "rgba(255,255,255,0.96)",
+                                            borderRadius: "9999px",
+                                            boxShadow: "0 2px 8px rgba(15, 23, 42, 0.22)",
+                                            display: "inline-flex",
+                                            height: "22px",
+                                            justifyContent: "center",
+                                            position: "absolute",
+                                            right: "6px",
+                                            top: "6px",
+                                            width: "22px",
+                                            zIndex: 20,
+                                          }}
+                                        >
+                                          <Check
+                                            className="h-3.5 w-3.5"
+                                            strokeWidth={4}
+                                            style={{
+                                              color: "#16a34a",
+                                            }}
+                                          />
+                                        </span>
+                                      ) : flagged && (
                                         <span
                                           className="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/95 shadow-md ring-1 ring-red-100"
                                           style={{
@@ -1727,10 +1771,9 @@ export default function ScoutReportsPortalPage() {
           const hasPreview = Boolean(activePhotoViewer.photo.previewUrl);
           const activePhotoLabel = compactPhotoLabel(activePhotoViewer.photo);
           const activePhotoFlagged = Boolean(
-            activePhotoViewer.photo.isFlagged ||
-              activePhotoViewer.photo.flagged ||
-              activePhotoViewer.photo.is_flagged
+            photoIsFlagged(activePhotoViewer.photo)
           );
+          const activePhotoResolved = photoIsResolved(activePhotoViewer.photo);
           const activePhotoFlaggedReason = photoFlaggedReason(activePhotoViewer.photo);
           return (
             <div
@@ -1849,7 +1892,18 @@ export default function ScoutReportsPortalPage() {
                   <div className="truncate text-sm font-semibold text-slate-900">
                     {activePhotoLabel}
                   </div>
-                  {activePhotoFlagged && (
+                  {activePhotoResolved ? (
+                    <div className="mt-1.5 flex justify-center text-xs font-semibold text-green-700">
+                      <span className="inline-flex max-w-full items-center justify-center gap-1">
+                        <Check className="h-3.5 w-3.5 text-green-600" strokeWidth={4} />
+                        <span className="truncate">
+                          {activePhotoFlaggedReason
+                            ? `Resolved: ${activePhotoFlaggedReason}`
+                            : "Resolved"}
+                        </span>
+                      </span>
+                    </div>
+                  ) : activePhotoFlagged && (
                     <div className="mt-1.5 flex justify-center text-xs font-semibold text-red-700">
                       <span className="inline-flex max-w-full items-center justify-center gap-1">
                         <Flag className="h-3.5 w-3.5 fill-red-600 text-red-600" />
