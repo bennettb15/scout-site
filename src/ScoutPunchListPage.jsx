@@ -3,6 +3,8 @@ import {
   Camera,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   Download,
   FileText,
@@ -725,16 +727,6 @@ const PUNCH_LIST_STYLES = `
     min-height: 156px;
   }
 
-  .punch-photo-stack {
-    position: relative;
-    width: 156px;
-    height: 156px;
-    min-width: 156px;
-    min-height: 156px;
-    overflow: hidden;
-    border-radius: 8px;
-  }
-
   .punch-thumbnail {
     display: flex;
     align-items: center;
@@ -765,51 +757,6 @@ const PUNCH_LIST_STYLES = `
     cursor: zoom-in;
   }
 
-  .punch-thumbnail-main {
-    position: absolute;
-    inset: 0;
-  }
-
-  .punch-history-thumbnail {
-    position: absolute;
-    right: 6px;
-    bottom: 6px;
-    width: 64px;
-    height: 64px;
-    min-width: 64px;
-    min-height: 64px;
-    max-width: 64px;
-    max-height: 64px;
-    flex-basis: 64px;
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.25);
-    z-index: 2;
-  }
-
-  .punch-photo-label {
-    position: absolute;
-    left: 6px;
-    bottom: 6px;
-    z-index: 3;
-    max-width: calc(100% - 12px);
-    border-radius: 999px;
-    background: rgba(15, 23, 42, 0.82);
-    color: white;
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0;
-    line-height: 1;
-    padding: 4px 6px;
-    pointer-events: none;
-    text-transform: uppercase;
-  }
-
-  .punch-history-thumbnail .punch-photo-label {
-    left: 4px;
-    bottom: 4px;
-    font-size: 9px;
-    padding: 3px 5px;
-  }
-
   .punch-thumbnail-button,
   .punch-thumbnail-button * {
     cursor: zoom-in;
@@ -829,12 +776,6 @@ const PUNCH_LIST_STYLES = `
   .punch-row-left .punch-thumbnail img {
     width: 156px;
     height: 156px;
-  }
-
-  .punch-row-left .punch-history-thumbnail,
-  .punch-row-left .punch-history-thumbnail img {
-    width: 64px;
-    height: 64px;
   }
 
   .punch-row-main {
@@ -1399,6 +1340,10 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-lightbox-media {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     min-height: 0;
     background: rgb(15 23 42);
   }
@@ -1409,6 +1354,85 @@ const PUNCH_LIST_STYLES = `
     height: 100%;
     max-height: min(66vh, 640px);
     object-fit: contain;
+  }
+
+  .punch-lightbox-photo-label {
+    position: absolute;
+    left: 14px;
+    top: 14px;
+    z-index: 2;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.86);
+    color: white;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0;
+    line-height: 1;
+    padding: 6px 9px;
+    text-transform: uppercase;
+  }
+
+  .punch-lightbox-nav {
+    position: absolute;
+    top: 50%;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.58);
+    background: rgba(15, 23, 42, 0.62);
+    color: white;
+    transform: translateY(-50%);
+  }
+
+  .punch-lightbox-nav:hover,
+  .punch-lightbox-nav:focus-visible {
+    background: rgba(15, 23, 42, 0.86);
+  }
+
+  .punch-lightbox-nav-previous {
+    left: 14px;
+  }
+
+  .punch-lightbox-nav-next {
+    right: 14px;
+  }
+
+  .punch-lightbox-filmstrip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    border-top: 1px solid rgb(30 41 59);
+    background: rgb(15 23 42);
+    padding: 9px 12px;
+  }
+
+  .punch-lightbox-filmstrip-button {
+    position: relative;
+    display: inline-flex;
+    flex: 0 0 58px;
+    width: 58px;
+    height: 42px;
+    overflow: hidden;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    background: rgb(30 41 59);
+    padding: 0;
+  }
+
+  .punch-lightbox-filmstrip-button.is-active {
+    border-color: white;
+  }
+
+  .punch-lightbox-filmstrip-button img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .punch-lightbox-close {
@@ -1696,13 +1720,6 @@ const PUNCH_LIST_STYLES = `
       min-height: 96px;
     }
 
-    .punch-photo-stack {
-      width: 96px;
-      height: 96px;
-      min-width: 96px;
-      min-height: 96px;
-    }
-
     .punch-row-left .punch-thumbnail,
     .punch-row-left .punch-thumbnail img {
       width: 96px;
@@ -1717,30 +1734,6 @@ const PUNCH_LIST_STYLES = `
       max-width: 96px !important;
       max-height: 96px !important;
       flex-basis: 96px !important;
-    }
-
-    .punch-row-left .punch-history-thumbnail {
-      right: 4px;
-      bottom: 4px;
-      width: 42px !important;
-      height: 42px !important;
-      min-width: 42px !important;
-      min-height: 42px !important;
-      max-width: 42px !important;
-      max-height: 42px !important;
-      flex-basis: 42px !important;
-    }
-
-    .punch-photo-label {
-      left: 4px;
-      bottom: 4px;
-      font-size: 8px;
-      padding: 3px 5px;
-    }
-
-    .punch-history-thumbnail .punch-photo-label {
-      font-size: 7px;
-      padding: 2px 4px;
     }
 
     .punch-row-controls {
@@ -1849,31 +1842,55 @@ const PUNCH_LIST_STYLES = `
   }
 `;
 
-function rowHistoryPhoto(row) {
-  const photo = row?.photoHistory?.prior;
-  return photo?.preview?.previewUrl ? photo : null;
-}
-
 function currentPhotoLabel(row) {
   return row?.status === "resolved" ? "Resolved" : "Current";
 }
 
-function historyPreviewRow(row, photo) {
-  return {
-    ...row,
-    shotId: photo?.shotId || row.shotId,
-    packageId: photo?.packageId || row.packageId,
-    capturedAt: photo?.capturedAt || row.capturedAt,
-    preview: photo?.preview || row.preview,
-    previewRoleLabel: photo?.label || "Previous",
-  };
+function photoIdentity(photo) {
+  return [
+    photo?.shotId,
+    photo?.preview?.originalDownload?.apiPath,
+    photo?.preview?.previewUrl,
+  ]
+    .map((value) => textValue(value).toLowerCase())
+    .find(Boolean);
 }
 
-function currentPreviewRow(row) {
-  return {
-    ...row,
-    previewRoleLabel: currentPhotoLabel(row),
+function rowHistoryPhotos(row) {
+  const history = row?.photoHistory;
+  const photos = [];
+  if (Array.isArray(history?.photos)) photos.push(...history.photos);
+  if (history?.prior) photos.push(history.prior);
+  return photos.filter((photo) => photo?.preview?.previewUrl);
+}
+
+function previewPhotosForRow(row) {
+  if (!row?.preview?.previewUrl) return [];
+  const current = {
+    label: currentPhotoLabel(row),
+    shotId: row.shotId,
+    packageId: row.packageId,
+    capturedAt: row.capturedAt,
+    preview: row.preview,
   };
+  const seen = new Set([photoIdentity(current)].filter(Boolean));
+  const photos = [current];
+
+  for (const photo of rowHistoryPhotos(row)) {
+    const normalized = {
+      label: row.status === "resolved" ? photo.label || "Before" : photo.label || "Previous",
+      shotId: photo.shotId,
+      packageId: photo.packageId,
+      capturedAt: photo.capturedAt,
+      preview: photo.preview,
+    };
+    const identity = photoIdentity(normalized);
+    if (identity && seen.has(identity)) continue;
+    if (identity) seen.add(identity);
+    photos.push(normalized);
+  }
+
+  return photos;
 }
 
 function IssueThumbnail({ row, large = false, onPreview }) {
@@ -1891,7 +1908,6 @@ function IssueThumbnail({ row, large = false, onPreview }) {
         aspectRatio: "1 / 1",
       };
   const label = locationLine(row) || row.title || "Punch list photo";
-  const historyPhoto = !large && onPreview && row.preview?.previewUrl ? rowHistoryPhoto(row) : null;
   const canPreviewCurrent = Boolean(row.preview?.previewUrl && onPreview);
   const content = row.preview?.previewUrl ? (
     <img
@@ -1905,58 +1921,6 @@ function IssueThumbnail({ row, large = false, onPreview }) {
   const className = `${sizeClass} punch-thumbnail ${
     large ? "punch-thumbnail-large" : ""
   } ${row.preview?.previewUrl && onPreview ? "punch-thumbnail-button" : ""}`;
-
-  if (historyPhoto) {
-    const mainClassName = `${className} punch-thumbnail-main`;
-    const historyClassName = "punch-thumbnail punch-thumbnail-button punch-history-thumbnail";
-    const mainContent = (
-      <>
-        {content}
-        <span className="punch-photo-label">{currentPhotoLabel(row)}</span>
-      </>
-    );
-    const priorContent = (
-      <>
-        <img
-          src={historyPhoto.preview.previewUrl}
-          alt={`${historyPhoto.label || "Previous"} photo for ${label}`}
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        />
-        <span className="punch-photo-label">{historyPhoto.label || "Previous"}</span>
-      </>
-    );
-
-    return (
-      <div className="punch-photo-stack" style={frameStyle}>
-        {canPreviewCurrent ? (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onPreview(currentPreviewRow(row));
-            }}
-            className={mainClassName}
-            aria-label={`Open ${currentPhotoLabel(row).toLowerCase()} photo preview`}
-          >
-            {mainContent}
-          </button>
-        ) : (
-          <div className={mainClassName}>{mainContent}</div>
-        )}
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onPreview(historyPreviewRow(row, historyPhoto));
-          }}
-          className={historyClassName}
-          aria-label={`Open ${(historyPhoto.label || "previous").toLowerCase()} photo preview`}
-        >
-          {priorContent}
-        </button>
-      </div>
-    );
-  }
 
   if (canPreviewCurrent) {
     return (
@@ -2687,13 +2651,45 @@ function PunchReportModal({
 }
 
 function ImagePreviewModal({ row, onClose }) {
-  if (!row?.preview?.previewUrl) return null;
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const photos = useMemo(() => previewPhotosForRow(row), [row]);
+  const activeIndex = Math.min(photoIndex, Math.max(photos.length - 1, 0));
+  const activePhoto = photos[activeIndex] || null;
+  const hasMultiplePhotos = photos.length > 1;
+
+  useEffect(() => {
+    setPhotoIndex(0);
+  }, [row?.id]);
+
+  useEffect(() => {
+    if (!hasMultiplePhotos) return undefined;
+    function handleKeyDown(event) {
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        setPhotoIndex((index) => (index + photos.length - 1) % photos.length);
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        setPhotoIndex((index) => (index + 1) % photos.length);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [hasMultiplePhotos, photos.length]);
+
+  if (!activePhoto) return null;
   const flagNote = row.title || row.reason || "Flagged observation";
   const resolved = row.status === "resolved";
-  const previewRoleLabel = row.previewRoleLabel || currentPhotoLabel(row);
-  const showingHistory = previewRoleLabel === "Before" || previewRoleLabel === "Previous";
-  const issueResolved = resolved && !showingHistory;
-  const issuePrefix = showingHistory ? `${previewRoleLabel}: ` : resolved ? "Resolved: " : "";
+  const issueResolved = resolved && activePhoto.label === "Resolved";
+  const issuePrefix = activePhoto.label ? `${activePhoto.label}: ` : "";
+  const goPrevious = (event) => {
+    event.stopPropagation();
+    setPhotoIndex((index) => (index + photos.length - 1) % photos.length);
+  };
+  const goNext = (event) => {
+    event.stopPropagation();
+    setPhotoIndex((index) => (index + 1) % photos.length);
+  };
   return (
     <div
       className="punch-lightbox"
@@ -2718,11 +2714,56 @@ function ImagePreviewModal({ row, onClose }) {
         </div>
         <div className="punch-lightbox-media">
           <img
-            src={row.preview.previewUrl}
+            src={activePhoto.preview.previewUrl}
             alt={locationCodeLine(row) || row.title || "Punch list photo preview"}
             className="punch-lightbox-image"
           />
+          <span className="punch-lightbox-photo-label">{activePhoto.label}</span>
+          {hasMultiplePhotos && (
+            <>
+              <button
+                type="button"
+                className="punch-lightbox-nav punch-lightbox-nav-previous"
+                onClick={goPrevious}
+                aria-label="Show previous punch list photo"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                className="punch-lightbox-nav punch-lightbox-nav-next"
+                onClick={goNext}
+                aria-label="Show next punch list photo"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </>
+          )}
         </div>
+        {hasMultiplePhotos && (
+          <div className="punch-lightbox-filmstrip" aria-label="Punch list photo history">
+            {photos.map((photo, index) => (
+              <button
+                key={`${photo.label}:${photoIdentity(photo) || index}`}
+                type="button"
+                className={`punch-lightbox-filmstrip-button ${
+                  index === activeIndex ? "is-active" : ""
+                }`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setPhotoIndex(index);
+                }}
+                aria-label={`Show ${photo.label.toLowerCase()} photo`}
+                aria-current={index === activeIndex ? "true" : undefined}
+              >
+                <img
+                  src={photo.preview.previewUrl}
+                  alt={`${photo.label} photo thumbnail`}
+                />
+              </button>
+            ))}
+          </div>
+        )}
         <div className="punch-lightbox-summary">
           <div className={`punch-lightbox-issue ${issueResolved ? "is-resolved" : ""}`}>
             {issueResolved ? (
