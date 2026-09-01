@@ -161,12 +161,17 @@ function stampedExportSummary(stampedExport) {
 }
 
 function packageSummary(reportPackage, originalPhotoCount = reportPackage.originalPhotoCount || 0) {
-  const stamped = stampedExportSummary(reportPackage.stampedExport).toLowerCase();
-  return [
+  const stampedStatus = reportPackage.stampedExport?.status
+    ? stampedExportSummary(reportPackage.stampedExport).toLowerCase()
+    : "";
+  const summaryParts = [
     countLabel(reportPackage.files.length, "PDF"),
     countLabel(originalPhotoCount, "original"),
-    `stamped export ${stamped}`,
-  ].join(" · ");
+  ];
+  if (stampedStatus) {
+    summaryParts.push(`stamped export ${stampedStatus}`);
+  }
+  return summaryParts.join(" · ");
 }
 
 function compactPhotoLabel(photo) {
