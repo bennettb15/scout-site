@@ -1,7 +1,9 @@
 import {
+  ORIGINALS_BUCKET,
   authenticateRequest,
   createServiceClient,
   methodAllowed,
+  originalPathIsExpected,
   publicReportTypeLabel,
   sendJson,
 } from "./_reportPortalShared.js";
@@ -48,6 +50,18 @@ function requestMode(req) {
   } catch {
     return "";
   }
+}
+
+function idsMatch(left, right) {
+  return String(left || "").toLowerCase() === String(right || "").toLowerCase();
+}
+
+function shotBelongsToPackage(shotRow, packageRow) {
+  return (
+    idsMatch(shotRow.org_id, packageRow.org_id) &&
+    idsMatch(shotRow.session_id, packageRow.session_id) &&
+    (!shotRow.property_id || idsMatch(shotRow.property_id, packageRow.property_id))
+  );
 }
 
 async function handleReportOrgs(req, res) {
@@ -157,9 +171,9 @@ export default async function handler(req, res) {
           .order("requested_at", { ascending: false }),
         service
           .from("shots")
-          .select("id,session_id")
+          .select("id,org_id,property_id,session_id,storage_path")
           .in("session_id", sessionIds)
-          .eq("storage_bucket", "scoutcapture-originals")
+          .eq("storage_bucket", ORIGINALS_BUCKET)
           .eq("upload_state", "uploaded")
           .is("deleted_at", null)
           .not("storage_path", "is", null),
@@ -172,11 +186,12 @@ export default async function handler(req, res) {
     const orgsById = new Map(orgRows.map((row) => [row.id, toOrg(row)]));
     const propertiesById = new Map(propertyRows.map((row) => [row.id, toProperty(row)]));
     const sessionsById = new Map(sessionRows.map((row) => [row.id, toSession(row)]));
-    const photoCountsBySessionId = new Map();
-    for (const row of shotRows) {
-      photoCountsBySessionId.set(
-        row.session_id,
-        (photoCountsBySessionId.get(row.session_id) || 0) + 1
+    const photoCountsByPackageId = new Map(packageRows.map((row) => [row.id, 0]));
+    const safeShotRows = (shotRows || []).filter(originalPathIsExpected);
+    for (const packageRow of packageRows) {
+      photoCountsByPackageId.set(
+        packageRow.id,
+        safeShotRows.filter((shotRow) => shotBelongsToPackage(shotRow, packageRow)).length
       );
     }
     const filesByPackageId = new Map();
@@ -218,7 +233,7 @@ export default async function handler(req, res) {
       sessionCompletedAt: row.session_completed_at,
       completedAt: row.completed_at,
       weatherSummary: row.weather_summary,
-      originalPhotoCount: photoCountsBySessionId.get(row.session_id) || 0,
+      originalPhotoCount: photoCountsByPackageId.get(row.id) || 0,
       files: filesByPackageId.get(row.id) || [],
       stampedExport:
         exportByPackageKey.get(`${row.org_id}:${row.property_id}:${row.session_id}:${row.snapshot_id}`) ||

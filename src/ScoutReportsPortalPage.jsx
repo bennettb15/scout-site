@@ -160,11 +160,11 @@ function stampedExportSummary(stampedExport) {
   return "Not prepared";
 }
 
-function packageSummary(reportPackage) {
+function packageSummary(reportPackage, originalPhotoCount = reportPackage.originalPhotoCount || 0) {
   const stamped = stampedExportSummary(reportPackage.stampedExport).toLowerCase();
   return [
     countLabel(reportPackage.files.length, "PDF"),
-    countLabel(reportPackage.originalPhotoCount || 0, "original"),
+    countLabel(originalPhotoCount, "original"),
     `stamped export ${stamped}`,
   ].join(" · ");
 }
@@ -732,6 +732,17 @@ export default function ScoutReportsPortalPage() {
     const photos = photosByPackageId[reportPackage.id] || [];
     if (!isFlaggedOnly(reportPackage)) return photos;
     return photos.filter(photoHasIssueState);
+  }
+
+  function originalPhotoCount(reportPackage) {
+    const photos = photosByPackageId[reportPackage.id];
+    return Array.isArray(photos) ? photos.length : reportPackage.originalPhotoCount || 0;
+  }
+
+  function visiblePhotoCount(reportPackage) {
+    const photos = photosByPackageId[reportPackage.id];
+    if (!Array.isArray(photos)) return reportPackage.originalPhotoCount || 0;
+    return isFlaggedOnly(reportPackage) ? visiblePhotos(reportPackage).length : photos.length;
   }
 
   function photoViewerPhotos(viewer) {
@@ -1368,7 +1379,7 @@ export default function ScoutReportsPortalPage() {
                           </div>
                         )}
                         <div className="mt-1 text-sm text-foreground/60">
-                          {packageSummary(reportPackage)}
+                          {packageSummary(reportPackage, originalPhotoCount(reportPackage))}
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -1460,7 +1471,7 @@ export default function ScoutReportsPortalPage() {
                               <Camera className="h-4 w-4 text-[var(--brand)]" />
                               Photos
                               <span className="text-xs font-medium text-foreground/55">
-                                {countLabel(reportPackage.originalPhotoCount || 0, "photo", "photos")}
+                                {countLabel(visiblePhotoCount(reportPackage), "photo", "photos")}
                               </span>
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
