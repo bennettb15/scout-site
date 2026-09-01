@@ -423,6 +423,76 @@ function addDedupKeys(set, row) {
   if (row?.locationKey) set.add(`loc:${row.locationKey}`);
 }
 
+function shotPhotoIdentity(row) {
+  return [keyValue(row?.id), keyValue(row?.storage_path)].filter(Boolean).join("|");
+}
+
+function sameShotPhoto(left, right) {
+  if (!left || !right) return false;
+  const leftId = keyValue(left.id);
+  const rightId = keyValue(right.id);
+  if (leftId && rightId && leftId === rightId) return true;
+  const leftPath = keyValue(left.storage_path);
+  const rightPath = keyValue(right.storage_path);
+  return Boolean(leftPath && rightPath && leftPath === rightPath);
+}
+
+function addHistoryShot(map, key, shot) {
+  if (!key || !shot) return;
+  const rows = map.get(key) || [];
+  rows.push(shot);
+  map.set(key, rows);
+}
+
+function rankedHistoryCandidates({
+  shot,
+  historyShotsByIssueId,
+  historyShotsByLocationKey,
+  candidateOrderByShotId,
+}) {
+  if (!shot) return [];
+  const issueId = keyValue(shot.issue_id);
+  const locationKey = locationKeyFromShot(shot);
+  const seen = new Set();
+  const candidates = [];
+  const addCandidate = (candidate) => {
+    const identity = shotPhotoIdentity(candidate);
+    if (!identity || seen.has(identity)) return;
+    seen.add(identity);
+    candidates.push(candidate);
+  };
+
+  for (const candidate of issueId ? historyShotsByIssueId.get(issueId) || [] : []) {
+    addCandidate(candidate);
+  }
+  for (const candidate of locationKey ? historyShotsByLocationKey.get(locationKey) || [] : []) {
+    addCandidate(candidate);
+  }
+
+  const currentOrder = candidateOrderByShotId.get(keyValue(shot.id));
+  return candidates
+    .filter((candidate) => !sameShotPhoto(candidate, shot))
+    .filter((candidate) => {
+      const candidateOrder = candidateOrderByShotId.get(keyValue(candidate.id));
+      if (Number.isFinite(currentOrder) && Number.isFinite(candidateOrder)) {
+        return candidateOrder > currentOrder;
+      }
+      const currentTimestamp = Date.parse(shot.captured_at || shot.created_at || "");
+      const candidateTimestamp = Date.parse(candidate.captured_at || candidate.created_at || "");
+      if (Number.isFinite(currentTimestamp) && Number.isFinite(candidateTimestamp)) {
+        return candidateTimestamp < currentTimestamp;
+      }
+      return true;
+    })
+    .sort((left, right) => {
+      const leftOrder = candidateOrderByShotId.get(keyValue(left.id));
+      const rightOrder = candidateOrderByShotId.get(keyValue(right.id));
+      const safeLeft = Number.isFinite(leftOrder) ? leftOrder : Number.POSITIVE_INFINITY;
+      const safeRight = Number.isFinite(rightOrder) ? rightOrder : Number.POSITIVE_INFINITY;
+      return safeLeft - safeRight;
+    });
+}
+
 function publicPreview(row, previewUrl, reportPackage) {
   const canDownloadOriginal = Boolean(reportPackage?.id && row?.id && originalPathIsExpected(row));
   return {
@@ -439,6 +509,41 @@ function publicPreview(row, previewUrl, reportPackage) {
         }
       : { available: false },
     stampedFilename: row ? stampedPhotoFilename(row) : null,
+  };
+}
+
+async function publicHistoryPhotoForRow({
+  row,
+  shot,
+  historyShotsByIssueId,
+  historyShotsByLocationKey,
+  candidateOrderByShotId,
+  packageBySession,
+  previewForShot,
+}) {
+  if (!row?.preview?.previewUrl || !shot) return null;
+  const candidates = rankedHistoryCandidates({
+    shot,
+    historyShotsByIssueId,
+    historyShotsByLocationKey,
+    candidateOrderByShotId,
+  });
+  const priorShot =
+    row.status === "resolved"
+      ? candidates.find((candidate) => !isResolvedShot(candidate))
+      : candidates.find((candidate) => !isResolvedShot(candidate)) || candidates[0];
+  if (!priorShot || sameShotPhoto(priorShot, shot)) return null;
+
+  const reportPackage = packageBySession.get(priorShot.session_id) || null;
+  const previewUrl = await previewForShot(priorShot);
+  if (!previewUrl || previewUrl === row.preview?.previewUrl) return null;
+
+  return {
+    label: row.status === "resolved" ? "Before" : "Previous",
+    shotId: priorShot.id,
+    packageId: reportPackage?.id || null,
+    capturedAt: priorShot.captured_at || priorShot.created_at || null,
+    preview: publicPreview(priorShot, previewUrl, reportPackage),
   };
 }
 
@@ -1699,8 +1804,17 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     const sessionShots = shotsBySession.get(reportPackage.session_id) || [];
     candidateShots.push(...sortPhotoRowsBySnapshot(sessionShots));
   }
+  const candidateOrderByShotId = new Map();
+  candidateShots.forEach((shot, index) => {
+    const shotId = keyValue(shot.id);
+    if (shotId && !candidateOrderByShotId.has(shotId)) {
+      candidateOrderByShotId.set(shotId, index);
+    }
+  });
   const latestFlaggedShotByIssueId = new Map();
   const latestFlaggedShotByLocationKey = new Map();
+  const historyShotsByIssueId = new Map();
+  const historyShotsByLocationKey = new Map();
   for (const shot of candidateShots) {
     if (!isFlaggedShot(shot)) continue;
     const issueId = keyValue(shot.issue_id);
@@ -1711,6 +1825,8 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     if (locationKey && !latestFlaggedShotByLocationKey.has(locationKey)) {
       latestFlaggedShotByLocationKey.set(locationKey, shot);
     }
+    addHistoryShot(historyShotsByIssueId, issueId, shot);
+    addHistoryShot(historyShotsByLocationKey, locationKey, shot);
   }
 
   const coverPhoto = includeCoverPhoto
@@ -1752,6 +1868,18 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       reportPackage,
       previewUrl: await previewForShot(shot),
     });
+    const historyPhoto = await publicHistoryPhotoForRow({
+      row,
+      shot,
+      historyShotsByIssueId,
+      historyShotsByLocationKey,
+      candidateOrderByShotId,
+      packageBySession,
+      previewForShot,
+    });
+    if (historyPhoto) {
+      row.photoHistory = { prior: historyPhoto };
+    }
     addDedupKeys(dedupKeys, row);
     rows.push(row);
   }
@@ -1781,6 +1909,18 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       canAddNote: noteWriterOrgIds.has(shot.org_id),
       canEditWorkflow: workflowEditorOrgIds.has(shot.org_id),
     });
+    const historyPhoto = await publicHistoryPhotoForRow({
+      row,
+      shot,
+      historyShotsByIssueId,
+      historyShotsByLocationKey,
+      candidateOrderByShotId,
+      packageBySession,
+      previewForShot,
+    });
+    if (historyPhoto) {
+      row.photoHistory = { prior: historyPhoto };
+    }
     addDedupKeys(dedupKeys, row);
     rows.push(row);
     if (rows.length >= MAX_ROWS) break;
