@@ -169,6 +169,7 @@ export const Trash2 = createIcon(
     <path d="M10 11v6M14 11v6" />
   </>
 );
+export const Upload = createIcon(<path d="M12 21V9m0 0 4 4m-4-4-4 4M5 3h14" />);
 export const UserPlus = createIcon(
   <>
     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />

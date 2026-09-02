@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import PDFDocument from "pdfkit";
 import {
@@ -33,6 +34,7 @@ const MAX_PREVIEW_URLS = 60;
 const MAX_PDF_PREVIEW_URLS = 250;
 const MAX_ACTIVITY_ROWS = 1000;
 const MAX_NOTE_LENGTH = 1000;
+const MAX_COMPLETION_PHOTO_BYTES = 25 * 1024 * 1024;
 const ALL_VALUE = "all";
 const PDF_REPORT_TITLE = "Punch List Report";
 const PDF_VERSION_MARKER = "Punchlist PDF v5 caption sidebar polish";
@@ -67,7 +69,42 @@ const WORKFLOW_ACTIVITY_TYPE_BY_FIELD = {
   dueDate: "due_date_changed",
   trade: "trade_changed",
 };
+const COMPLETION_ACTIVITY_TYPES = new Set([
+  "completion_submitted",
+  "completion_approved",
+  "completion_rejected",
+]);
 const MAX_TRADE_NAME_LENGTH = 60;
+const COMPLETION_PHOTO_PREFIX = "punchlist-completions";
+const COMPLETION_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/heic",
+  "image/heif",
+  "image/webp",
+]);
+const PUNCHLIST_ACTIVITY_BASE_SELECT = [
+  "id",
+  "org_id",
+  "property_id",
+  "observation_id",
+  "shot_id",
+  "activity_type",
+  "from_value",
+  "to_value",
+  "note",
+  "created_by",
+  "created_at",
+  "deleted_at",
+].join(",");
+const PUNCHLIST_ACTIVITY_SELECT = [
+  PUNCHLIST_ACTIVITY_BASE_SELECT,
+  "storage_bucket",
+  "storage_path",
+  "filename",
+  "mime_type",
+  "byte_size",
+].join(",");
 const FIELD_REVIEW_ELEVATION_ORDER = ["front", "north", "east", "south", "west", "rear"];
 const NATURAL_COLLATOR = new Intl.Collator("en-US", {
   numeric: true,
@@ -340,6 +377,15 @@ async function safeRows(query) {
   return data || [];
 }
 
+async function safePunchListActivityRows(buildQuery) {
+  const { data, error } = await buildQuery(PUNCHLIST_ACTIVITY_SELECT);
+  if (!error) return data || [];
+
+  const { data: fallbackData, error: fallbackError } = await buildQuery(PUNCHLIST_ACTIVITY_BASE_SELECT);
+  if (fallbackError) return [];
+  return fallbackData || [];
+}
+
 async function maybeServiceClient() {
   try {
     return createServiceClient();
@@ -381,6 +427,108 @@ async function signedPreviewUrlForPhoto(service, row) {
   const { data } = await service.storage
     .from(DELIVERABLES_BUCKET)
     .createSignedUrl(previewPath, SIGNED_URL_SECONDS);
+  return data?.signedUrl || null;
+}
+
+function safeFilename(value) {
+  return String(value || "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter(Boolean)
+    .pop()
+    ?.replace(/[^A-Za-z0-9._ -]+/g, "_")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 140) || "completion-photo.jpg";
+}
+
+function extensionForCompletionPhoto(filename, mimeType) {
+  const extension = String(filename || "").split(".").pop()?.toLowerCase();
+  if (["jpg", "jpeg", "png", "heic", "heif", "webp"].includes(extension || "")) {
+    return extension === "jpeg" ? "jpg" : extension;
+  }
+  switch (String(mimeType || "").toLowerCase()) {
+    case "image/png":
+      return "png";
+    case "image/heic":
+      return "heic";
+    case "image/heif":
+      return "heif";
+    case "image/webp":
+      return "webp";
+    case "image/jpeg":
+    default:
+      return "jpg";
+  }
+}
+
+function validateCompletionPhotoMetadata(input = {}) {
+  const filename = safeFilename(input.filename || input.name);
+  const mimeType = compactText(input.mimeType || input.type)?.toLowerCase() || "";
+  const byteSize = Number(input.byteSize || input.size || 0);
+  if (!COMPLETION_IMAGE_TYPES.has(mimeType)) {
+    const error = new Error("Completion photo must be a JPEG, PNG, HEIC, HEIF, or WebP image.");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!Number.isFinite(byteSize) || byteSize <= 0 || byteSize > MAX_COMPLETION_PHOTO_BYTES) {
+    const error = new Error("Completion photo must be 25 MB or smaller.");
+    error.statusCode = 400;
+    throw error;
+  }
+  return {
+    filename,
+    mimeType,
+    byteSize: Math.round(byteSize),
+    extension: extensionForCompletionPhoto(filename, mimeType),
+  };
+}
+
+function completionPhotoPrefix(observation) {
+  return [
+    COMPLETION_PHOTO_PREFIX,
+    "orgs",
+    observation.org_id,
+    "properties",
+    observation.property_id,
+    "observations",
+    observation.id,
+  ]
+    .map((part) => String(part).toLowerCase())
+    .join("/") + "/";
+}
+
+function completionPhotoPath(observation, uploadId, extension) {
+  return `${completionPhotoPrefix(observation)}${String(uploadId).toLowerCase()}.${extension}`;
+}
+
+function completionPhotoPathIsExpected(observation, storagePath) {
+  const value = String(storagePath || "").toLowerCase();
+  return Boolean(
+    value.startsWith(completionPhotoPrefix(observation)) &&
+      !value.includes("..") &&
+      value.split("/").filter(Boolean).length === 8
+  );
+}
+
+async function signedCompletionPhotoUrl(service, activity) {
+  const observationRef = activity
+    ? {
+        ...activity,
+        id: activity.observation_id || activity.id,
+      }
+    : null;
+  if (
+    !service ||
+    activity?.storage_bucket !== DELIVERABLES_BUCKET ||
+    !activity?.storage_path ||
+    !completionPhotoPathIsExpected(observationRef, activity.storage_path)
+  ) {
+    return null;
+  }
+  const { data } = await service.storage
+    .from(DELIVERABLES_BUCKET)
+    .createSignedUrl(activity.storage_path, SIGNED_URL_SECONDS);
   return data?.signedUrl || null;
 }
 
@@ -539,7 +687,7 @@ async function publicHistoryPhotoForRow({
   if (!previewUrl || previewUrl === row.preview?.previewUrl) return null;
 
   return {
-    label: row.status === "resolved" ? "Before" : "Previous",
+    label: row.status === "resolved" || row.status === "pending_review" ? "Before" : "Previous",
     shotId: priorShot.id,
     packageId: reportPackage?.id || null,
     capturedAt: priorShot.captured_at || priorShot.created_at || null,
@@ -571,10 +719,38 @@ async function publicCoverPhoto({
   };
 }
 
+function publicActivityAttachment(row, previewUrl) {
+  if (!row?.storage_path) return null;
+  return {
+    filename: compactText(row.filename) || "Completion photo",
+    mimeType: compactText(row.mime_type),
+    byteSize: Number.isFinite(Number(row.byte_size)) ? Number(row.byte_size) : null,
+    previewUrl,
+    previewExpiresInSeconds: previewUrl ? SIGNED_URL_SECONDS : null,
+  };
+}
+
+function completionPhotoFromActivity(row, previewUrl, label) {
+  if (!row?.storage_path || !previewUrl) return null;
+  return {
+    label,
+    activityId: row.id,
+    capturedAt: row.created_at || null,
+    preview: {
+      displayName: compactText(row.filename) || "Completion photo",
+      previewUrl,
+      previewExpiresInSeconds: SIGNED_URL_SECONDS,
+      originalDownload: { available: false },
+      stampedFilename: null,
+    },
+  };
+}
+
 function publicActivityRow(row, options = {}) {
   if (!row) return null;
   const canDelete = Boolean(options.canDelete);
   const canEdit = Boolean(options.canEdit);
+  const attachment = publicActivityAttachment(row, options.attachmentPreviewUrl || null);
   return {
     id: row.id,
     activityType: row.activity_type,
@@ -583,6 +759,7 @@ function publicActivityRow(row, options = {}) {
     note: compactText(row.note),
     createdBy: row.created_by || null,
     createdAt: row.created_at,
+    attachment,
     canEdit,
     canDelete,
     permissions: {
@@ -612,6 +789,45 @@ function workflowStateFromActivity(rows) {
     }
   }
   return state;
+}
+
+function completionStatusFromActivityType(activityType) {
+  if (activityType === "completion_submitted") return "pending_review";
+  if (activityType === "completion_approved") return "resolved";
+  if (activityType === "completion_rejected") return "active";
+  return "";
+}
+
+function operationalStatusFromActivity(rows) {
+  for (const row of rows || []) {
+    const completionStatus = completionStatusFromActivityType(row?.activity_type);
+    if (completionStatus) return completionStatus;
+    if (row?.activity_type === "status_changed") return normalizedStatus(row.to_value);
+  }
+  return "";
+}
+
+function completionStateFromActivity(rows) {
+  const activityRows = rows || [];
+  for (const row of activityRows) {
+    const status = completionStatusFromActivityType(row?.activity_type);
+    if (!status) continue;
+    const referencedSubmissionId = validateUuid(row.from_value);
+    const submission =
+      row.activity_type === "completion_submitted"
+        ? row
+        : activityRows.find(
+            (candidate) =>
+              candidate.activity_type === "completion_submitted" &&
+              (!referencedSubmissionId || candidate.id === referencedSubmissionId)
+          ) || null;
+    return {
+      status,
+      activity: row,
+      submission,
+    };
+  }
+  return null;
 }
 
 function baseWorkflowState({ observation, update, shot }) {
@@ -652,7 +868,11 @@ function publicObservationRow({
   activity,
   canAddNote,
   canEditWorkflow,
+  canReviewCompletion,
   workflowState,
+  statusOverride,
+  completionState,
+  completionPhoto,
   shot,
   org,
   property,
@@ -664,7 +884,10 @@ function publicObservationRow({
   const latestShotResolved = isResolvedShot(shot);
   const status = latestShotResolved
     ? "resolved"
-    : workflowOverride(workflowState, "status", baseState.status);
+    : statusOverride || workflowOverride(workflowState, "status", baseState.status);
+  const preview = completionPhoto && ["pending_review", "resolved"].includes(status)
+    ? completionPhoto.preview
+    : publicPreview(shot, previewUrl, reportPackage);
   const useLatestShotDisplay = usesCarriedForwardObservationDisplay(observation, shot);
   const title = useLatestShotDisplay
     ? rowTitle(shot?.reason)
@@ -709,16 +932,27 @@ function publicObservationRow({
     resolvedAt:
       observation.resolved_at ||
       (status === "resolved"
-        ? (latestShotResolved && (shot?.updated_at || shot?.captured_at || shot?.created_at)) ||
+        ? completionPhoto?.capturedAt ||
+          (latestShotResolved && (shot?.updated_at || shot?.captured_at || shot?.created_at)) ||
           update?.updated_at ||
           observation.updated_at
         : null),
     locationKey: shot ? locationKeyFromShot({ ...shot, property_id: observation.property_id }) : "",
-    preview: publicPreview(shot, previewUrl, reportPackage),
+    preview,
     activity,
+    completionReview:
+      status === "pending_review" && completionState?.submission?.id
+        ? {
+            activityId: completionState.submission.id,
+            submittedAt: completionState.submission.created_at || null,
+            note: compactText(completionState.submission.note),
+          }
+        : null,
     permissions: {
       canAddNote: noteEditable,
       canEditWorkflow: workflowEditable,
+      canSubmitCompletion: noteEditable && status === "active",
+      canReviewCompletion: Boolean(canReviewCompletion && status === "pending_review"),
     },
   };
 }
@@ -761,6 +995,8 @@ function publicShotRow({ shot, org, property, session, reportPackage, previewUrl
     permissions: {
       canAddNote: noteEditable,
       canEditWorkflow: workflowEditable,
+      canSubmitCompletion: noteEditable && status === "active",
+      canReviewCompletion: false,
     },
   };
 }
@@ -840,6 +1076,17 @@ function validateNoteText(value) {
     error.statusCode = 400;
     throw error;
   }
+  if (note.length > MAX_NOTE_LENGTH) {
+    const error = new Error(`Notes must be ${MAX_NOTE_LENGTH} characters or fewer.`);
+    error.statusCode = 400;
+    throw error;
+  }
+  return note;
+}
+
+function validateOptionalCompletionNote(value) {
+  const note = compactText(value);
+  if (!note) return null;
   if (note.length > MAX_NOTE_LENGTH) {
     const error = new Error(`Notes must be ${MAX_NOTE_LENGTH} characters or fewer.`);
     error.statusCode = 400;
@@ -1148,17 +1395,30 @@ async function resolveWorkflowObservation(auth, service, { observationId, shotId
 }
 
 async function workflowStateForObservation(service, observationId) {
+  const data = await safePunchListActivityRows((select) =>
+    service
+      .from("punchlist_activity")
+      .select(select)
+      .eq("observation_id", observationId)
+      .in("activity_type", Object.keys(WORKFLOW_ACTIVITY_FIELD_BY_TYPE))
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(50)
+  );
+  return workflowStateFromActivity(data);
+}
+
+async function activityRowsForCompletionReview(service, observationId) {
   const { data, error } = await service
     .from("punchlist_activity")
-    .select("activity_type,to_value,created_at,deleted_at")
+    .select(PUNCHLIST_ACTIVITY_SELECT)
     .eq("observation_id", observationId)
-    .in("activity_type", Object.keys(WORKFLOW_ACTIVITY_FIELD_BY_TYPE))
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(100);
 
-  if (error) return {};
-  return workflowStateFromActivity(data || []);
+  if (error) return [];
+  return data || [];
 }
 
 function workflowValueForField({ observation, workflowState }, field) {
@@ -1375,6 +1635,261 @@ async function handleAddTradeOption(req, res) {
   }
 }
 
+async function handlePrepareCompletionUpload(req, res) {
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body." });
+  }
+
+  const observationId = validateUuid(body.observationId);
+  const shotId = validateUuid(body.shotId);
+  const packageId = validateUuid(body.packageId);
+  if (!observationId && !shotId) {
+    return sendJson(res, 400, { error: "Valid observation or shot ID is required." });
+  }
+
+  let photoMetadata;
+  try {
+    photoMetadata = validateCompletionPhotoMetadata(body.file || body);
+  } catch (error) {
+    return sendJson(res, error.statusCode || 400, { error: error.message });
+  }
+
+  try {
+    const auth = await authenticateRequest(req);
+    if (auth.error) return sendJson(res, 401, { error: auth.error });
+
+    const service = createServiceClient();
+    await ensureUserProfile(service, auth.user, auth.user.id);
+    const observation = await resolveNoteObservation(auth, service, { observationId, shotId, packageId });
+    const activityRows = await activityRowsForCompletionReview(service, observation.id);
+    const currentStatus =
+      operationalStatusFromActivity(activityRows) || normalizedStatus(observation.status);
+    if (currentStatus === "resolved" || currentStatus === "pending_review") {
+      return sendJson(res, 400, {
+        error:
+          currentStatus === "resolved"
+            ? "Resolved punch list items cannot receive completion submissions."
+            : "This punch list item is already pending review.",
+      });
+    }
+
+    const uploadId = randomUUID();
+    const storagePath = completionPhotoPath(observation, uploadId, photoMetadata.extension);
+    const { data, error } = await service.storage
+      .from(DELIVERABLES_BUCKET)
+      .createSignedUploadUrl(storagePath);
+
+    if (error || !data?.token) {
+      return sendJson(res, 500, { error: "Unable to prepare completion photo upload." });
+    }
+
+    return sendJson(res, 200, {
+      observationId: observation.id,
+      upload: {
+        bucket: DELIVERABLES_BUCKET,
+        path: storagePath,
+        token: data.token,
+        signedUrl: data.signedUrl || null,
+        filename: photoMetadata.filename,
+        mimeType: photoMetadata.mimeType,
+        byteSize: photoMetadata.byteSize,
+      },
+    });
+  } catch (error) {
+    return sendJson(res, error.statusCode || 500, {
+      error: error.message || "Unable to prepare completion photo upload.",
+    });
+  }
+}
+
+async function handleSubmitCompletion(req, res) {
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body." });
+  }
+
+  const observationId = validateUuid(body.observationId);
+  const shotId = validateUuid(body.shotId);
+  const packageId = validateUuid(body.packageId);
+  if (!observationId && !shotId) {
+    return sendJson(res, 400, { error: "Valid observation or shot ID is required." });
+  }
+
+  let note = null;
+  let photoMetadata;
+  try {
+    note = validateOptionalCompletionNote(body.note);
+    photoMetadata = validateCompletionPhotoMetadata(body.upload || body.file || {});
+  } catch (error) {
+    return sendJson(res, error.statusCode || 400, { error: error.message });
+  }
+
+  const upload = body.upload || {};
+  const storageBucket = compactText(upload.bucket);
+  const storagePath = compactText(upload.path);
+  if (storageBucket !== DELIVERABLES_BUCKET || !storagePath) {
+    return sendJson(res, 400, { error: "Completion photo upload reference is required." });
+  }
+
+  try {
+    const auth = await authenticateRequest(req);
+    if (auth.error) return sendJson(res, 401, { error: auth.error });
+
+    const service = createServiceClient();
+    await ensureUserProfile(service, auth.user, auth.user.id);
+    const observation = await resolveNoteObservation(auth, service, { observationId, shotId, packageId });
+    if (!completionPhotoPathIsExpected(observation, storagePath)) {
+      return sendJson(res, 400, { error: "Completion photo upload reference is not valid." });
+    }
+
+    const activityRows = await activityRowsForCompletionReview(service, observation.id);
+    const currentStatus =
+      operationalStatusFromActivity(activityRows) || normalizedStatus(observation.status);
+    if (currentStatus === "resolved" || currentStatus === "pending_review") {
+      return sendJson(res, 400, {
+        error:
+          currentStatus === "resolved"
+            ? "Resolved punch list items cannot receive completion submissions."
+            : "This punch list item is already pending review.",
+      });
+    }
+
+    if (!(await deliverableObjectExists(service, storagePath))) {
+      return sendJson(res, 400, { error: "Completion photo upload was not found." });
+    }
+
+    const { data: activity, error: activityError } = await service
+      .from("punchlist_activity")
+      .insert({
+        org_id: observation.org_id,
+        property_id: observation.property_id,
+        observation_id: observation.id,
+        shot_id: observation.shot_id || null,
+        activity_type: "completion_submitted",
+        from_value: currentStatus || "active",
+        to_value: "pending_review",
+        note,
+        storage_bucket: DELIVERABLES_BUCKET,
+        storage_path: storagePath,
+        filename: photoMetadata.filename,
+        mime_type: photoMetadata.mimeType,
+        byte_size: photoMetadata.byteSize,
+        created_by: auth.user.id,
+        deleted_at: null,
+      })
+      .select(PUNCHLIST_ACTIVITY_SELECT)
+      .single();
+
+    if (activityError) {
+      return sendJson(res, 500, {
+        error: "Unable to submit completion. Punch list activity may need to be configured.",
+      });
+    }
+
+    const attachmentPreviewUrl = await signedCompletionPhotoUrl(service, activity);
+    return sendJson(res, 200, {
+      submitted: true,
+      status: "pending_review",
+      observationId: observation.id,
+      activity: publicActivityRow(activity, { attachmentPreviewUrl }),
+    });
+  } catch (error) {
+    return sendJson(res, error.statusCode || 500, {
+      error: error.message || "Unable to submit completion.",
+    });
+  }
+}
+
+async function handleReviewCompletion(req, res, body = null) {
+  if (!body) {
+    try {
+      body = await readJsonBody(req);
+    } catch {
+      return sendJson(res, 400, { error: "Invalid JSON body." });
+    }
+  }
+
+  const submissionId = validateUuid(body.activityId || body.submissionId);
+  const action = keyValue(body.action);
+  if (!submissionId || !["approve", "reject"].includes(action)) {
+    return sendJson(res, 400, { error: "Valid completion review action is required." });
+  }
+
+  let note = null;
+  try {
+    note = validateOptionalCompletionNote(body.note);
+  } catch (error) {
+    return sendJson(res, error.statusCode || 400, { error: error.message });
+  }
+
+  try {
+    const auth = await authenticateRequest(req);
+    if (auth.error) return sendJson(res, 401, { error: auth.error });
+
+    const service = createServiceClient();
+    await ensureUserProfile(service, auth.user, auth.user.id);
+    const { data: submission, error: submissionError } = await service
+      .from("punchlist_activity")
+      .select(PUNCHLIST_ACTIVITY_SELECT)
+      .eq("id", submissionId)
+      .eq("activity_type", "completion_submitted")
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (submissionError) return sendJson(res, 500, { error: "Unable to load completion submission." });
+    if (!submission) return sendJson(res, 404, { error: "Completion submission not found." });
+    if (!(await canEditPunchListWorkflow(auth, submission.org_id))) {
+      return sendJson(res, 403, {
+        error: "Client Viewer or Field User access is required to review completion submissions.",
+      });
+    }
+
+    const activityRows = await activityRowsForCompletionReview(service, submission.observation_id);
+    const completionState = completionStateFromActivity(activityRows);
+    if (completionState?.status !== "pending_review" || completionState?.submission?.id !== submission.id) {
+      return sendJson(res, 400, { error: "This completion submission is not pending review." });
+    }
+
+    const nextStatus = action === "approve" ? "resolved" : "active";
+    const { data: activity, error: activityError } = await service
+      .from("punchlist_activity")
+      .insert({
+        org_id: submission.org_id,
+        property_id: submission.property_id,
+        observation_id: submission.observation_id,
+        shot_id: submission.shot_id || null,
+        activity_type: action === "approve" ? "completion_approved" : "completion_rejected",
+        from_value: submission.id,
+        to_value: nextStatus,
+        note,
+        created_by: auth.user.id,
+        deleted_at: null,
+      })
+      .select(PUNCHLIST_ACTIVITY_SELECT)
+      .single();
+
+    if (activityError) {
+      return sendJson(res, 500, { error: "Unable to review completion submission." });
+    }
+
+    return sendJson(res, 200, {
+      reviewed: true,
+      status: nextStatus,
+      observationId: submission.observation_id,
+      activity: publicActivityRow(activity),
+    });
+  } catch (error) {
+    return sendJson(res, error.statusCode || 500, {
+      error: error.message || "Unable to review completion submission.",
+    });
+  }
+}
+
 async function handleUpdateNote(req, res, body = null) {
   if (!body) {
     try {
@@ -1402,7 +1917,7 @@ async function handleUpdateNote(req, res, body = null) {
 
     const { data: activity, error: activityError } = await auth.client
       .from("punchlist_activity")
-      .select("id,org_id,property_id,observation_id,shot_id,activity_type,from_value,to_value,note,created_by,created_at,deleted_at")
+      .select(PUNCHLIST_ACTIVITY_BASE_SELECT)
       .eq("id", noteId)
       .is("deleted_at", null)
       .maybeSingle();
@@ -1498,6 +2013,12 @@ async function handleUpdateWorkflowField(req, res, body = null) {
     const service = createServiceClient();
     await ensureUserProfile(service, auth.user, auth.user.id);
     const observation = await resolveWorkflowObservation(auth, service, { observationId, shotId, packageId });
+    const activityRows = await activityRowsForCompletionReview(service, observation.id);
+    if (field === "status" && operationalStatusFromActivity(activityRows) === "pending_review") {
+      return sendJson(res, 400, {
+        error: "Pending completion submissions must be approved or rejected from review.",
+      });
+    }
     const workflowState = await workflowStateForObservation(service, observation.id);
     const currentValue = workflowValueForField({ observation, workflowState }, field);
     if ((currentValue || null) === (nextValue || null)) {
@@ -1645,10 +2166,10 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       )
     : [];
   const punchListActivity = observationIds.length
-    ? await safeRows(
+    ? await safePunchListActivityRows((select) =>
         client
           .from("punchlist_activity")
-          .select("id,org_id,property_id,observation_id,shot_id,activity_type,from_value,to_value,note,created_by,created_at,deleted_at")
+          .select(select)
           .in("observation_id", observationIds)
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
@@ -1767,7 +2288,18 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     }
   }
   const activityByObservationId = new Map();
+  const rawActivityByObservationId = new Map();
   const workflowActivityByObservationId = new Map();
+  const completionPreviewUrlByActivityId = new Map();
+  for (const activityRow of punchListActivity) {
+    const rows = rawActivityByObservationId.get(activityRow.observation_id) || [];
+    rows.push(activityRow);
+    rawActivityByObservationId.set(activityRow.observation_id, rows);
+    if (activityRow.activity_type === "completion_submitted") {
+      const previewUrl = await signedCompletionPhotoUrl(service, activityRow);
+      if (previewUrl) completionPreviewUrlByActivityId.set(activityRow.id, previewUrl);
+    }
+  }
   for (const activityRow of punchListActivity) {
     const workflowField = WORKFLOW_ACTIVITY_FIELD_BY_TYPE[activityRow.activity_type];
     if (workflowField) {
@@ -1776,14 +2308,20 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       workflowActivityByObservationId.set(activityRow.observation_id, rows);
       continue;
     }
-    if (activityRow.activity_type !== "note_added") continue;
+    if (activityRow.activity_type !== "note_added" && !COMPLETION_ACTIVITY_TYPES.has(activityRow.activity_type)) {
+      continue;
+    }
     const ownNoteWriterNote =
-      noteWriterOrgIds.has(activityRow.org_id) && activityRow.created_by === auth.user.id;
+      activityRow.activity_type === "note_added" &&
+      noteWriterOrgIds.has(activityRow.org_id) &&
+      activityRow.created_by === auth.user.id;
     const publicRow = publicActivityRow(activityRow, {
-      canEdit: adminAllowed || ownNoteWriterNote,
-      canDelete: adminAllowed || ownNoteWriterNote,
+      canEdit: activityRow.activity_type === "note_added" && (adminAllowed || ownNoteWriterNote),
+      canDelete: activityRow.activity_type === "note_added" && (adminAllowed || ownNoteWriterNote),
+      attachmentPreviewUrl: completionPreviewUrlByActivityId.get(activityRow.id) || null,
     });
-    if (!publicRow?.note) continue;
+    if (!publicRow) continue;
+    if (activityRow.activity_type === "note_added" && !publicRow.note) continue;
     const rows = activityByObservationId.get(activityRow.observation_id) || [];
     rows.push(publicRow);
     activityByObservationId.set(activityRow.observation_id, rows);
@@ -1843,6 +2381,18 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   const rows = [];
   const dedupKeys = new Set();
   for (const observation of observations) {
+    const rawActivityRows = activityRowsForObservation(rawActivityByObservationId, observation.id);
+    const completionState = completionStateFromActivity(rawActivityRows);
+    const completionSubmissionPreviewUrl = completionState?.submission?.id
+      ? completionPreviewUrlByActivityId.get(completionState.submission.id) || null
+      : null;
+    const completionPhoto = completionState?.submission
+      ? completionPhotoFromActivity(
+          completionState.submission,
+          completionSubmissionPreviewUrl,
+          completionState.status === "resolved" ? "Resolved" : "Current"
+        )
+      : null;
     const observationShot = observation.shot_id ? shotsById.get(observation.shot_id) : null;
     const shot =
       latestFlaggedShotForObservation(
@@ -1858,9 +2408,13 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       activity: activityRowsForObservation(activityByObservationId, observation.id),
       canAddNote: noteWriterOrgIds.has(observation.org_id),
       canEditWorkflow: workflowEditorOrgIds.has(observation.org_id),
+      canReviewCompletion: workflowEditorOrgIds.has(observation.org_id),
       workflowState: workflowStateFromActivity(
         activityRowsForObservation(workflowActivityByObservationId, observation.id)
       ),
+      statusOverride: completionState?.status || "",
+      completionState,
+      completionPhoto,
       shot,
       org: orgById.get(observation.org_id) || null,
       property: propertyById.get(observation.property_id || shot?.property_id) || null,
@@ -1868,17 +2422,50 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       reportPackage,
       previewUrl: await previewForShot(shot),
     });
-    const historyPhoto = await publicHistoryPhotoForRow({
-      row,
-      shot,
-      historyShotsByIssueId,
-      historyShotsByLocationKey,
-      candidateOrderByShotId,
-      packageBySession,
-      previewForShot,
-    });
+    const completionBeforePreviewUrl =
+      completionPhoto && ["pending_review", "resolved"].includes(row.status)
+        ? await previewForShot(shot)
+        : null;
+    const historyPhoto = completionBeforePreviewUrl
+      ? {
+          label: "Before",
+          shotId: shot?.id || null,
+          packageId: reportPackage?.id || null,
+          capturedAt: shot?.captured_at || shot?.created_at || null,
+          preview: publicPreview(shot, completionBeforePreviewUrl, reportPackage),
+        }
+      : await publicHistoryPhotoForRow({
+          row,
+          shot,
+          historyShotsByIssueId,
+          historyShotsByLocationKey,
+          candidateOrderByShotId,
+          packageBySession,
+          previewForShot,
+        });
     if (historyPhoto) {
       row.photoHistory = { prior: historyPhoto };
+    }
+    const completionHistoryPhotos = rawActivityRows
+      .filter((activityRow) => activityRow.activity_type === "completion_submitted")
+      .filter(
+        (activityRow) =>
+          activityRow.id !== completionState?.submission?.id ||
+          !["pending_review", "resolved"].includes(completionState?.status)
+      )
+      .map((activityRow) =>
+        completionPhotoFromActivity(
+          activityRow,
+          completionPreviewUrlByActivityId.get(activityRow.id) || null,
+          "Previous"
+        )
+      )
+      .filter(Boolean);
+    if (completionHistoryPhotos.length > 0) {
+      row.photoHistory = {
+        ...(row.photoHistory || {}),
+        photos: completionHistoryPhotos,
+      };
     }
     addDedupKeys(dedupKeys, row);
     rows.push(row);
@@ -2924,6 +3511,12 @@ export default async function handler(req, res) {
     if (getQueryValue(req, "mode") === "trade-options") {
       return handleAddTradeOption(req, res);
     }
+    if (getQueryValue(req, "mode") === "completion-upload") {
+      return handlePrepareCompletionUpload(req, res);
+    }
+    if (getQueryValue(req, "mode") === "completion-submit") {
+      return handleSubmitCompletion(req, res);
+    }
     return handleAddNote(req, res);
   }
   if (req.method === "PATCH") {
@@ -2932,6 +3525,9 @@ export default async function handler(req, res) {
       body = await readJsonBody(req);
     } catch {
       return sendJson(res, 400, { error: "Invalid JSON body." });
+    }
+    if (getQueryValue(req, "mode") === "completion-review") {
+      return handleReviewCompletion(req, res, body);
     }
     if (body.noteId != null || body.activityId != null) {
       return handleUpdateNote(req, res, body);

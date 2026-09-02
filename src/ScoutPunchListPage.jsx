@@ -14,6 +14,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
@@ -31,6 +32,7 @@ const ALL = "all";
 const TAB_OPEN = "open";
 const TAB_RESOLVED = "resolved";
 const PUNCH_CACHE_TTL_MS = 3 * 60 * 1000;
+const MAX_COMPLETION_PHOTO_BYTES = 25 * 1024 * 1024;
 
 const punchListFilterCache = new Map();
 const punchListRowsCache = new Map();
@@ -316,6 +318,29 @@ function normalizeWorkflowFieldValue(field, value) {
   return value;
 }
 
+function completionMimeTypeForFile(file) {
+  const explicitType = textValue(file?.type).toLowerCase();
+  if (explicitType) return explicitType;
+  const extension = textValue(file?.name).split(".").pop()?.toLowerCase();
+  if (extension === "png") return "image/png";
+  if (extension === "heic") return "image/heic";
+  if (extension === "heif") return "image/heif";
+  if (extension === "webp") return "image/webp";
+  return "image/jpeg";
+}
+
+function validateCompletionFile(file) {
+  if (!file) return "Choose a completion photo.";
+  const mimeType = completionMimeTypeForFile(file);
+  if (!["image/jpeg", "image/png", "image/heic", "image/heif", "image/webp"].includes(mimeType)) {
+    return "Completion photo must be a JPEG, PNG, HEIC, HEIF, or WebP image.";
+  }
+  if (!Number.isFinite(file.size) || file.size <= 0 || file.size > MAX_COMPLETION_PHOTO_BYTES) {
+    return "Completion photo must be 25 MB or smaller.";
+  }
+  return "";
+}
+
 function workflowPatch(field, value) {
   if (!field) return {};
   return { [field]: normalizeWorkflowFieldValue(field, value) };
@@ -483,6 +508,9 @@ function statusStyle(status) {
   if (status === "resolved") {
     return { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0", color: "#15803d" };
   }
+  if (status === "pending_review") {
+    return { backgroundColor: "#fffbeb", borderColor: "#fde68a", color: "#92400e" };
+  }
   return { backgroundColor: "#fef2f2", borderColor: "#fecaca", color: "#b91c1c" };
 }
 
@@ -501,6 +529,7 @@ function dueDateStyle(value, status) {
 
 function statusLabel(status) {
   if (status === "resolved") return "Resolved";
+  if (status === "pending_review") return "Pending Review";
   return "Active";
 }
 
@@ -602,6 +631,33 @@ function canEditWorkflowForRow(row) {
   if (row?.source === "observation") return Boolean(row?.observationId && rowAllowsWorkflow);
   if (row?.source === "flagged_shot") return Boolean(row?.shotId && rowAllowsWorkflow);
   return false;
+}
+
+function canSubmitCompletionForRow(row) {
+  const rowAllowsSubmit = Boolean(row?.permissions?.canSubmitCompletion);
+  if (row?.source === "observation") return Boolean(row?.observationId && rowAllowsSubmit);
+  if (row?.source === "flagged_shot") return Boolean(row?.shotId && rowAllowsSubmit);
+  return false;
+}
+
+function canReviewCompletionForRow(row) {
+  return Boolean(row?.completionReview?.activityId && row?.permissions?.canReviewCompletion);
+}
+
+function completionActivities(row) {
+  return Array.isArray(row?.activity)
+    ? row.activity.filter((activity) =>
+        ["completion_submitted", "completion_approved", "completion_rejected"].includes(
+          activity?.activityType
+        )
+      )
+    : [];
+}
+
+function completionActivityLabel(activity) {
+  if (activity?.activityType === "completion_approved") return "Approved";
+  if (activity?.activityType === "completion_rejected") return "Rejected";
+  return "Submitted";
 }
 
 function tradeOptionsForRow(row, options) {
@@ -848,6 +904,10 @@ const PUNCH_LIST_STYLES = `
     color: rgb(21 128 61);
   }
 
+  .punch-flag-line.is-pending {
+    color: rgb(146 64 14);
+  }
+
   .punch-flag-line span {
     min-width: 0;
     overflow: hidden;
@@ -885,6 +945,12 @@ const PUNCH_LIST_STYLES = `
     border-color: rgb(29 78 216);
     background: rgb(219 234 254);
     color: rgb(30 64 175);
+  }
+
+  .punch-row-note-button.is-completion {
+    border-color: rgb(251 191 36);
+    background: rgb(255 251 235);
+    color: rgb(146 64 14);
   }
 
   .punch-row-note-area {
@@ -1165,6 +1231,102 @@ const PUNCH_LIST_STYLES = `
     font-size: 13px;
     font-weight: 600;
     line-height: 1.4;
+  }
+
+  .punch-completion-panel {
+    display: grid;
+    gap: 10px;
+    border-bottom: 1px solid rgb(226 232 240);
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+  }
+
+  .punch-completion-form {
+    display: grid;
+    gap: 8px;
+  }
+
+  .punch-completion-file {
+    min-width: 0;
+    border-radius: 8px;
+    border: 1px solid rgb(203 213 225);
+    background: white;
+    padding: 8px;
+    color: rgb(30 41 59);
+    font-size: 13px;
+    font-weight: 650;
+  }
+
+  .punch-completion-file:disabled {
+    cursor: wait;
+    opacity: 0.55;
+  }
+
+  .punch-completion-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .punch-completion-approve,
+  .punch-completion-reject {
+    display: inline-flex;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border-radius: 8px;
+    padding: 0 11px;
+    color: white;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .punch-completion-approve {
+    background: rgb(22 163 74);
+  }
+
+  .punch-completion-reject {
+    background: rgb(220 38 38);
+  }
+
+  .punch-completion-approve:disabled,
+  .punch-completion-reject:disabled {
+    cursor: wait;
+    opacity: 0.55;
+  }
+
+  .punch-completion-events {
+    display: grid;
+    gap: 7px;
+  }
+
+  .punch-completion-event {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    border-radius: 8px;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252);
+    padding: 8px 10px;
+  }
+
+  .punch-completion-event-title {
+    color: rgb(15 23 42);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.25;
+  }
+
+  .punch-completion-event-note {
+    margin-top: 3px;
+    color: rgb(51 65 85);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: pre-wrap;
   }
 
   .punch-note-form {
@@ -1859,8 +2021,8 @@ function photoIdentity(photo) {
 function rowHistoryPhotos(row) {
   const history = row?.photoHistory;
   const photos = [];
-  if (Array.isArray(history?.photos)) photos.push(...history.photos);
   if (history?.prior) photos.push(history.prior);
+  if (Array.isArray(history?.photos)) photos.push(...history.photos);
   return photos.filter((photo) => photo?.preview?.previewUrl);
 }
 
@@ -2134,6 +2296,7 @@ function NotesPanel({
   row,
   noteDraft,
   noteEditDrafts = {},
+  completionDraft,
   onNoteDraftChange,
   onNoteEditDraftChange,
   onAddNote,
@@ -2141,18 +2304,134 @@ function NotesPanel({
   onDeleteNote,
   onStartEditNote,
   onCancelEditNote,
+  onCompletionDraftChange,
+  onCompletionFileChange,
+  onSubmitCompletion,
+  onReviewCompletion,
+  onPreview,
   noteSaving,
   noteEditingId,
   noteDeletingId,
   activeNoteEditId,
+  completionSaving,
+  completionReviewSavingKey,
 }) {
   const notes = activityNotes(row);
+  const completions = completionActivities(row);
   const canAddNote = canAddNoteToRow(row);
+  const canSubmitCompletion = canSubmitCompletionForRow(row);
+  const canReviewCompletion = canReviewCompletionForRow(row);
   const unavailableMessage = noteUnavailableMessage(row);
   const trimmedDraft = textValue(noteDraft);
+  const completionNote = completionDraft?.note || "";
+  const completionFile = completionDraft?.file || null;
+  const completionFileError = completionFile ? validateCompletionFile(completionFile) : "";
+  const showCompletionPanel =
+    canSubmitCompletion || canReviewCompletion || row.status === "pending_review" || completions.length > 0;
 
   return (
     <div className="punch-notes-panel">
+      {showCompletionPanel && (
+        <div className="punch-completion-panel">
+          <div className="punch-notes-title">
+            <Upload className="h-4 w-4" />
+            Completion
+          </div>
+          {canSubmitCompletion && (
+            <form
+              className="punch-completion-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!completionFileError && completionFile) onSubmitCompletion(row);
+              }}
+            >
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/heic,image/heif,image/webp,.jpg,.jpeg,.png,.heic,.heif,.webp"
+                className="punch-completion-file"
+                onChange={(event) => onCompletionFileChange(row.id, event.target.files?.[0] || null)}
+                disabled={completionSaving}
+                aria-label="Completion photo"
+              />
+              <textarea
+                value={completionNote}
+                onChange={(event) => onCompletionDraftChange(row.id, { note: event.target.value })}
+                maxLength={1000}
+                className="punch-note-input"
+                placeholder="Optional completion note"
+                disabled={completionSaving}
+              />
+              {completionFileError && (
+                <div className="punch-note-empty">{completionFileError}</div>
+              )}
+              <div className="punch-note-actions">
+                <button
+                  type="submit"
+                  disabled={!completionFile || Boolean(completionFileError) || completionSaving}
+                  className="punch-note-submit"
+                >
+                  <Upload className="h-4 w-4" />
+                  {completionSaving ? "Submitting..." : "Submit Completion"}
+                </button>
+              </div>
+            </form>
+          )}
+          {row.status === "pending_review" && (
+            <div className="punch-note-empty">
+              Pending review{row.completionReview?.submittedAt ? ` since ${formatDateTime(row.completionReview.submittedAt)}` : ""}.
+            </div>
+          )}
+          {canReviewCompletion && (
+            <div className="punch-completion-actions">
+              <button
+                type="button"
+                className="punch-completion-reject"
+                onClick={() => onReviewCompletion(row, "reject")}
+                disabled={Boolean(completionReviewSavingKey)}
+              >
+                <X className="h-4 w-4" />
+                {completionReviewSavingKey === `${row.id}:reject` ? "Rejecting..." : "Reject"}
+              </button>
+              <button
+                type="button"
+                className="punch-completion-approve"
+                onClick={() => onReviewCompletion(row, "approve")}
+                disabled={Boolean(completionReviewSavingKey)}
+              >
+                <Check className="h-4 w-4" />
+                {completionReviewSavingKey === `${row.id}:approve` ? "Approving..." : "Approve"}
+              </button>
+            </div>
+          )}
+          {completions.length > 0 && (
+            <div className="punch-completion-events">
+              {completions.slice(0, 5).map((activity) => (
+                <div key={activity.id} className="punch-completion-event">
+                  <div>
+                    <div className="punch-completion-event-title">
+                      {completionActivityLabel(activity)} · {formatDateTime(activity.createdAt) || "Recently"}
+                    </div>
+                    {activity.note && (
+                      <div className="punch-completion-event-note">{activity.note}</div>
+                    )}
+                  </div>
+                  {activity.attachment?.previewUrl && onPreview && (
+                    <button
+                      type="button"
+                      className="punch-note-tool"
+                      onClick={() => onPreview(row)}
+                      aria-label="Open completion photo"
+                      title="Open completion photo"
+                    >
+                      <Camera className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <div className="punch-notes-title">
         <FileText className="h-4 w-4" />
         Notes
@@ -2289,10 +2568,17 @@ function RowDetail({
   onDeleteNote,
   onStartEditNote,
   onCancelEditNote,
+  completionDraft,
+  onCompletionDraftChange,
+  onCompletionFileChange,
+  onSubmitCompletion,
+  onReviewCompletion,
   noteSaving,
   noteEditingId,
   noteDeletingId,
   activeNoteEditId,
+  completionSaving,
+  completionReviewSavingKey,
 }) {
   if (!row) {
     return (
@@ -2374,6 +2660,7 @@ function RowDetail({
         row={row}
         noteDraft={noteDraft}
         noteEditDrafts={noteEditDrafts}
+        completionDraft={completionDraft}
         onNoteDraftChange={onNoteDraftChange}
         onNoteEditDraftChange={onNoteEditDraftChange}
         onAddNote={onAddNote}
@@ -2381,10 +2668,17 @@ function RowDetail({
         onDeleteNote={onDeleteNote}
         onStartEditNote={onStartEditNote}
         onCancelEditNote={onCancelEditNote}
+        onCompletionDraftChange={onCompletionDraftChange}
+        onCompletionFileChange={onCompletionFileChange}
+        onSubmitCompletion={onSubmitCompletion}
+        onReviewCompletion={onReviewCompletion}
+        onPreview={onPreview}
         noteSaving={noteSaving}
         noteEditingId={noteEditingId}
         noteDeletingId={noteDeletingId}
         activeNoteEditId={activeNoteEditId}
+        completionSaving={completionSaving}
+        completionReviewSavingKey={completionReviewSavingKey}
       />
     </aside>
   );
@@ -2411,21 +2705,35 @@ function IssueRow({
   onDeleteNote,
   onStartEditNote,
   onCancelEditNote,
+  completionDraft,
+  onCompletionDraftChange,
+  onCompletionFileChange,
+  onSubmitCompletion,
+  onReviewCompletion,
+  canEditStatus,
   noteSaving,
   noteEditingId,
   noteDeletingId,
   activeNoteEditId,
+  completionSaving,
+  completionReviewSavingKey,
 }) {
   const flagNote = row.title || row.reason || "Flagged observation";
   const notes = activityNotes(row);
+  const completions = completionActivities(row);
   const canAddNote = canAddNoteToRow(row);
   const canEditWorkflow = canEditWorkflowForRow(row);
-  const showNoteButton = canAddNote || notes.length > 0;
-  const noteButtonLabel = notes.length > 0 ? `Notes (${notes.length})` : "Add Note";
+  const canSubmitCompletion = canSubmitCompletionForRow(row);
+  const canReviewCompletion = canReviewCompletionForRow(row);
+  const showCompletionButton = canSubmitCompletion || canReviewCompletion || row.status === "pending_review";
+  const showNoteButton = canAddNote || notes.length > 0 || completions.length > 0;
+  const noteButtonLabel = notes.length > 0 ? `Notes (${notes.length})` : completions.length > 0 ? "History" : "Add Note";
   const tradeValue = tradeKey(row.trade || "general") || "general";
   const dueDateValue = row.dueDate || "";
   const workflowTradeOptions = tradeOptionsForRow(row, tradeOptions);
   const resolved = row.status === "resolved";
+  const pendingReview = row.status === "pending_review";
+  const flagLineClass = resolved ? "is-resolved" : pendingReview ? "is-pending" : "";
 
   return (
     <article
@@ -2451,13 +2759,28 @@ function IssueRow({
         </div>
         <div className="punch-row-main">
           <PunchMetadataHeader row={row} />
-          <div className={`punch-flag-line ${resolved ? "is-resolved" : ""}`}>
+          <div className={`punch-flag-line ${flagLineClass}`}>
             {resolved ? (
               <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={4} />
             ) : (
               <Flag className="h-3.5 w-3.5 shrink-0 fill-current" />
             )}
-            <span>{resolved ? `Resolved: ${flagNote}` : flagNote}</span>
+            <span>
+              {resolved ? `Resolved: ${flagNote}` : pendingReview ? `Pending Review: ${flagNote}` : flagNote}
+            </span>
+            {showCompletionButton && (
+              <button
+                type="button"
+                className="punch-row-note-button is-completion"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggleNotePanel(row.id);
+                }}
+              >
+                <Upload className="h-3.5 w-3.5" />
+                {canSubmitCompletion ? "Submit" : canReviewCompletion ? "Review" : "Pending Review"}
+              </button>
+            )}
             {showNoteButton && (
               <button
                 type="button"
@@ -2494,7 +2817,7 @@ function IssueRow({
             displayValue={statusLabel(row.status)}
             options={STATUS_OPTIONS}
             style={statusStyle(row.status)}
-            canEdit={canEditWorkflow}
+            canEdit={canEditStatus}
             saving={workflowSavingKey === `${row.id}:status`}
             onChange={onWorkflowChange}
           />
@@ -2534,6 +2857,7 @@ function IssueRow({
             row={row}
             noteDraft={noteDraft}
             noteEditDrafts={noteEditDrafts}
+            completionDraft={completionDraft}
             onNoteDraftChange={onNoteDraftChange}
             onNoteEditDraftChange={onNoteEditDraftChange}
             onAddNote={onAddNote}
@@ -2541,10 +2865,17 @@ function IssueRow({
             onDeleteNote={onDeleteNote}
             onStartEditNote={onStartEditNote}
             onCancelEditNote={onCancelEditNote}
+            onCompletionDraftChange={onCompletionDraftChange}
+            onCompletionFileChange={onCompletionFileChange}
+            onSubmitCompletion={onSubmitCompletion}
+            onReviewCompletion={onReviewCompletion}
+            onPreview={onPreview}
             noteSaving={noteSaving}
             noteEditingId={noteEditingId}
             noteDeletingId={noteDeletingId}
             activeNoteEditId={activeNoteEditId}
+            completionSaving={completionSaving}
+            completionReviewSavingKey={completionReviewSavingKey}
           />
         </div>
       )}
@@ -2819,6 +3150,9 @@ export default function ScoutPunchListPage() {
   const [noteSavingId, setNoteSavingId] = useState("");
   const [noteEditingId, setNoteEditingId] = useState("");
   const [noteDeletingId, setNoteDeletingId] = useState("");
+  const [completionDrafts, setCompletionDrafts] = useState({});
+  const [completionSavingId, setCompletionSavingId] = useState("");
+  const [completionReviewSavingKey, setCompletionReviewSavingKey] = useState("");
   const [workflowSavingKey, setWorkflowSavingKey] = useState("");
   const [activeNoteRowId, setActiveNoteRowId] = useState("");
   const [activeNoteEditId, setActiveNoteEditId] = useState("");
@@ -3119,6 +3453,9 @@ export default function ScoutPunchListPage() {
         setNoteSavingId("");
         setNoteEditingId("");
         setNoteDeletingId("");
+        setCompletionDrafts({});
+        setCompletionSavingId("");
+        setCompletionReviewSavingKey("");
         setWorkflowSavingKey("");
         setActiveNoteRowId("");
         setActiveNoteEditId("");
@@ -3149,6 +3486,9 @@ export default function ScoutPunchListPage() {
       setNoteSavingId("");
       setNoteEditingId("");
       setNoteDeletingId("");
+      setCompletionDrafts({});
+      setCompletionSavingId("");
+      setCompletionReviewSavingKey("");
       setWorkflowSavingKey("");
       setActiveNoteRowId("");
       setActiveNoteEditId("");
@@ -3246,6 +3586,9 @@ export default function ScoutPunchListPage() {
     setNoteSavingId("");
     setNoteEditingId("");
     setNoteDeletingId("");
+    setCompletionDrafts({});
+    setCompletionSavingId("");
+    setCompletionReviewSavingKey("");
     setWorkflowSavingKey("");
     setActiveNoteRowId("");
     setActiveNoteEditId("");
@@ -3278,6 +3621,20 @@ export default function ScoutPunchListPage() {
       ...current,
       [noteId]: value,
     }));
+  }
+
+  function handleCompletionDraftChange(rowId, patch) {
+    setCompletionDrafts((current) => ({
+      ...current,
+      [rowId]: {
+        ...(current[rowId] || {}),
+        ...patch,
+      },
+    }));
+  }
+
+  function handleCompletionFileChange(rowId, file) {
+    handleCompletionDraftChange(rowId, { file });
   }
 
   function handleToggleNotePanel(rowId) {
@@ -3416,6 +3773,121 @@ export default function ScoutPunchListPage() {
       setPunchListError(error.message || "Unable to add note.");
     } finally {
       setNoteSavingId("");
+    }
+  }
+
+  async function handleSubmitCompletion(row) {
+    if (!session?.access_token || !supabase || !canSubmitCompletionForRow(row)) return;
+    const draft = completionDrafts[row.id] || {};
+    const file = draft.file || null;
+    const fileError = validateCompletionFile(file);
+    if (fileError) {
+      setPunchListError(fileError);
+      return;
+    }
+
+    setCompletionSavingId(row.id);
+    setPunchListError("");
+    try {
+      const mimeType = completionMimeTypeForFile(file);
+      const uploadResponse = await fetch("/api/punch-list?mode=completion-upload", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          observationId: row.observationId,
+          shotId: row.observationId ? null : row.shotId,
+          packageId: row.observationId ? null : row.packageId,
+          file: {
+            filename: file.name,
+            mimeType,
+            byteSize: file.size,
+          },
+        }),
+      });
+      const uploadBody = await uploadResponse.json().catch(() => ({}));
+      if (!uploadResponse.ok || !uploadBody.upload?.bucket || !uploadBody.upload?.path || !uploadBody.upload?.token) {
+        throw new Error(uploadBody.error || "Unable to prepare completion photo upload.");
+      }
+
+      const { error: storageError } = await supabase.storage
+        .from(uploadBody.upload.bucket)
+        .uploadToSignedUrl(uploadBody.upload.path, uploadBody.upload.token, file, {
+          contentType: mimeType,
+        });
+      if (storageError) {
+        throw new Error(storageError.message || "Unable to upload completion photo.");
+      }
+
+      const submitResponse = await fetch("/api/punch-list?mode=completion-submit", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          observationId: uploadBody.observationId || row.observationId,
+          shotId: row.observationId ? null : row.shotId,
+          packageId: row.observationId ? null : row.packageId,
+          note: draft.note || "",
+          upload: uploadBody.upload,
+        }),
+      });
+      const submitBody = await submitResponse.json().catch(() => ({}));
+      if (!submitResponse.ok || !submitBody.submitted) {
+        throw new Error(submitBody.error || "Unable to submit completion.");
+      }
+
+      clearPunchListCaches();
+      setCompletionDrafts((current) => {
+        const next = { ...current };
+        delete next[row.id];
+        return next;
+      });
+      setActiveNoteRowId(row.id);
+      await loadPunchList(session, { force: true });
+    } catch (error) {
+      setPunchListError(error.message || "Unable to submit completion.");
+    } finally {
+      setCompletionSavingId("");
+    }
+  }
+
+  async function handleReviewCompletion(row, action) {
+    if (!session?.access_token || !canReviewCompletionForRow(row)) return;
+    const normalizedAction = action === "reject" ? "reject" : "approve";
+    const note =
+      normalizedAction === "reject"
+        ? textValue(window.prompt("Reason for rejection (optional)") || "")
+        : "";
+    const saveKey = `${row.id}:${normalizedAction}`;
+    setCompletionReviewSavingKey(saveKey);
+    setPunchListError("");
+    try {
+      const response = await fetch("/api/punch-list?mode=completion-review", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          activityId: row.completionReview.activityId,
+          action: normalizedAction,
+          note,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.reviewed) {
+        throw new Error(body.error || "Unable to review completion.");
+      }
+      clearPunchListCaches();
+      await loadPunchList(session, { force: true });
+    } catch (error) {
+      setPunchListError(error.message || "Unable to review completion.");
+    } finally {
+      setCompletionReviewSavingKey("");
     }
   }
 
@@ -4216,10 +4688,18 @@ export default function ScoutPunchListPage() {
                       onDeleteNote={handleDeleteNote}
                       onStartEditNote={handleStartEditNote}
                       onCancelEditNote={handleCancelEditNote}
+                      completionDraft={completionDrafts[row.id] || {}}
+                      onCompletionDraftChange={handleCompletionDraftChange}
+                      onCompletionFileChange={handleCompletionFileChange}
+                      onSubmitCompletion={handleSubmitCompletion}
+                      onReviewCompletion={handleReviewCompletion}
+                      canEditStatus={canEditWorkflowForRow(row) && row.status !== "pending_review"}
                       noteSaving={noteSavingId === row.id}
                       noteEditingId={noteEditingId}
                       noteDeletingId={noteDeletingId}
                       activeNoteEditId={activeNoteEditId}
+                      completionSaving={completionSavingId === row.id}
+                      completionReviewSavingKey={completionReviewSavingKey}
                     />
                   ))}
                 </div>
@@ -4240,10 +4720,17 @@ export default function ScoutPunchListPage() {
                       onDeleteNote={handleDeleteNote}
                       onStartEditNote={handleStartEditNote}
                       onCancelEditNote={handleCancelEditNote}
+                      completionDraft={selectedRow ? completionDrafts[selectedRow.id] || {} : {}}
+                      onCompletionDraftChange={handleCompletionDraftChange}
+                      onCompletionFileChange={handleCompletionFileChange}
+                      onSubmitCompletion={handleSubmitCompletion}
+                      onReviewCompletion={handleReviewCompletion}
                       noteSaving={selectedRow ? noteSavingId === selectedRow.id : false}
                       noteEditingId={noteEditingId}
                       noteDeletingId={noteDeletingId}
                       activeNoteEditId={activeNoteEditId}
+                      completionSaving={selectedRow ? completionSavingId === selectedRow.id : false}
+                      completionReviewSavingKey={completionReviewSavingKey}
                     />
                   </div>
                 </div>
