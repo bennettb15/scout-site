@@ -620,11 +620,17 @@ function propertyIdIsValidForOrg(options, orgId, propertyId) {
 
 function activityNotes(row) {
   if (!Array.isArray(row?.activity)) return [];
+  const approvedCompletionSubmissionIds = new Set(
+    row.activity
+      .filter((activity) => activity?.activityType === "completion_approved" && textValue(activity.fromValue))
+      .map((activity) => activity.fromValue)
+  );
   return row.activity
     .filter(
       (activity) =>
         (activity?.activityType === "note_added" ||
-          activity?.activityType === "completion_submitted") &&
+          (activity?.activityType === "completion_submitted" &&
+            approvedCompletionSubmissionIds.has(activity.id))) &&
         textValue(activity.note)
     )
     .map((activity) => ({
@@ -3313,6 +3319,7 @@ function IssueRow({
   onCompletionFileChange,
   onRemoveCompletionFile,
   onOpenCompletionPrompt,
+  onSubmitCompletion,
   onReviewCompletion,
   canEditStatus,
   noteSaving,
