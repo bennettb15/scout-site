@@ -1292,9 +1292,8 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-notes-panel {
-    border-top: 1px solid rgb(226 232 240);
-    margin-top: 14px;
-    padding-top: 14px;
+    display: grid;
+    gap: 10px;
   }
 
   .punch-notes-title {
@@ -1309,29 +1308,25 @@ const PUNCH_LIST_STYLES = `
 
   .punch-note-list {
     display: grid;
-    gap: 8px;
-    margin-top: 10px;
+    gap: 7px;
   }
 
   .punch-note-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
     border-radius: 8px;
     border: 1px solid rgb(226 232 240);
+    border-left: 3px solid rgb(203 213 225);
     background: rgb(248 250 252);
-    padding: 9px 10px;
-  }
-
-  .punch-note-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    padding: 8px 10px;
   }
 
   .punch-note-meta {
-    color: rgb(100 116 139);
-    font-size: 11px;
-    font-weight: 700;
-    line-height: 1.2;
+    color: rgb(15 23 42);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.25;
   }
 
   .punch-note-tools {
@@ -1369,11 +1364,11 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-note-text {
-    margin-top: 4px;
-    color: rgb(30 41 59);
-    font-size: 13px;
+    margin-top: 3px;
+    color: rgb(51 65 85);
+    font-size: 12px;
     font-weight: 600;
-    line-height: 1.45;
+    line-height: 1.4;
     white-space: pre-wrap;
   }
 
@@ -1740,7 +1735,6 @@ const PUNCH_LIST_STYLES = `
   .punch-note-form {
     display: grid;
     gap: 8px;
-    margin-top: 10px;
   }
 
   .punch-note-input {
@@ -3043,12 +3037,58 @@ function NotesPanel({
             const isEditing = activeNoteEditId === note.id;
             const editDraft = noteEditDrafts[note.id] ?? note.note ?? "";
             const trimmedEditDraft = textValue(editDraft);
+            const noteCanEdit = canEditNote(note);
+            const noteCanDelete = canDeleteNote(note);
             return (
               <div key={note.id} className="punch-note-item">
-                <div className="punch-note-header">
-                  <div className="punch-note-meta">{formatDateTime(note.createdAt) || "Recently"}</div>
+                <div>
+                  <div className="punch-note-meta">
+                    Note Added · {formatDateTime(note.createdAt) || "Recently"}
+                  </div>
+                  {isEditing ? (
+                    <form
+                      className="punch-note-edit-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        if (trimmedEditDraft) onEditNote(row, note, trimmedEditDraft);
+                      }}
+                    >
+                      <textarea
+                        value={editDraft}
+                        onChange={(event) => onNoteEditDraftChange(note.id, event.target.value)}
+                        maxLength={1000}
+                        className="punch-note-input"
+                        placeholder="Edit note"
+                      />
+                      <div className="punch-note-actions">
+                        <button
+                          type="button"
+                          className="punch-note-cancel"
+                          onClick={() => onCancelEditNote(note.id)}
+                          disabled={noteEditingId === note.id}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={
+                            !trimmedEditDraft ||
+                            trimmedEditDraft === textValue(note.note) ||
+                            noteEditingId === note.id
+                          }
+                          className="punch-note-submit"
+                        >
+                          {noteEditingId === note.id ? "Saving..." : "Save Note"}
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="punch-note-text">{note.note}</div>
+                  )}
+                </div>
+                {(noteCanEdit || noteCanDelete) && (
                   <div className="punch-note-tools">
-                    {canEditNote(note) && (
+                    {noteCanEdit && (
                       <button
                         type="button"
                         className="punch-note-tool"
@@ -3060,7 +3100,7 @@ function NotesPanel({
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                     )}
-                    {canDeleteNote(note) && (
+                    {noteCanDelete && (
                       <button
                         type="button"
                         className="punch-note-delete"
@@ -3073,46 +3113,6 @@ function NotesPanel({
                       </button>
                     )}
                   </div>
-                </div>
-                {isEditing ? (
-                  <form
-                    className="punch-note-edit-form"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      if (trimmedEditDraft) onEditNote(row, note, trimmedEditDraft);
-                    }}
-                  >
-                    <textarea
-                      value={editDraft}
-                      onChange={(event) => onNoteEditDraftChange(note.id, event.target.value)}
-                      maxLength={1000}
-                      className="punch-note-input"
-                      placeholder="Edit note"
-                    />
-                    <div className="punch-note-actions">
-                      <button
-                        type="button"
-                        className="punch-note-cancel"
-                        onClick={() => onCancelEditNote(note.id)}
-                        disabled={noteEditingId === note.id}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={
-                          !trimmedEditDraft ||
-                          trimmedEditDraft === textValue(note.note) ||
-                          noteEditingId === note.id
-                        }
-                        className="punch-note-submit"
-                      >
-                        {noteEditingId === note.id ? "Saving..." : "Save Note"}
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <div className="punch-note-text">{note.note}</div>
                 )}
               </div>
             );
