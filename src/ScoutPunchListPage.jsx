@@ -9,12 +9,12 @@ import {
   Download,
   FileText,
   Flag,
+  ImageUp,
   LogOut,
   Pencil,
   RefreshCw,
   ShieldCheck,
   Trash2,
-  Upload,
   X,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
@@ -2588,7 +2588,7 @@ function CompletionPanel({
   return (
     <div className="punch-completion-panel">
       <div className="punch-completion-heading">
-        <Upload className="h-4 w-4" />
+        <ImageUp className="h-4 w-4" />
         Completion Photo
       </div>
       {canSubmitCompletion && (
@@ -2669,7 +2669,7 @@ function CompletionPanel({
                 aria-label="Upload completion photo"
               />
               <span className="punch-completion-upload-copy">
-                <Camera className="h-7 w-7" />
+                <ImageUp className="h-7 w-7" />
                 <span className="punch-completion-upload-title">Upload Photo</span>
                 <span className="punch-completion-upload-subtitle">
                   Drag photo here or choose from files. JPG, PNG, HEIC, HEIF, and WebP are supported.
@@ -2813,7 +2813,7 @@ function CompletionNoteModal({
             onClick={() => onSubmitCompletion(row)}
             disabled={Boolean(fileError) || completionSaving}
           >
-            <Upload className="h-4 w-4" />
+            <ImageUp className="h-4 w-4" />
             {completionSaving ? "Submitting..." : "Submit for Review"}
           </button>
         </div>
@@ -3226,7 +3226,7 @@ function IssueRow({
                   onToggleCompletionPanel(row.id);
                 }}
               >
-                <Upload className="h-3.5 w-3.5" />
+                <ImageUp className="h-3.5 w-3.5" />
                 {canSubmitCompletion ? "Upload Photo" : canReviewCompletion ? "Review" : "Pending Review"}
               </button>
             )}
