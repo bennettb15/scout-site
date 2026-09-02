@@ -2798,6 +2798,15 @@ function scoutCurrentPhotoForRow(row, label = null) {
   };
 }
 
+function priorSessionPhotoCaption(photo) {
+  if (!photo?.isPriorSessionPhoto) return "";
+  return `Previous Session: ${formatDate(photo.sessionDate || photo.capturedAt) || "Unknown"}`;
+}
+
+function photoDateCaption(photo) {
+  return priorSessionPhotoCaption(photo) || formatDateTime(photo?.capturedAt);
+}
+
 function previewPhotosForRow(row) {
   const photos = [];
   const seen = new Set();
@@ -2823,6 +2832,9 @@ function previewPhotosForRow(row) {
       submissionGroupId: photo.submissionGroupId,
       packageId: photo.packageId,
       capturedAt: photo.capturedAt,
+      session: photo.session,
+      sessionDate: photo.sessionDate,
+      isPriorSessionPhoto: Boolean(photo.isPriorSessionPhoto),
       note: photo.note,
       status: photo.status,
       preview: photo.preview,
@@ -4214,7 +4226,7 @@ function ImagePreviewModal({ target, onClose }) {
   const issuePrefix = activePhoto.label ? `${activePhoto.label}: ` : "";
   const activePhotoMeta = [
     activePhoto.status,
-    formatDateTime(activePhoto.capturedAt),
+    photoDateCaption(activePhoto),
   ].filter(Boolean);
   const goPrevious = (event) => {
     event.stopPropagation();

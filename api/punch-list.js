@@ -586,6 +586,10 @@ function packageTimestamp(row) {
   return row?.session_completed_at || row?.completed_at || "";
 }
 
+function priorSessionDate(reportPackage, session) {
+  return reportPackage?.session_completed_at || reportPackage?.completed_at || session?.completedAt || null;
+}
+
 function latestPackageBySession(packageRows) {
   const bySession = new Map();
   for (const row of packageRows) {
@@ -717,6 +721,7 @@ async function publicHistoryPhotoForRow({
   historyShotsByLocationKey,
   candidateOrderByShotId,
   packageBySession,
+  sessionById,
   previewForShot,
 }) {
   if (!row?.preview?.previewUrl || !shot) return null;
@@ -733,14 +738,19 @@ async function publicHistoryPhotoForRow({
   if (!priorShot || sameShotPhoto(priorShot, shot)) return null;
 
   const reportPackage = packageBySession.get(priorShot.session_id) || null;
+  const session = sessionById.get(priorShot.session_id) || null;
   const previewUrl = await previewForShot(priorShot);
   if (!previewUrl || previewUrl === row.preview?.previewUrl) return null;
 
+  const capturedAt = priorShot.captured_at || priorShot.created_at || null;
   return {
     label: row.status === "resolved" || row.status === "pending_review" ? "Before" : "Previous",
     shotId: priorShot.id,
     packageId: reportPackage?.id || null,
-    capturedAt: priorShot.captured_at || priorShot.created_at || null,
+    capturedAt,
+    session,
+    sessionDate: priorSessionDate(reportPackage, session) || capturedAt,
+    isPriorSessionPhoto: true,
     preview: publicPreview(priorShot, previewUrl, reportPackage),
   };
 }
@@ -2600,6 +2610,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       historyShotsByLocationKey,
       candidateOrderByShotId,
       packageBySession,
+      sessionById,
       previewForShot,
     });
     if (historyPhoto) {
@@ -2669,6 +2680,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       historyShotsByLocationKey,
       candidateOrderByShotId,
       packageBySession,
+      sessionById,
       previewForShot,
     });
     if (historyPhoto) {
