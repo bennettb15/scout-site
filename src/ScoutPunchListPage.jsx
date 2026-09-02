@@ -989,9 +989,6 @@ const PUNCH_LIST_STYLES = `
     --punch-review-action-width: 128px;
     --punch-workflow-control-width: 232px;
     --punch-review-control-gap: 8px;
-    --punch-control-stack-width: calc(
-      var(--punch-review-action-width) + var(--punch-review-control-gap) + var(--punch-workflow-control-width)
-    );
     overflow: hidden;
     cursor: default;
   }
@@ -999,7 +996,7 @@ const PUNCH_LIST_STYLES = `
   .punch-row-body {
     position: relative;
     display: grid;
-    grid-template-columns: 156px minmax(0, 1fr) var(--punch-control-stack-width);
+    grid-template-columns: 156px minmax(0, 1fr) var(--punch-workflow-control-width);
     align-items: stretch;
     gap: 16px;
     width: 100%;
@@ -1007,7 +1004,7 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-row.has-review-actions .punch-row-body {
-    grid-template-columns: 156px minmax(0, 1fr) var(--punch-control-stack-width);
+    grid-template-columns: 156px minmax(0, 1fr) var(--punch-workflow-control-width);
   }
 
   .punch-row-left {
@@ -1231,13 +1228,13 @@ const PUNCH_LIST_STYLES = `
     align-content: start;
     gap: 7px;
     justify-self: end;
-    width: var(--punch-control-stack-width);
+    width: var(--punch-workflow-control-width);
     padding: 10px 12px 10px 0;
   }
 
   .punch-row.has-review-actions .punch-row-controls {
     justify-self: end;
-    width: var(--punch-control-stack-width);
+    width: var(--punch-workflow-control-width);
   }
 
   .punch-row-controls > .punch-control {
@@ -1246,12 +1243,8 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-review-control-row {
-    display: grid;
-    grid-template-columns: var(--punch-review-action-width) var(--punch-workflow-control-width);
-    align-items: center;
-    gap: var(--punch-review-control-gap);
-    justify-content: end;
-    width: var(--punch-control-stack-width);
+    position: relative;
+    width: var(--punch-workflow-control-width);
   }
 
   .punch-review-control-row .punch-control {
@@ -1259,6 +1252,9 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-review-control-row .punch-row-review-actions {
+    position: absolute;
+    top: 0;
+    right: calc(100% + var(--punch-review-control-gap));
     width: auto;
     justify-content: flex-end;
   }
@@ -2629,10 +2625,13 @@ const PUNCH_LIST_STYLES = `
     }
 
     .punch-review-control-row {
+      display: grid;
+      position: static;
       grid-column: 1 / -1;
       grid-template-columns: minmax(0, 1fr);
       gap: 7px;
       justify-content: stretch;
+      width: 100%;
     }
 
     .punch-review-control-row .punch-control {
@@ -2640,6 +2639,7 @@ const PUNCH_LIST_STYLES = `
     }
 
     .punch-review-control-row .punch-row-review-actions {
+      position: static;
       width: 100%;
       justify-content: stretch;
     }
