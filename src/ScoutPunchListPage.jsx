@@ -33,6 +33,7 @@ const TAB_OPEN = "open";
 const TAB_RESOLVED = "resolved";
 const PUNCH_CACHE_TTL_MS = 3 * 60 * 1000;
 const MAX_COMPLETION_PHOTO_BYTES = 25 * 1024 * 1024;
+const COMPLETION_PHOTO_ACCEPT = "image/jpeg,image/jpg,image/png,image/heic,image/heif,image/webp,.jpg,.jpeg,.png,.heic,.heif,.webp";
 
 const punchListFilterCache = new Map();
 const punchListRowsCache = new Map();
@@ -320,8 +321,11 @@ function normalizeWorkflowFieldValue(field, value) {
 
 function completionMimeTypeForFile(file) {
   const explicitType = textValue(file?.type).toLowerCase();
-  if (explicitType) return explicitType;
   const extension = textValue(file?.name).split(".").pop()?.toLowerCase();
+  if (explicitType && explicitType !== "application/octet-stream") {
+    if (explicitType === "image/jpg" || explicitType === "image/pjpeg") return "image/jpeg";
+    return explicitType;
+  }
   if (extension === "png") return "image/png";
   if (extension === "heic") return "image/heic";
   if (extension === "heif") return "image/heif";
@@ -332,13 +336,21 @@ function completionMimeTypeForFile(file) {
 function validateCompletionFile(file) {
   if (!file) return "Choose a completion photo.";
   const mimeType = completionMimeTypeForFile(file);
-  if (!["image/jpeg", "image/png", "image/heic", "image/heif", "image/webp"].includes(mimeType)) {
+  if (!["image/jpeg", "image/jpg", "image/png", "image/heic", "image/heif", "image/webp"].includes(mimeType)) {
     return "Completion photo must be a JPEG, PNG, HEIC, HEIF, or WebP image.";
   }
   if (!Number.isFinite(file.size) || file.size <= 0 || file.size > MAX_COMPLETION_PHOTO_BYTES) {
     return "Completion photo must be 25 MB or smaller.";
   }
   return "";
+}
+
+function completionFileLabel(file) {
+  if (!file) return "";
+  const sizeLabel = Number.isFinite(file.size) && file.size > 0
+    ? `${Math.max(1, Math.round(file.size / 1024))} KB`
+    : "";
+  return [file.name || "Completion photo", sizeLabel].filter(Boolean).join(" · ");
 }
 
 function workflowPatch(field, value) {
@@ -948,9 +960,15 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-row-note-button.is-completion {
-    border-color: rgb(251 191 36);
-    background: rgb(255 251 235);
-    color: rgb(146 64 14);
+    border-color: rgb(203 213 225);
+    background: white;
+    color: rgb(28 39 66);
+  }
+
+  .punch-row-note-button.is-completion:hover {
+    border-color: rgb(37 99 235);
+    background: rgb(239 246 255);
+    color: rgb(29 78 216);
   }
 
   .punch-row-note-area {
@@ -1236,30 +1254,160 @@ const PUNCH_LIST_STYLES = `
   .punch-completion-panel {
     display: grid;
     gap: 10px;
-    border-bottom: 1px solid rgb(226 232 240);
-    margin-bottom: 14px;
-    padding-bottom: 14px;
+    border-top: 1px solid rgb(226 232 240);
+    margin-top: 12px;
+    padding-top: 12px;
   }
 
-  .punch-completion-form {
+  .punch-completion-heading {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: rgb(15 23 42);
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  .punch-completion-upload {
+    position: relative;
     display: grid;
-    gap: 8px;
+    min-height: 118px;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 8px;
+    border: 1px dashed rgb(148 163 184);
+    background: rgb(248 250 252);
+    color: rgb(30 41 59);
+    text-align: center;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
   }
 
-  .punch-completion-file {
-    min-width: 0;
+  .punch-completion-upload:hover,
+  .punch-completion-upload:focus-within,
+  .punch-completion-upload.is-dragging {
+    border-color: var(--brand);
+    background: rgb(239 246 255);
+    color: var(--brand);
+  }
+
+  .punch-completion-upload.is-disabled {
+    cursor: wait;
+    opacity: 0.55;
+  }
+
+  .punch-completion-input {
+    position: absolute;
+    inset: 0;
+    cursor: pointer;
+    opacity: 0;
+  }
+
+  .punch-completion-input:disabled {
+    cursor: wait;
+  }
+
+  .punch-completion-upload-copy {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    padding: 14px;
+    pointer-events: none;
+  }
+
+  .punch-completion-upload-title {
+    font-size: 14px;
+    font-weight: 900;
+    line-height: 1.2;
+  }
+
+  .punch-completion-upload-subtitle {
+    color: rgb(100 116 139);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+
+  .punch-completion-file-preview {
+    display: grid;
+    grid-template-columns: 90px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 90px;
     border-radius: 8px;
     border: 1px solid rgb(203 213 225);
     background: white;
     padding: 8px;
-    color: rgb(30 41 59);
-    font-size: 13px;
-    font-weight: 650;
   }
 
-  .punch-completion-file:disabled {
-    cursor: wait;
-    opacity: 0.55;
+  .punch-completion-file-thumb {
+    width: 90px;
+    height: 72px;
+    overflow: hidden;
+    border-radius: 7px;
+    background: rgb(15 23 42);
+  }
+
+  .punch-completion-file-thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .punch-completion-file-meta {
+    min-width: 0;
+  }
+
+  .punch-completion-file-name {
+    overflow: hidden;
+    color: rgb(15 23 42);
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .punch-completion-file-status {
+    margin-top: 3px;
+    color: rgb(71 85 105);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+
+  .punch-completion-file-tools {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .punch-completion-tool {
+    display: inline-flex;
+    height: 30px;
+    min-width: 30px;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border-radius: 7px;
+    border: 1px solid rgb(203 213 225);
+    background: white;
+    padding: 0 8px;
+    color: rgb(30 41 59);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .punch-completion-tool:hover {
+    border-color: rgb(148 163 184);
+    color: rgb(15 23 42);
+  }
+
+  .punch-completion-tool.is-delete:hover {
+    border-color: rgb(248 113 113);
+    background: rgb(254 242 242);
+    color: rgb(185 28 28);
   }
 
   .punch-completion-actions {
@@ -1327,6 +1475,104 @@ const PUNCH_LIST_STYLES = `
     font-weight: 600;
     line-height: 1.4;
     white-space: pre-wrap;
+  }
+
+  .punch-completion-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.62);
+  }
+
+  .punch-completion-modal-panel {
+    display: grid;
+    gap: 12px;
+    width: min(520px, 100%);
+    border-radius: 10px;
+    background: white;
+    padding: 16px;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.35);
+  }
+
+  .punch-completion-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .punch-completion-modal-title {
+    color: rgb(15 23 42);
+    font-size: 18px;
+    font-weight: 900;
+    line-height: 1.2;
+  }
+
+  .punch-completion-modal-subtitle {
+    margin-top: 4px;
+    color: rgb(71 85 105);
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1.4;
+  }
+
+  .punch-completion-modal-close {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    border-radius: 999px;
+    border: 1px solid rgb(226 232 240);
+    background: white;
+    color: rgb(30 41 59);
+  }
+
+  .punch-completion-modal-preview {
+    overflow: hidden;
+    border-radius: 8px;
+    background: rgb(15 23 42);
+  }
+
+  .punch-completion-modal-preview img {
+    display: block;
+    width: 100%;
+    max-height: 260px;
+    object-fit: contain;
+  }
+
+  .punch-completion-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .punch-completion-submit {
+    display: inline-flex;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border-radius: 8px;
+    background: var(--brand);
+    padding: 0 13px;
+    color: white;
+    font-size: 13px;
+    font-weight: 900;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  }
+
+  .punch-completion-submit:disabled,
+  .punch-completion-tool:disabled {
+    cursor: wait;
+    opacity: 0.55;
   }
 
   .punch-note-form {
@@ -2292,11 +2538,294 @@ function ReadOnlyField({ label, value }) {
   );
 }
 
+function CompletionFilePreview({ file, className = "" }) {
+  const [previewUrl, setPreviewUrl] = useState("");
+
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl("");
+      return undefined;
+    }
+    const nextUrl = URL.createObjectURL(file);
+    setPreviewUrl(nextUrl);
+    return () => URL.revokeObjectURL(nextUrl);
+  }, [file]);
+
+  if (!file || !previewUrl) return null;
+  return (
+    <img
+      src={previewUrl}
+      alt="Selected completion photo"
+      className={className}
+    />
+  );
+}
+
+function CompletionPanel({
+  row,
+  completionDraft,
+  onCompletionFileChange,
+  onRemoveCompletionFile,
+  onOpenCompletionPrompt,
+  onReviewCompletion,
+  onPreview,
+  completionSaving,
+  completionReviewSavingKey,
+}) {
+  const completions = completionActivities(row);
+  const canSubmitCompletion = canSubmitCompletionForRow(row);
+  const canReviewCompletion = canReviewCompletionForRow(row);
+  const completionFile = completionDraft?.file || null;
+  const completionFileError = completionFile ? validateCompletionFile(completionFile) : "";
+  const [dragging, setDragging] = useState(false);
+  const inputId = `completion-photo-${row.id}`;
+
+  function useCompletionFile(file) {
+    if (!file || completionSaving) return;
+    onCompletionFileChange(row.id, file, { prompt: true });
+  }
+
+  return (
+    <div className="punch-completion-panel">
+      <div className="punch-completion-heading">
+        <Upload className="h-4 w-4" />
+        Completion Photo
+      </div>
+      {canSubmitCompletion && (
+        <>
+          {completionFile ? (
+            <div className="punch-completion-file-preview">
+              <div className="punch-completion-file-thumb">
+                <CompletionFilePreview file={completionFile} />
+              </div>
+              <div className="punch-completion-file-meta">
+                <div className="punch-completion-file-name">{completionFileLabel(completionFile)}</div>
+                <div className="punch-completion-file-status">
+                  {completionFileError || "Ready to submit for review."}
+                </div>
+              </div>
+              <div className="punch-completion-file-tools">
+                <label className="punch-completion-tool">
+                  Replace
+                  <input
+                    type="file"
+                    accept={COMPLETION_PHOTO_ACCEPT}
+                    className="sr-only"
+                    onChange={(event) => useCompletionFile(event.target.files?.[0] || null)}
+                    disabled={completionSaving}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="punch-completion-tool is-delete"
+                  onClick={() => onRemoveCompletionFile(row.id)}
+                  disabled={completionSaving}
+                  aria-label="Remove completion photo"
+                  title="Remove completion photo"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className="punch-completion-tool"
+                  onClick={() => onOpenCompletionPrompt(row.id)}
+                  disabled={Boolean(completionFileError) || completionSaving}
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          ) : (
+            <label
+              htmlFor={inputId}
+              className={`punch-completion-upload ${dragging ? "is-dragging" : ""} ${
+                completionSaving ? "is-disabled" : ""
+              }`}
+              onDragEnter={(event) => {
+                event.preventDefault();
+                setDragging(true);
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={(event) => {
+                event.preventDefault();
+                setDragging(false);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                setDragging(false);
+                useCompletionFile(event.dataTransfer.files?.[0] || null);
+              }}
+            >
+              <input
+                id={inputId}
+                type="file"
+                accept={COMPLETION_PHOTO_ACCEPT}
+                className="punch-completion-input"
+                onChange={(event) => useCompletionFile(event.target.files?.[0] || null)}
+                disabled={completionSaving}
+                aria-label="Upload completion photo"
+              />
+              <span className="punch-completion-upload-copy">
+                <Camera className="h-7 w-7" />
+                <span className="punch-completion-upload-title">Upload Photo</span>
+                <span className="punch-completion-upload-subtitle">
+                  Drag photo here or choose from files. JPG, PNG, HEIC, HEIF, and WebP are supported.
+                </span>
+              </span>
+            </label>
+          )}
+        </>
+      )}
+      {row.status === "pending_review" && (
+        <div className="punch-note-empty">
+          Pending review{row.completionReview?.submittedAt ? ` since ${formatDateTime(row.completionReview.submittedAt)}` : ""}.
+        </div>
+      )}
+      {canReviewCompletion && (
+        <div className="punch-completion-actions">
+          <button
+            type="button"
+            className="punch-completion-reject"
+            onClick={() => onReviewCompletion(row, "reject")}
+            disabled={Boolean(completionReviewSavingKey)}
+          >
+            <X className="h-4 w-4" />
+            {completionReviewSavingKey === `${row.id}:reject` ? "Rejecting..." : "Reject"}
+          </button>
+          <button
+            type="button"
+            className="punch-completion-approve"
+            onClick={() => onReviewCompletion(row, "approve")}
+            disabled={Boolean(completionReviewSavingKey)}
+          >
+            <Check className="h-4 w-4" />
+            {completionReviewSavingKey === `${row.id}:approve` ? "Approving..." : "Approve"}
+          </button>
+        </div>
+      )}
+      {completions.length > 0 && (
+        <div className="punch-completion-events">
+          {completions.slice(0, 5).map((activity) => (
+            <div key={activity.id} className="punch-completion-event">
+              <div>
+                <div className="punch-completion-event-title">
+                  {completionActivityLabel(activity)} · {formatDateTime(activity.createdAt) || "Recently"}
+                </div>
+                {activity.note && (
+                  <div className="punch-completion-event-note">{activity.note}</div>
+                )}
+              </div>
+              {activity.attachment?.previewUrl && onPreview && (
+                <button
+                  type="button"
+                  className="punch-note-tool"
+                  onClick={() => onPreview(row)}
+                  aria-label="Open completion photo"
+                  title="Open completion photo"
+                >
+                  <Camera className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CompletionNoteModal({
+  row,
+  completionDraft,
+  onCompletionDraftChange,
+  onRemoveCompletionFile,
+  onSubmitCompletion,
+  onClose,
+  completionSaving,
+}) {
+  const file = completionDraft?.file || null;
+  const note = completionDraft?.note || "";
+  const fileError = file ? validateCompletionFile(file) : "Choose a completion photo.";
+
+  if (!row || !file) return null;
+
+  return (
+    <div
+      className="punch-completion-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Submit completion photo"
+      onClick={onClose}
+    >
+      <div className="punch-completion-modal-panel" onClick={(event) => event.stopPropagation()}>
+        <div className="punch-completion-modal-header">
+          <div>
+            <div className="punch-completion-modal-title">Submit Photo For Review</div>
+            <div className="punch-completion-modal-subtitle">
+              This will move the item to Pending Review until it is approved.
+            </div>
+          </div>
+          <button
+            type="button"
+            className="punch-completion-modal-close"
+            onClick={onClose}
+            disabled={completionSaving}
+            aria-label="Close completion submission"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="punch-completion-modal-preview">
+          <CompletionFilePreview file={file} />
+        </div>
+        <textarea
+          value={note}
+          onChange={(event) => onCompletionDraftChange(row.id, { note: event.target.value })}
+          maxLength={1000}
+          className="punch-note-input"
+          placeholder="Optional note"
+          disabled={completionSaving}
+        />
+        {fileError && <div className="punch-note-empty">{fileError}</div>}
+        <div className="punch-completion-modal-actions">
+          <button
+            type="button"
+            className="punch-note-cancel"
+            onClick={() => onRemoveCompletionFile(row.id)}
+            disabled={completionSaving}
+          >
+            Remove Photo
+          </button>
+          <button
+            type="button"
+            className="punch-note-cancel"
+            onClick={onClose}
+            disabled={completionSaving}
+          >
+            Later
+          </button>
+          <button
+            type="button"
+            className="punch-completion-submit"
+            onClick={() => onSubmitCompletion(row)}
+            disabled={Boolean(fileError) || completionSaving}
+          >
+            <Upload className="h-4 w-4" />
+            {completionSaving ? "Submitting..." : "Submit for Review"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NotesPanel({
   row,
   noteDraft,
   noteEditDrafts = {},
-  completionDraft,
   onNoteDraftChange,
   onNoteEditDraftChange,
   onAddNote,
@@ -2304,138 +2833,51 @@ function NotesPanel({
   onDeleteNote,
   onStartEditNote,
   onCancelEditNote,
-  onCompletionDraftChange,
-  onCompletionFileChange,
-  onSubmitCompletion,
-  onReviewCompletion,
   onPreview,
   noteSaving,
   noteEditingId,
   noteDeletingId,
   activeNoteEditId,
-  completionSaving,
-  completionReviewSavingKey,
 }) {
   const notes = activityNotes(row);
   const completions = completionActivities(row);
   const canAddNote = canAddNoteToRow(row);
-  const canSubmitCompletion = canSubmitCompletionForRow(row);
-  const canReviewCompletion = canReviewCompletionForRow(row);
   const unavailableMessage = noteUnavailableMessage(row);
   const trimmedDraft = textValue(noteDraft);
-  const completionNote = completionDraft?.note || "";
-  const completionFile = completionDraft?.file || null;
-  const completionFileError = completionFile ? validateCompletionFile(completionFile) : "";
-  const showCompletionPanel =
-    canSubmitCompletion || canReviewCompletion || row.status === "pending_review" || completions.length > 0;
 
   return (
     <div className="punch-notes-panel">
-      {showCompletionPanel && (
-        <div className="punch-completion-panel">
-          <div className="punch-notes-title">
-            <Upload className="h-4 w-4" />
-            Completion
-          </div>
-          {canSubmitCompletion && (
-            <form
-              className="punch-completion-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!completionFileError && completionFile) onSubmitCompletion(row);
-              }}
-            >
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/heic,image/heif,image/webp,.jpg,.jpeg,.png,.heic,.heif,.webp"
-                className="punch-completion-file"
-                onChange={(event) => onCompletionFileChange(row.id, event.target.files?.[0] || null)}
-                disabled={completionSaving}
-                aria-label="Completion photo"
-              />
-              <textarea
-                value={completionNote}
-                onChange={(event) => onCompletionDraftChange(row.id, { note: event.target.value })}
-                maxLength={1000}
-                className="punch-note-input"
-                placeholder="Optional completion note"
-                disabled={completionSaving}
-              />
-              {completionFileError && (
-                <div className="punch-note-empty">{completionFileError}</div>
-              )}
-              <div className="punch-note-actions">
-                <button
-                  type="submit"
-                  disabled={!completionFile || Boolean(completionFileError) || completionSaving}
-                  className="punch-note-submit"
-                >
-                  <Upload className="h-4 w-4" />
-                  {completionSaving ? "Submitting..." : "Submit Completion"}
-                </button>
-              </div>
-            </form>
-          )}
-          {row.status === "pending_review" && (
-            <div className="punch-note-empty">
-              Pending review{row.completionReview?.submittedAt ? ` since ${formatDateTime(row.completionReview.submittedAt)}` : ""}.
-            </div>
-          )}
-          {canReviewCompletion && (
-            <div className="punch-completion-actions">
-              <button
-                type="button"
-                className="punch-completion-reject"
-                onClick={() => onReviewCompletion(row, "reject")}
-                disabled={Boolean(completionReviewSavingKey)}
-              >
-                <X className="h-4 w-4" />
-                {completionReviewSavingKey === `${row.id}:reject` ? "Rejecting..." : "Reject"}
-              </button>
-              <button
-                type="button"
-                className="punch-completion-approve"
-                onClick={() => onReviewCompletion(row, "approve")}
-                disabled={Boolean(completionReviewSavingKey)}
-              >
-                <Check className="h-4 w-4" />
-                {completionReviewSavingKey === `${row.id}:approve` ? "Approving..." : "Approve"}
-              </button>
-            </div>
-          )}
-          {completions.length > 0 && (
-            <div className="punch-completion-events">
-              {completions.slice(0, 5).map((activity) => (
-                <div key={activity.id} className="punch-completion-event">
-                  <div>
-                    <div className="punch-completion-event-title">
-                      {completionActivityLabel(activity)} · {formatDateTime(activity.createdAt) || "Recently"}
-                    </div>
-                    {activity.note && (
-                      <div className="punch-completion-event-note">{activity.note}</div>
-                    )}
-                  </div>
-                  {activity.attachment?.previewUrl && onPreview && (
-                    <button
-                      type="button"
-                      className="punch-note-tool"
-                      onClick={() => onPreview(row)}
-                      aria-label="Open completion photo"
-                      title="Open completion photo"
-                    >
-                      <Camera className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
       <div className="punch-notes-title">
         <FileText className="h-4 w-4" />
-        Notes
+        {notes.length > 0 ? "Notes" : completions.length > 0 ? "History" : "Notes"}
       </div>
+      {completions.length > 0 && (
+        <div className="punch-completion-events">
+          {completions.slice(0, 5).map((activity) => (
+            <div key={activity.id} className="punch-completion-event">
+              <div>
+                <div className="punch-completion-event-title">
+                  {completionActivityLabel(activity)} · {formatDateTime(activity.createdAt) || "Recently"}
+                </div>
+                {activity.note && (
+                  <div className="punch-completion-event-note">{activity.note}</div>
+                )}
+              </div>
+              {activity.attachment?.previewUrl && onPreview && (
+                <button
+                  type="button"
+                  className="punch-note-tool"
+                  onClick={() => onPreview(row)}
+                  aria-label="Open completion photo"
+                  title="Open completion photo"
+                >
+                  <Camera className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       {notes.length > 0 ? (
         <div className="punch-note-list">
           {notes.slice(0, 5).map((note) => {
@@ -2569,9 +3011,9 @@ function RowDetail({
   onStartEditNote,
   onCancelEditNote,
   completionDraft,
-  onCompletionDraftChange,
   onCompletionFileChange,
-  onSubmitCompletion,
+  onRemoveCompletionFile,
+  onOpenCompletionPrompt,
   onReviewCompletion,
   noteSaving,
   noteEditingId,
@@ -2650,17 +3092,28 @@ function RowDetail({
             href={reportHref}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-foreground"
           >
-            <FileText className="h-4 w-4" />
-            Reports
+        <FileText className="h-4 w-4" />
+        Reports
           </a>
         )}
       </div>
+
+      <CompletionPanel
+        row={row}
+        completionDraft={completionDraft}
+        onCompletionFileChange={onCompletionFileChange}
+        onRemoveCompletionFile={onRemoveCompletionFile}
+        onOpenCompletionPrompt={onOpenCompletionPrompt}
+        onReviewCompletion={onReviewCompletion}
+        onPreview={onPreview}
+        completionSaving={completionSaving}
+        completionReviewSavingKey={completionReviewSavingKey}
+      />
 
       <NotesPanel
         row={row}
         noteDraft={noteDraft}
         noteEditDrafts={noteEditDrafts}
-        completionDraft={completionDraft}
         onNoteDraftChange={onNoteDraftChange}
         onNoteEditDraftChange={onNoteEditDraftChange}
         onAddNote={onAddNote}
@@ -2668,17 +3121,11 @@ function RowDetail({
         onDeleteNote={onDeleteNote}
         onStartEditNote={onStartEditNote}
         onCancelEditNote={onCancelEditNote}
-        onCompletionDraftChange={onCompletionDraftChange}
-        onCompletionFileChange={onCompletionFileChange}
-        onSubmitCompletion={onSubmitCompletion}
-        onReviewCompletion={onReviewCompletion}
         onPreview={onPreview}
         noteSaving={noteSaving}
         noteEditingId={noteEditingId}
         noteDeletingId={noteDeletingId}
         activeNoteEditId={activeNoteEditId}
-        completionSaving={completionSaving}
-        completionReviewSavingKey={completionReviewSavingKey}
       />
     </aside>
   );
@@ -2705,10 +3152,12 @@ function IssueRow({
   onDeleteNote,
   onStartEditNote,
   onCancelEditNote,
+  completionPanelOpen,
+  onToggleCompletionPanel,
   completionDraft,
-  onCompletionDraftChange,
   onCompletionFileChange,
-  onSubmitCompletion,
+  onRemoveCompletionFile,
+  onOpenCompletionPrompt,
   onReviewCompletion,
   canEditStatus,
   noteSaving,
@@ -2774,11 +3223,11 @@ function IssueRow({
                 className="punch-row-note-button is-completion"
                 onClick={(event) => {
                   event.stopPropagation();
-                  onToggleNotePanel(row.id);
+                  onToggleCompletionPanel(row.id);
                 }}
               >
                 <Upload className="h-3.5 w-3.5" />
-                {canSubmitCompletion ? "Submit" : canReviewCompletion ? "Review" : "Pending Review"}
+                {canSubmitCompletion ? "Upload Photo" : canReviewCompletion ? "Review" : "Pending Review"}
               </button>
             )}
             {showNoteButton && (
@@ -2848,6 +3297,19 @@ function IssueRow({
           />
         </div>
       </div>
+      {completionPanelOpen && (
+        <CompletionPanel
+          row={row}
+          completionDraft={completionDraft}
+          onCompletionFileChange={onCompletionFileChange}
+          onRemoveCompletionFile={onRemoveCompletionFile}
+          onOpenCompletionPrompt={onOpenCompletionPrompt}
+          onReviewCompletion={onReviewCompletion}
+          onPreview={onPreview}
+          completionSaving={completionSaving}
+          completionReviewSavingKey={completionReviewSavingKey}
+        />
+      )}
       {notePanelOpen && (
         <div className="punch-row-note-area grid gap-3">
           {row.reason && row.reason !== row.title && (
@@ -2857,7 +3319,6 @@ function IssueRow({
             row={row}
             noteDraft={noteDraft}
             noteEditDrafts={noteEditDrafts}
-            completionDraft={completionDraft}
             onNoteDraftChange={onNoteDraftChange}
             onNoteEditDraftChange={onNoteEditDraftChange}
             onAddNote={onAddNote}
@@ -2865,17 +3326,11 @@ function IssueRow({
             onDeleteNote={onDeleteNote}
             onStartEditNote={onStartEditNote}
             onCancelEditNote={onCancelEditNote}
-            onCompletionDraftChange={onCompletionDraftChange}
-            onCompletionFileChange={onCompletionFileChange}
-            onSubmitCompletion={onSubmitCompletion}
-            onReviewCompletion={onReviewCompletion}
             onPreview={onPreview}
             noteSaving={noteSaving}
             noteEditingId={noteEditingId}
             noteDeletingId={noteDeletingId}
             activeNoteEditId={activeNoteEditId}
-            completionSaving={completionSaving}
-            completionReviewSavingKey={completionReviewSavingKey}
           />
         </div>
       )}
@@ -3155,6 +3610,8 @@ export default function ScoutPunchListPage() {
   const [completionReviewSavingKey, setCompletionReviewSavingKey] = useState("");
   const [workflowSavingKey, setWorkflowSavingKey] = useState("");
   const [activeNoteRowId, setActiveNoteRowId] = useState("");
+  const [activeCompletionRowId, setActiveCompletionRowId] = useState("");
+  const [completionPromptRowId, setCompletionPromptRowId] = useState("");
   const [activeNoteEditId, setActiveNoteEditId] = useState("");
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportSelectedTrades, setReportSelectedTrades] = useState({});
@@ -3591,6 +4048,8 @@ export default function ScoutPunchListPage() {
     setCompletionReviewSavingKey("");
     setWorkflowSavingKey("");
     setActiveNoteRowId("");
+    setActiveCompletionRowId("");
+    setCompletionPromptRowId("");
     setActiveNoteEditId("");
     setReportModalOpen(false);
     setReportSelectedTrades({});
@@ -3633,8 +4092,35 @@ export default function ScoutPunchListPage() {
     }));
   }
 
-  function handleCompletionFileChange(rowId, file) {
+  function handleCompletionFileChange(rowId, file, options = {}) {
     handleCompletionDraftChange(rowId, { file });
+    setPunchListError("");
+    if (file && options.prompt) {
+      setCompletionPromptRowId(rowId);
+    }
+  }
+
+  function handleRemoveCompletionFile(rowId) {
+    setCompletionDrafts((current) => {
+      const next = {
+        ...(current[rowId] || {}),
+        file: null,
+      };
+      return {
+        ...current,
+        [rowId]: next,
+      };
+    });
+    setCompletionPromptRowId((current) => (current === rowId ? "" : current));
+  }
+
+  function handleToggleCompletionPanel(rowId) {
+    setSelectedRowId(rowId);
+    setActiveCompletionRowId((current) => (current === rowId ? "" : rowId));
+  }
+
+  function handleOpenCompletionPrompt(rowId) {
+    setCompletionPromptRowId(rowId);
   }
 
   function handleToggleNotePanel(rowId) {
@@ -3846,7 +4332,8 @@ export default function ScoutPunchListPage() {
         delete next[row.id];
         return next;
       });
-      setActiveNoteRowId(row.id);
+      setCompletionPromptRowId("");
+      setActiveCompletionRowId(row.id);
       await loadPunchList(session, { force: true });
     } catch (error) {
       setPunchListError(error.message || "Unable to submit completion.");
@@ -4275,6 +4762,7 @@ export default function ScoutPunchListPage() {
 
   const openCount = orgFilteredRows.filter((row) => row.status !== "resolved").length;
   const resolvedCount = orgFilteredRows.filter((row) => row.status === "resolved").length;
+  const completionPromptRow = rows.find((row) => row.id === completionPromptRowId) || null;
   const showAllPropertiesOption = propertyOptions.length > 1;
   const propertySelectValue =
     propertyOptions.length === 0
@@ -4688,9 +5176,12 @@ export default function ScoutPunchListPage() {
                       onDeleteNote={handleDeleteNote}
                       onStartEditNote={handleStartEditNote}
                       onCancelEditNote={handleCancelEditNote}
+                      completionPanelOpen={activeCompletionRowId === row.id}
+                      onToggleCompletionPanel={handleToggleCompletionPanel}
                       completionDraft={completionDrafts[row.id] || {}}
-                      onCompletionDraftChange={handleCompletionDraftChange}
                       onCompletionFileChange={handleCompletionFileChange}
+                      onRemoveCompletionFile={handleRemoveCompletionFile}
+                      onOpenCompletionPrompt={handleOpenCompletionPrompt}
                       onSubmitCompletion={handleSubmitCompletion}
                       onReviewCompletion={handleReviewCompletion}
                       canEditStatus={canEditWorkflowForRow(row) && row.status !== "pending_review"}
@@ -4721,8 +5212,9 @@ export default function ScoutPunchListPage() {
                       onStartEditNote={handleStartEditNote}
                       onCancelEditNote={handleCancelEditNote}
                       completionDraft={selectedRow ? completionDrafts[selectedRow.id] || {} : {}}
-                      onCompletionDraftChange={handleCompletionDraftChange}
                       onCompletionFileChange={handleCompletionFileChange}
+                      onRemoveCompletionFile={handleRemoveCompletionFile}
+                      onOpenCompletionPrompt={handleOpenCompletionPrompt}
                       onSubmitCompletion={handleSubmitCompletion}
                       onReviewCompletion={handleReviewCompletion}
                       noteSaving={selectedRow ? noteSavingId === selectedRow.id : false}
@@ -4749,6 +5241,15 @@ export default function ScoutPunchListPage() {
         onClose={() => setReportModalOpen(false)}
       />
       <ImagePreviewModal row={previewRow} onClose={() => setPreviewRow(null)} />
+      <CompletionNoteModal
+        row={completionPromptRow}
+        completionDraft={completionPromptRow ? completionDrafts[completionPromptRow.id] || {} : {}}
+        onCompletionDraftChange={handleCompletionDraftChange}
+        onRemoveCompletionFile={handleRemoveCompletionFile}
+        onSubmitCompletion={handleSubmitCompletion}
+        onClose={() => setCompletionPromptRowId("")}
+        completionSaving={completionPromptRow ? completionSavingId === completionPromptRow.id : false}
+      />
     </div>
   );
 }

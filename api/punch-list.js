@@ -78,6 +78,8 @@ const MAX_TRADE_NAME_LENGTH = 60;
 const COMPLETION_PHOTO_PREFIX = "punchlist-completions";
 const COMPLETION_IMAGE_TYPES = new Set([
   "image/jpeg",
+  "image/jpg",
+  "image/pjpeg",
   "image/png",
   "image/heic",
   "image/heif",
@@ -457,14 +459,29 @@ function extensionForCompletionPhoto(filename, mimeType) {
     case "image/webp":
       return "webp";
     case "image/jpeg":
+    case "image/jpg":
+    case "image/pjpeg":
     default:
       return "jpg";
   }
 }
 
+function normalizedCompletionMimeType(filename, mimeType) {
+  const type = compactText(mimeType)?.toLowerCase() || "";
+  const extension = String(filename || "").split(".").pop()?.toLowerCase();
+  if (type === "image/jpg" || type === "image/pjpeg") return "image/jpeg";
+  if (type && type !== "application/octet-stream") return type;
+  if (extension === "png") return "image/png";
+  if (extension === "heic") return "image/heic";
+  if (extension === "heif") return "image/heif";
+  if (extension === "webp") return "image/webp";
+  if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+  return type;
+}
+
 function validateCompletionPhotoMetadata(input = {}) {
   const filename = safeFilename(input.filename || input.name);
-  const mimeType = compactText(input.mimeType || input.type)?.toLowerCase() || "";
+  const mimeType = normalizedCompletionMimeType(filename, input.mimeType || input.type);
   const byteSize = Number(input.byteSize || input.size || 0);
   if (!COMPLETION_IMAGE_TYPES.has(mimeType)) {
     const error = new Error("Completion photo must be a JPEG, PNG, HEIC, HEIF, or WebP image.");
@@ -1154,6 +1171,23 @@ function workflowActivityErrorMessage(error, field) {
   return "Unable to update workflow field. Punch list activity may need to be configured.";
 }
 
+function completionActivityErrorMessage(error) {
+  const message = String(error?.message || "");
+  if (
+    error?.code === "23514" ||
+    error?.code === "PGRST204" ||
+    message.includes("punchlist_activity_type_check") ||
+    message.includes("completion_submitted") ||
+    message.includes("storage_bucket") ||
+    message.includes("storage_path") ||
+    message.includes("mime_type") ||
+    message.includes("byte_size")
+  ) {
+    return "Unable to submit completion. Apply the latest punch list completion migration, then try again.";
+  }
+  return "Unable to submit completion.";
+}
+
 function isFlaggedShot(row) {
   return Boolean(row?.is_flagged || row?.issue_id || compactText(row?.issue_status) || isResolvedShot(row));
 }
@@ -1787,7 +1821,7 @@ async function handleSubmitCompletion(req, res) {
 
     if (activityError) {
       return sendJson(res, 500, {
-        error: "Unable to submit completion. Punch list activity may need to be configured.",
+        error: completionActivityErrorMessage(activityError),
       });
     }
 
