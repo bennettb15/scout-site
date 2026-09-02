@@ -501,6 +501,39 @@ function validateCompletionPhotoMetadata(input = {}) {
   };
 }
 
+function completionUploadInputs(body) {
+  if (Array.isArray(body?.uploads)) return body.uploads;
+  if (Array.isArray(body?.files)) return body.files;
+  if (body?.upload) return [body.upload];
+  if (body?.file) return [body.file];
+  return [];
+}
+
+function validateCompletionUploadReferences(body) {
+  const uploads = completionUploadInputs(body);
+  if (uploads.length === 0) {
+    const error = new Error("Completion photo upload reference is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+  return uploads.map((upload) => {
+    const photoMetadata = validateCompletionPhotoMetadata(upload || {});
+    const storageBucket = compactText(upload?.bucket);
+    const storagePath = compactText(upload?.path);
+    if (storageBucket !== DELIVERABLES_BUCKET || !storagePath) {
+      const error = new Error("Completion photo upload reference is required.");
+      error.statusCode = 400;
+      throw error;
+    }
+    return {
+      upload,
+      photoMetadata,
+      storageBucket,
+      storagePath,
+    };
+  });
+}
+
 function completionPhotoPrefix(observation) {
   return [
     COMPLETION_PHOTO_PREFIX,
@@ -747,12 +780,48 @@ function publicActivityAttachment(row, previewUrl) {
   };
 }
 
+function completionSubmissionGroupId(row) {
+  if (!row || row.activity_type !== "completion_submitted") return "";
+  return validateUuid(row.from_value) || validateUuid(row.id) || "";
+}
+
+function completionReviewGroupId(row) {
+  if (!row || !COMPLETION_ACTIVITY_TYPES.has(row.activity_type)) return "";
+  if (row.activity_type === "completion_submitted") return completionSubmissionGroupId(row);
+  return validateUuid(row.from_value) || "";
+}
+
+function compareCompletionSubmissionOrder(groupId) {
+  return (left, right) => {
+    const leftPrimary = left?.id === groupId ? 0 : 1;
+    const rightPrimary = right?.id === groupId ? 0 : 1;
+    if (leftPrimary !== rightPrimary) return leftPrimary - rightPrimary;
+    const dateCompare = String(left?.created_at || "").localeCompare(String(right?.created_at || ""));
+    if (dateCompare !== 0) return dateCompare;
+    return String(left?.id || "").localeCompare(String(right?.id || ""));
+  };
+}
+
+function completionSubmissionRowsForGroup(rows, groupId) {
+  if (!groupId) return [];
+  return (rows || [])
+    .filter(
+      (row) =>
+        row?.activity_type === "completion_submitted" &&
+        (row.id === groupId || completionSubmissionGroupId(row) === groupId)
+    )
+    .sort(compareCompletionSubmissionOrder(groupId));
+}
+
 function completionPhotoFromActivity(row, previewUrl, label) {
   if (!row?.storage_path || !previewUrl) return null;
+  const groupId = completionSubmissionGroupId(row);
   return {
     label,
     activityId: row.id,
+    submissionGroupId: groupId || null,
     capturedAt: row.created_at || null,
+    note: compactText(row.note),
     preview: {
       displayName: compactText(row.filename) || "Completion photo",
       previewUrl,
@@ -763,14 +832,30 @@ function completionPhotoFromActivity(row, previewUrl, label) {
   };
 }
 
+function completionPhotosFromSubmissions(submissions, previewUrlByActivityId, label) {
+  return (submissions || [])
+    .map((row) =>
+      completionPhotoFromActivity(
+        row,
+        previewUrlByActivityId.get(row.id) || null,
+        label
+      )
+    )
+    .filter(Boolean);
+}
+
 function publicActivityRow(row, options = {}) {
   if (!row) return null;
   const canDelete = Boolean(options.canDelete);
   const canEdit = Boolean(options.canEdit);
   const attachment = publicActivityAttachment(row, options.attachmentPreviewUrl || null);
+  const submissionGroupId = row.activity_type === "completion_submitted"
+    ? completionSubmissionGroupId(row) || null
+    : completionReviewGroupId(row) || null;
   return {
     id: row.id,
     activityType: row.activity_type,
+    submissionGroupId,
     fromValue: row.from_value || null,
     toValue: row.to_value || null,
     note: compactText(row.note),
@@ -815,13 +900,31 @@ function completionStatusFromActivityType(activityType) {
   return "";
 }
 
-function operationalStatusFromActivity(rows) {
+function operationalStateFromActivity(rows) {
   for (const row of rows || []) {
     const completionStatus = completionStatusFromActivityType(row?.activity_type);
-    if (completionStatus) return completionStatus;
-    if (row?.activity_type === "status_changed") return normalizedStatus(row.to_value);
+    if (completionStatus) {
+      return {
+        status: completionStatus,
+        activity: row,
+        source: "completion",
+        groupId: completionReviewGroupId(row),
+      };
+    }
+    if (row?.activity_type === "status_changed") {
+      return {
+        status: normalizedStatus(row.to_value),
+        activity: row,
+        source: "workflow",
+        groupId: "",
+      };
+    }
   }
-  return "";
+  return null;
+}
+
+function operationalStatusFromActivity(rows) {
+  return operationalStateFromActivity(rows)?.status || "";
 }
 
 function completionStateFromActivity(rows) {
@@ -829,19 +932,15 @@ function completionStateFromActivity(rows) {
   for (const row of activityRows) {
     const status = completionStatusFromActivityType(row?.activity_type);
     if (!status) continue;
-    const referencedSubmissionId = validateUuid(row.from_value);
-    const submission =
-      row.activity_type === "completion_submitted"
-        ? row
-        : activityRows.find(
-            (candidate) =>
-              candidate.activity_type === "completion_submitted" &&
-              (!referencedSubmissionId || candidate.id === referencedSubmissionId)
-          ) || null;
+    const groupId = completionReviewGroupId(row);
+    const submissions = completionSubmissionRowsForGroup(activityRows, groupId);
+    const submission = submissions[0] || null;
     return {
       status,
       activity: row,
       submission,
+      submissions,
+      groupId,
     };
   }
   return null;
@@ -890,6 +989,8 @@ function publicObservationRow({
   statusOverride,
   completionState,
   completionPhoto,
+  completionPhotos,
+  completionPhotoIsPrimary,
   shot,
   org,
   property,
@@ -899,10 +1000,12 @@ function publicObservationRow({
 }) {
   const baseState = baseWorkflowState({ observation, update, shot });
   const latestShotResolved = isResolvedShot(shot);
-  const status = latestShotResolved
-    ? "resolved"
-    : statusOverride || workflowOverride(workflowState, "status", baseState.status);
-  const preview = publicPreview(shot, previewUrl, reportPackage);
+  const status = statusOverride ||
+    (latestShotResolved ? "resolved" : workflowOverride(workflowState, "status", baseState.status));
+  const scoutPreview = publicPreview(shot, previewUrl, reportPackage);
+  const preview = completionPhotoIsPrimary && completionPhoto?.preview
+    ? completionPhoto.preview
+    : scoutPreview;
   const useLatestShotDisplay = usesCarriedForwardObservationDisplay(observation, shot);
   const title = useLatestShotDisplay
     ? rowTitle(shot?.reason)
@@ -947,20 +1050,33 @@ function publicObservationRow({
     resolvedAt:
       observation.resolved_at ||
       (status === "resolved"
-        ? completionPhoto?.capturedAt ||
+        ? (completionPhotoIsPrimary && completionPhoto?.capturedAt) ||
           (latestShotResolved && (shot?.updated_at || shot?.captured_at || shot?.created_at)) ||
           update?.updated_at ||
           observation.updated_at
         : null),
     locationKey: shot ? locationKeyFromShot({ ...shot, property_id: observation.property_id }) : "",
     preview,
+    scoutPreview,
     activity,
     completionReview:
       status === "pending_review" && completionState?.submission?.id
         ? {
             activityId: completionState.submission.id,
+            groupId: completionState.groupId || completionState.submission.id,
             submittedAt: completionState.submission.created_at || null,
             note: compactText(completionState.submission.note),
+            photos: completionPhotos || [],
+          }
+        : null,
+    completionResolution:
+      status === "resolved" && completionPhotoIsPrimary && completionState?.submission?.id
+        ? {
+            activityId: completionState.submission.id,
+            groupId: completionState.groupId || completionState.submission.id,
+            resolvedAt: completionState.activity?.created_at || null,
+            note: compactText(completionState.submission.note),
+            photos: completionPhotos || [],
           }
         : null,
     permissions: {
@@ -1753,19 +1869,12 @@ async function handleSubmitCompletion(req, res) {
   }
 
   let note = null;
-  let photoMetadata;
+  let uploadReferences;
   try {
     note = validateOptionalCompletionNote(body.note);
-    photoMetadata = validateCompletionPhotoMetadata(body.upload || body.file || {});
+    uploadReferences = validateCompletionUploadReferences(body);
   } catch (error) {
     return sendJson(res, error.statusCode || 400, { error: error.message });
-  }
-
-  const upload = body.upload || {};
-  const storageBucket = compactText(upload.bucket);
-  const storagePath = compactText(upload.path);
-  if (storageBucket !== DELIVERABLES_BUCKET || !storagePath) {
-    return sendJson(res, 400, { error: "Completion photo upload reference is required." });
   }
 
   try {
@@ -1775,8 +1884,10 @@ async function handleSubmitCompletion(req, res) {
     const service = createServiceClient();
     await ensureUserProfile(service, auth.user, auth.user.id);
     const observation = await resolveNoteObservation(auth, service, { observationId, shotId, packageId });
-    if (!completionPhotoPathIsExpected(observation, storagePath)) {
-      return sendJson(res, 400, { error: "Completion photo upload reference is not valid." });
+    for (const reference of uploadReferences) {
+      if (!completionPhotoPathIsExpected(observation, reference.storagePath)) {
+        return sendJson(res, 400, { error: "Completion photo upload reference is not valid." });
+      }
     }
 
     const activityRows = await activityRowsForCompletionReview(service, observation.id);
@@ -1791,31 +1902,36 @@ async function handleSubmitCompletion(req, res) {
       });
     }
 
-    if (!(await deliverableObjectExists(service, storagePath))) {
-      return sendJson(res, 400, { error: "Completion photo upload was not found." });
+    for (const reference of uploadReferences) {
+      if (!(await deliverableObjectExists(service, reference.storagePath))) {
+        return sendJson(res, 400, { error: "Completion photo upload was not found." });
+      }
     }
 
-    const { data: activity, error: activityError } = await service
+    const submissionGroupId = randomUUID();
+    const activityInserts = uploadReferences.map((reference, index) => ({
+      id: index === 0 ? submissionGroupId : randomUUID(),
+      org_id: observation.org_id,
+      property_id: observation.property_id,
+      observation_id: observation.id,
+      shot_id: observation.shot_id || null,
+      activity_type: "completion_submitted",
+      from_value: submissionGroupId,
+      to_value: "pending_review",
+      note: index === 0 ? note : null,
+      storage_bucket: DELIVERABLES_BUCKET,
+      storage_path: reference.storagePath,
+      filename: reference.photoMetadata.filename,
+      mime_type: reference.photoMetadata.mimeType,
+      byte_size: reference.photoMetadata.byteSize,
+      created_by: auth.user.id,
+      deleted_at: null,
+    }));
+
+    const { data: activityRowsInserted, error: activityError } = await service
       .from("punchlist_activity")
-      .insert({
-        org_id: observation.org_id,
-        property_id: observation.property_id,
-        observation_id: observation.id,
-        shot_id: observation.shot_id || null,
-        activity_type: "completion_submitted",
-        from_value: currentStatus || "active",
-        to_value: "pending_review",
-        note,
-        storage_bucket: DELIVERABLES_BUCKET,
-        storage_path: storagePath,
-        filename: photoMetadata.filename,
-        mime_type: photoMetadata.mimeType,
-        byte_size: photoMetadata.byteSize,
-        created_by: auth.user.id,
-        deleted_at: null,
-      })
-      .select(PUNCHLIST_ACTIVITY_SELECT)
-      .single();
+      .insert(activityInserts)
+      .select(PUNCHLIST_ACTIVITY_SELECT);
 
     if (activityError) {
       return sendJson(res, 500, {
@@ -1823,12 +1939,24 @@ async function handleSubmitCompletion(req, res) {
       });
     }
 
-    const attachmentPreviewUrl = await signedCompletionPhotoUrl(service, activity);
+    const submittedActivities = (activityRowsInserted || []).sort(compareCompletionSubmissionOrder(submissionGroupId));
+    const previewUrls = new Map();
+    for (const activity of submittedActivities) {
+      const attachmentPreviewUrl = await signedCompletionPhotoUrl(service, activity);
+      if (attachmentPreviewUrl) previewUrls.set(activity.id, attachmentPreviewUrl);
+    }
     return sendJson(res, 200, {
       submitted: true,
       status: "pending_review",
       observationId: observation.id,
-      activity: publicActivityRow(activity, { attachmentPreviewUrl }),
+      activity: publicActivityRow(submittedActivities[0], {
+        attachmentPreviewUrl: previewUrls.get(submittedActivities[0]?.id) || null,
+      }),
+      activities: submittedActivities.map((activity) =>
+        publicActivityRow(activity, {
+          attachmentPreviewUrl: previewUrls.get(activity.id) || null,
+        })
+      ),
     });
   } catch (error) {
     return sendJson(res, error.statusCode || 500, {
@@ -1877,13 +2005,14 @@ async function handleReviewCompletion(req, res, body = null) {
     if (!submission) return sendJson(res, 404, { error: "Completion submission not found." });
     if (!(await canEditPunchListWorkflow(auth, submission.org_id))) {
       return sendJson(res, 403, {
-        error: "Client Viewer or Field User access is required to review completion submissions.",
+        error: "Workflow editor access is required to review completion submissions.",
       });
     }
 
     const activityRows = await activityRowsForCompletionReview(service, submission.observation_id);
     const completionState = completionStateFromActivity(activityRows);
-    if (completionState?.status !== "pending_review" || completionState?.submission?.id !== submission.id) {
+    const submissionGroupId = completionSubmissionGroupId(submission) || submission.id;
+    if (completionState?.status !== "pending_review" || completionState?.groupId !== submissionGroupId) {
       return sendJson(res, 400, { error: "This completion submission is not pending review." });
     }
 
@@ -1896,7 +2025,7 @@ async function handleReviewCompletion(req, res, body = null) {
         observation_id: submission.observation_id,
         shot_id: submission.shot_id || null,
         activity_type: action === "approve" ? "completion_approved" : "completion_rejected",
-        from_value: submission.id,
+        from_value: submissionGroupId,
         to_value: nextStatus,
         note,
         created_by: auth.user.id,
@@ -2414,17 +2543,23 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   const dedupKeys = new Set();
   for (const observation of observations) {
     const rawActivityRows = activityRowsForObservation(rawActivityByObservationId, observation.id);
+    const operationalState = operationalStateFromActivity(rawActivityRows);
     const completionState = completionStateFromActivity(rawActivityRows);
-    const completionSubmissionPreviewUrl = completionState?.submission?.id
-      ? completionPreviewUrlByActivityId.get(completionState.submission.id) || null
-      : null;
+    const completionPhotos = completionPhotosFromSubmissions(
+      completionState?.submissions || [],
+      completionPreviewUrlByActivityId,
+      completionState?.status === "resolved" ? "Resolved" : "Pending Review"
+    );
     const completionPhoto = completionState?.submission
-      ? completionPhotoFromActivity(
-          completionState.submission,
-          completionSubmissionPreviewUrl,
-          completionState.status === "resolved" ? "Resolved" : "Current"
-        )
+      ? completionPhotos[0] || null
       : null;
+    const completionPhotoIsPrimary = Boolean(
+      completionPhoto &&
+        operationalState?.source === "completion" &&
+        ["pending_review", "resolved"].includes(operationalState.status) &&
+        operationalState.groupId &&
+        completionState?.groupId === operationalState.groupId
+    );
     const observationShot = observation.shot_id ? shotsById.get(observation.shot_id) : null;
     const shot =
       latestFlaggedShotForObservation(
@@ -2444,9 +2579,11 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       workflowState: workflowStateFromActivity(
         activityRowsForObservation(workflowActivityByObservationId, observation.id)
       ),
-      statusOverride: completionState?.status || "",
+      statusOverride: operationalState?.status || "",
       completionState,
       completionPhoto,
+      completionPhotos,
+      completionPhotoIsPrimary,
       shot,
       org: orgById.get(observation.org_id) || null,
       property: propertyById.get(observation.property_id || shot?.property_id) || null,
@@ -2470,14 +2607,21 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       .filter((activityRow) => activityRow.activity_type === "completion_submitted")
       .filter(
         (activityRow) =>
-          activityRow.id !== completionState?.submission?.id ||
-          !["pending_review", "resolved"].includes(completionState?.status)
+          completionSubmissionGroupId(activityRow) !== completionState?.groupId ||
+          !completionPhotoIsPrimary
+      )
+      .filter((activityRow) =>
+        rawActivityRows.some(
+          (reviewRow) =>
+            reviewRow.activity_type === "completion_approved" &&
+            completionReviewGroupId(reviewRow) === completionSubmissionGroupId(activityRow)
+        )
       )
       .map((activityRow) =>
         completionPhotoFromActivity(
           activityRow,
           completionPreviewUrlByActivityId.get(activityRow.id) || null,
-          "Previous"
+          "Previous completion"
         )
       )
       .filter(Boolean);

@@ -346,12 +346,32 @@ function validateCompletionFile(file) {
   return "";
 }
 
+function completionDraftFiles(draft) {
+  if (Array.isArray(draft?.files)) return draft.files.filter(Boolean);
+  return draft?.file ? [draft.file] : [];
+}
+
+function validateCompletionFiles(files) {
+  if (!Array.isArray(files) || files.length === 0) return "Choose a completion photo.";
+  for (const file of files) {
+    const error = validateCompletionFile(file);
+    if (error) return `${file?.name || "Completion photo"}: ${error}`;
+  }
+  return "";
+}
+
 function completionFileLabel(file) {
   if (!file) return "";
   const sizeLabel = Number.isFinite(file.size) && file.size > 0
     ? `${Math.max(1, Math.round(file.size / 1024))} KB`
     : "";
   return [file.name || "Completion photo", sizeLabel].filter(Boolean).join(" · ");
+}
+
+function completionFilesReadyLabel(files) {
+  const count = Array.isArray(files) ? files.length : 0;
+  if (count <= 1) return "Ready to submit for review.";
+  return `${count} photos ready to submit for review.`;
 }
 
 function workflowPatch(field, value) {
@@ -630,7 +650,8 @@ function activityNotes(row) {
       (activity) =>
         (activity?.activityType === "note_added" ||
           (activity?.activityType === "completion_submitted" &&
-            approvedCompletionSubmissionIds.has(activity.id))) &&
+            (approvedCompletionSubmissionIds.has(activity.id) ||
+              approvedCompletionSubmissionIds.has(activity.submissionGroupId)))) &&
         textValue(activity.note)
     )
     .map((activity) => ({
@@ -721,6 +742,7 @@ function completionPhotoForActivity(activity, label = "Completion") {
   return {
     label,
     activityId: activity.id,
+    submissionGroupId: activity.submissionGroupId || null,
     capturedAt: activity.createdAt || null,
     note: textValue(activity.note),
     status: completionActivityLabel(activity),
@@ -734,9 +756,24 @@ function completionPhotoForActivity(activity, label = "Completion") {
   };
 }
 
+function completionPhotosFromReview(review, fallback = null) {
+  const photos = Array.isArray(review?.photos) ? review.photos : [];
+  const validPhotos = photos.filter((photo) => photo?.preview?.previewUrl);
+  if (validPhotos.length > 0) return validPhotos;
+  return fallback ? [fallback] : [];
+}
+
 function pendingCompletionPhoto(row) {
   const activity = pendingCompletionActivity(row);
   return activity ? completionPhotoForActivity(activity, "Pending Review") : null;
+}
+
+function pendingCompletionPhotos(row) {
+  return completionPhotosFromReview(row?.completionReview, pendingCompletionPhoto(row));
+}
+
+function resolvedCompletionPhotos(row) {
+  return completionPhotosFromReview(row?.completionResolution);
 }
 
 function historyActivityLabel(activity) {
@@ -1469,6 +1506,24 @@ const PUNCH_LIST_STYLES = `
     padding: 8px;
   }
 
+  .punch-completion-file-preview.is-multiple {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .punch-completion-file-list {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .punch-completion-file-row {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
   .punch-completion-file-thumb {
     width: 90px;
     height: 72px;
@@ -1480,11 +1535,27 @@ const PUNCH_LIST_STYLES = `
     padding: 0;
   }
 
+  .punch-completion-file-row .punch-completion-file-thumb {
+    width: 56px;
+    height: 44px;
+    border-radius: 6px;
+  }
+
   .punch-completion-file-thumb img {
     display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  .punch-completion-modal-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 8px;
+  }
+
+  .punch-completion-modal-preview-grid .punch-completion-modal-preview {
+    min-height: 96px;
   }
 
   .punch-completion-file-thumb-button {
@@ -2422,6 +2493,7 @@ function currentPhotoLabel(row) {
 
 function photoIdentity(photo) {
   return [
+    photo?.activityId,
     photo?.shotId,
     photo?.preview?.originalDownload?.apiPath,
     photo?.preview?.previewUrl,
@@ -2434,44 +2506,74 @@ function rowHistoryPhotos(row) {
   const history = row?.photoHistory;
   const photos = [];
   if (history?.prior) photos.push(history.prior);
+  if (Array.isArray(history?.photos)) photos.push(...history.photos);
   return photos.filter((photo) => photo?.preview?.previewUrl);
 }
 
-function previewPhotosForRow(row) {
-  if (!row?.preview?.previewUrl) return [];
-  const current = {
-    label: currentPhotoLabel(row),
+function scoutCurrentPhotoForRow(row, label = null) {
+  const preview = row?.scoutPreview || (
+    row?.completionReview || row?.completionResolution ? null : row?.preview
+  );
+  if (!preview?.previewUrl) return null;
+  return {
+    label: label || currentPhotoLabel(row),
     shotId: row.shotId,
     packageId: row.packageId,
     capturedAt: row.capturedAt,
-    preview: row.preview,
+    preview,
   };
-  const seen = new Set([photoIdentity(current)].filter(Boolean));
-  const photos = [current];
+}
 
-  for (const photo of rowHistoryPhotos(row)) {
+function previewPhotosForRow(row) {
+  const photos = [];
+  const seen = new Set();
+  const addPhoto = (photo) => {
+    if (!photo?.preview?.previewUrl) return;
+    const identity = photoIdentity(photo);
+    if (identity && seen.has(identity)) return;
+    if (identity) seen.add(identity);
+    photos.push(photo);
+  };
+
+  const scoutPhoto = scoutCurrentPhotoForRow(row, row?.status === "resolved" ? "ScoutCapture" : "Current");
+  const historyPhotos = rowHistoryPhotos(row);
+  const scoutHistoryPhotos = historyPhotos.filter((photo) => !textValue(photo.label).toLowerCase().includes("completion"));
+  const previousCompletionPhotos = historyPhotos.filter((photo) =>
+    textValue(photo.label).toLowerCase().includes("completion")
+  );
+  const addHistoryPhoto = (photo) => {
     const normalized = {
       label: row.status === "resolved" ? photo.label || "Before" : photo.label || "Previous",
       shotId: photo.shotId,
+      activityId: photo.activityId,
+      submissionGroupId: photo.submissionGroupId,
       packageId: photo.packageId,
       capturedAt: photo.capturedAt,
+      note: photo.note,
+      status: photo.status,
       preview: photo.preview,
     };
-    const identity = photoIdentity(normalized);
-    if (identity && seen.has(identity)) continue;
-    if (identity) seen.add(identity);
-    photos.push(normalized);
+    addPhoto(normalized);
+  };
+
+  if (row?.status === "pending_review") {
+    for (const photo of pendingCompletionPhotos(row)) addPhoto({ ...photo, label: photo.label || "Pending Review" });
+    addPhoto(scoutPhoto);
+    for (const photo of scoutHistoryPhotos) addHistoryPhoto(photo);
+    return photos;
   }
 
-  const pendingPhoto = pendingCompletionPhoto(row);
-  if (pendingPhoto) {
-    const identity = photoIdentity(pendingPhoto);
-    if (!identity || !seen.has(identity)) {
-      if (identity) seen.add(identity);
-      photos.push(pendingPhoto);
-    }
+  const resolutionPhotos = row?.status === "resolved" ? resolvedCompletionPhotos(row) : [];
+  if (resolutionPhotos.length > 0) {
+    for (const photo of resolutionPhotos) addPhoto({ ...photo, label: photo.label || "Resolved" });
+    addPhoto(scoutPhoto ? { ...scoutPhoto, label: "Before" } : null);
+    for (const photo of scoutHistoryPhotos) addHistoryPhoto(photo);
+    return photos;
   }
 
+  addPhoto(scoutPhoto);
+  for (const photo of scoutHistoryPhotos) addHistoryPhoto(photo);
+  for (const photo of previousCompletionPhotos) addHistoryPhoto(photo);
   return photos;
 }
 
@@ -2748,17 +2850,19 @@ function CompletionPanel({
   completionReviewSavingKey,
 }) {
   const pendingActivity = pendingCompletionActivity(row);
-  const pendingPhoto = pendingActivity ? completionPhotoForActivity(pendingActivity, "Pending Review") : null;
+  const pendingPhotos = pendingCompletionPhotos(row);
+  const pendingPhoto = pendingPhotos[0] || null;
   const canSubmitCompletion = canSubmitCompletionForRow(row);
   const canReviewCompletion = canReviewCompletionForRow(row);
-  const completionFile = completionDraft?.file || null;
-  const completionFileError = completionFile ? validateCompletionFile(completionFile) : "";
+  const completionFiles = completionDraftFiles(completionDraft);
+  const completionFileError = completionFiles.length > 0 ? validateCompletionFiles(completionFiles) : "";
   const [dragging, setDragging] = useState(false);
   const inputId = `completion-photo-${row.id}`;
 
-  function useCompletionFile(file) {
-    if (!file || completionSaving) return;
-    onCompletionFileChange(row.id, file);
+  function useCompletionFiles(files, options = {}) {
+    const nextFiles = Array.from(files || []).filter(Boolean);
+    if (nextFiles.length === 0 || completionSaving) return;
+    onCompletionFileChange(row.id, nextFiles, options);
   }
 
   return (
@@ -2788,7 +2892,7 @@ function CompletionPanel({
           </button>
           <div className="punch-completion-file-meta">
             <div className="punch-completion-file-name">
-              Pending Review
+              {pendingPhotos.length > 1 ? `${pendingPhotos.length} Photos Pending Review` : "Pending Review"}
             </div>
             <div className="punch-completion-file-status">
               Submitted {formatDateTime(pendingActivity.createdAt) || "recently"}
@@ -2821,25 +2925,45 @@ function CompletionPanel({
       )}
       {canSubmitCompletion && (
         <>
-          {completionFile ? (
-            <div className="punch-completion-file-preview">
-              <div className="punch-completion-file-thumb">
-                <CompletionFilePreview file={completionFile} />
-              </div>
-              <div className="punch-completion-file-meta">
-                <div className="punch-completion-file-name">{completionFileLabel(completionFile)}</div>
-                <div className="punch-completion-file-status">
-                  {completionFileError || "Ready to submit for review."}
-                </div>
+          {completionFiles.length > 0 ? (
+            <div className="punch-completion-file-preview is-multiple">
+              <div className="punch-completion-file-list">
+                {completionFiles.map((file, index) => {
+                  const fileError = validateCompletionFile(file);
+                  return (
+                    <div key={`${file.name || "completion"}:${file.size}:${file.lastModified}:${index}`} className="punch-completion-file-row">
+                      <div className="punch-completion-file-thumb">
+                        <CompletionFilePreview file={file} />
+                      </div>
+                      <div className="punch-completion-file-meta">
+                        <div className="punch-completion-file-name">{completionFileLabel(file)}</div>
+                        <div className="punch-completion-file-status">
+                          {fileError || (index === 0 ? completionFilesReadyLabel(completionFiles) : "Included in submission.")}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="punch-completion-tool is-delete"
+                        onClick={() => onRemoveCompletionFile(row.id, index)}
+                        disabled={completionSaving}
+                        aria-label="Remove completion photo"
+                        title="Remove completion photo"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
               <div className="punch-completion-file-tools">
                 <label className="punch-completion-tool">
-                  Replace
+                  Add
                   <input
                     type="file"
+                    multiple
                     accept={COMPLETION_PHOTO_ACCEPT}
                     className="sr-only"
-                    onChange={(event) => useCompletionFile(event.target.files?.[0] || null)}
+                    onChange={(event) => useCompletionFiles(event.target.files)}
                     disabled={completionSaving}
                   />
                 </label>
@@ -2848,8 +2972,8 @@ function CompletionPanel({
                   className="punch-completion-tool is-delete"
                   onClick={() => onRemoveCompletionFile(row.id)}
                   disabled={completionSaving}
-                  aria-label="Remove completion photo"
-                  title="Remove completion photo"
+                  aria-label="Remove all completion photos"
+                  title="Remove all completion photos"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -2884,15 +3008,16 @@ function CompletionPanel({
               onDrop={(event) => {
                 event.preventDefault();
                 setDragging(false);
-                useCompletionFile(event.dataTransfer.files?.[0] || null);
+                useCompletionFiles(event.dataTransfer.files);
               }}
             >
               <input
                 id={inputId}
                 type="file"
+                multiple
                 accept={COMPLETION_PHOTO_ACCEPT}
                 className="punch-completion-input"
-                onChange={(event) => useCompletionFile(event.target.files?.[0] || null)}
+                onChange={(event) => useCompletionFiles(event.target.files)}
                 disabled={completionSaving}
                 aria-label="Upload completion photo"
               />
@@ -2928,11 +3053,11 @@ function CompletionNoteModal({
   onClose,
   completionSaving,
 }) {
-  const file = completionDraft?.file || null;
+  const files = completionDraftFiles(completionDraft);
   const note = completionDraft?.note || "";
-  const fileError = file ? validateCompletionFile(file) : "Choose a completion photo.";
+  const fileError = validateCompletionFiles(files);
 
-  if (!row || !file) return null;
+  if (!row || files.length === 0) return null;
 
   return (
     <div
@@ -2947,7 +3072,9 @@ function CompletionNoteModal({
           <div>
             <div className="punch-completion-modal-title">Submit Photo For Review</div>
             <div className="punch-completion-modal-subtitle">
-              This will move the item to Pending Review until it is approved.
+              {files.length === 1
+                ? "This will move the item to Pending Review until it is approved."
+                : `${files.length} photos will move the item to Pending Review until approved.`}
             </div>
           </div>
           <button
@@ -2960,8 +3087,15 @@ function CompletionNoteModal({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="punch-completion-modal-preview">
-          <CompletionFilePreview file={file} />
+        <div className="punch-completion-modal-preview-grid">
+          {files.map((file, index) => (
+            <div
+              key={`${file.name || "completion"}:${file.size}:${file.lastModified}:${index}`}
+              className="punch-completion-modal-preview"
+            >
+              <CompletionFilePreview file={file} />
+            </div>
+          ))}
         </div>
         <textarea
           value={note}
@@ -2979,7 +3113,7 @@ function CompletionNoteModal({
             onClick={() => onRemoveCompletionFile(row.id)}
             disabled={completionSaving}
           >
-            Remove Photo
+            Remove Photos
           </button>
           <button
             type="button"
@@ -4309,19 +4443,38 @@ export default function ScoutPunchListPage() {
     }));
   }
 
-  function handleCompletionFileChange(rowId, file, options = {}) {
-    handleCompletionDraftChange(rowId, { file });
+  function handleCompletionFileChange(rowId, files, options = {}) {
+    const incomingFiles = Array.from(files || []).filter(Boolean);
+    if (incomingFiles.length === 0) return;
+    setCompletionDrafts((current) => {
+      const currentDraft = current[rowId] || {};
+      const currentFiles = options.replace ? [] : completionDraftFiles(currentDraft);
+      return {
+        ...current,
+        [rowId]: {
+          ...currentDraft,
+          file: null,
+          files: [...currentFiles, ...incomingFiles],
+        },
+      };
+    });
     setPunchListError("");
-    if (file && options.prompt) {
+    if (options.prompt) {
       setCompletionPromptRowId(rowId);
     }
   }
 
-  function handleRemoveCompletionFile(rowId) {
+  function handleRemoveCompletionFile(rowId, index = null) {
     setCompletionDrafts((current) => {
+      const currentDraft = current[rowId] || {};
+      const currentFiles = completionDraftFiles(currentDraft);
+      const nextFiles = Number.isInteger(index)
+        ? currentFiles.filter((_, fileIndex) => fileIndex !== index)
+        : [];
       const next = {
-        ...(current[rowId] || {}),
+        ...currentDraft,
         file: null,
+        files: nextFiles,
       };
       return {
         ...current,
@@ -4502,8 +4655,8 @@ export default function ScoutPunchListPage() {
   async function handleSubmitCompletion(row) {
     if (!session?.access_token || !supabase || !canSubmitCompletionForRow(row)) return;
     const draft = completionDrafts[row.id] || {};
-    const file = draft.file || null;
-    const fileError = validateCompletionFile(file);
+    const files = completionDraftFiles(draft);
+    const fileError = validateCompletionFiles(files);
     if (fileError) {
       setPunchListError(fileError);
       return;
@@ -4512,36 +4665,42 @@ export default function ScoutPunchListPage() {
     setCompletionSavingId(row.id);
     setPunchListError("");
     try {
-      const mimeType = completionMimeTypeForFile(file);
-      const uploadResponse = await fetch("/api/punch-list?mode=completion-upload", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          observationId: row.observationId,
-          shotId: row.observationId ? null : row.shotId,
-          packageId: row.observationId ? null : row.packageId,
-          file: {
-            filename: file.name,
-            mimeType,
-            byteSize: file.size,
+      const uploads = [];
+      let submittedObservationId = row.observationId;
+      for (const file of files) {
+        const mimeType = completionMimeTypeForFile(file);
+        const uploadResponse = await fetch("/api/punch-list?mode=completion-upload", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
           },
-        }),
-      });
-      const uploadBody = await uploadResponse.json().catch(() => ({}));
-      if (!uploadResponse.ok || !uploadBody.upload?.bucket || !uploadBody.upload?.path || !uploadBody.upload?.token) {
-        throw new Error(uploadBody.error || "Unable to prepare completion photo upload.");
-      }
-
-      const { error: storageError } = await supabase.storage
-        .from(uploadBody.upload.bucket)
-        .uploadToSignedUrl(uploadBody.upload.path, uploadBody.upload.token, file, {
-          contentType: mimeType,
+          body: JSON.stringify({
+            observationId: submittedObservationId || row.observationId,
+            shotId: (submittedObservationId || row.observationId) ? null : row.shotId,
+            packageId: (submittedObservationId || row.observationId) ? null : row.packageId,
+            file: {
+              filename: file.name,
+              mimeType,
+              byteSize: file.size,
+            },
+          }),
         });
-      if (storageError) {
-        throw new Error(storageError.message || "Unable to upload completion photo.");
+        const uploadBody = await uploadResponse.json().catch(() => ({}));
+        if (!uploadResponse.ok || !uploadBody.upload?.bucket || !uploadBody.upload?.path || !uploadBody.upload?.token) {
+          throw new Error(uploadBody.error || "Unable to prepare completion photo upload.");
+        }
+
+        const { error: storageError } = await supabase.storage
+          .from(uploadBody.upload.bucket)
+          .uploadToSignedUrl(uploadBody.upload.path, uploadBody.upload.token, file, {
+            contentType: mimeType,
+          });
+        if (storageError) {
+          throw new Error(storageError.message || "Unable to upload completion photo.");
+        }
+        submittedObservationId = uploadBody.observationId || submittedObservationId;
+        uploads.push(uploadBody.upload);
       }
 
       const submitResponse = await fetch("/api/punch-list?mode=completion-submit", {
@@ -4551,11 +4710,11 @@ export default function ScoutPunchListPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          observationId: uploadBody.observationId || row.observationId,
-          shotId: row.observationId ? null : row.shotId,
-          packageId: row.observationId ? null : row.packageId,
+          observationId: submittedObservationId || row.observationId,
+          shotId: (submittedObservationId || row.observationId) ? null : row.shotId,
+          packageId: (submittedObservationId || row.observationId) ? null : row.packageId,
           note: draft.note || "",
-          upload: uploadBody.upload,
+          uploads,
         }),
       });
       const submitBody = await submitResponse.json().catch(() => ({}));
