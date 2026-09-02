@@ -1222,11 +1222,18 @@ const PUNCH_LIST_STYLES = `
     width: 100%;
   }
 
+  .punch-row.has-review-actions .punch-row-controls > .punch-control {
+    justify-self: end;
+    width: 232px;
+  }
+
   .punch-status-review-control {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto 232px;
     align-items: center;
     gap: 8px;
+    justify-content: end;
+    width: 100%;
   }
 
   .punch-control {
@@ -2589,6 +2596,12 @@ const PUNCH_LIST_STYLES = `
       grid-column: 1 / -1;
       grid-template-columns: minmax(0, 1fr);
       gap: 7px;
+      justify-content: stretch;
+    }
+
+    .punch-row.has-review-actions .punch-row-controls > .punch-control {
+      justify-self: stretch;
+      width: 100%;
     }
 
     .punch-status-review-control .punch-row-review-actions {
