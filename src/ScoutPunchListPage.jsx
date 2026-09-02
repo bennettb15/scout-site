@@ -1065,8 +1065,7 @@ const PUNCH_LIST_STYLES = `
     display: flex;
     align-items: center;
     gap: 5px;
-    margin-top: auto;
-    margin-bottom: 11px;
+    margin-top: 10px;
     color: rgb(220 38 38);
     font-size: 15px;
     font-weight: 700;
@@ -1083,9 +1082,15 @@ const PUNCH_LIST_STYLES = `
 
   .punch-flag-line span {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+  }
+
+  .punch-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
   }
 
   .punch-row-note-button {
@@ -1095,7 +1100,6 @@ const PUNCH_LIST_STYLES = `
     align-items: center;
     justify-content: center;
     gap: 5px;
-    margin-left: 6px;
     border-radius: 7px;
     border: 1px solid rgb(203 213 225);
     background: white;
@@ -1703,6 +1707,18 @@ const PUNCH_LIST_STYLES = `
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
+  }
+
+  .punch-row-controls .punch-row-review-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .punch-row-controls .punch-completion-approve,
+  .punch-row-controls .punch-completion-reject {
+    flex: 1 1 0;
+    min-width: 0;
   }
 
   .punch-completion-approve:disabled,
@@ -3561,6 +3577,7 @@ function IssueRow({
   const showCompletionButton = canSubmitCompletion || canReviewCompletion || row.status === "pending_review";
   const showNoteButton = canAddNote || notes.length > 0;
   const showHistoryButton = history.length > 0;
+  const showRowActions = showCompletionButton || showNoteButton || showHistoryButton;
   const tradeValue = tradeKey(row.trade || "general") || "general";
   const dueDateValue = row.dueDate || "";
   const workflowTradeOptions = tradeOptionsForRow(row, tradeOptions);
@@ -3601,55 +3618,52 @@ function IssueRow({
             <span>
               {resolved ? `Resolved: ${flagNote}` : pendingReview ? `Pending Review: ${flagNote}` : flagNote}
             </span>
-            {showCompletionButton && (
-              <button
-                type="button"
-                className={`punch-row-note-button is-completion ${
-                  completionPanelOpen ? "is-active" : ""
-                }`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onToggleCompletionPanel(row.id);
-                }}
-              >
-                <ImageUp className="h-3.5 w-3.5" />
-                Upload Photo
-              </button>
-            )}
-            {showNoteButton && (
-              <button
-                type="button"
-                className={`punch-row-note-button ${notePanelOpen ? "is-active" : ""}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onToggleNotePanel(row.id);
-                }}
-              >
-                <FileText className="h-3.5 w-3.5" />
-                Notes
-              </button>
-            )}
-            {showHistoryButton && (
-              <button
-                type="button"
-                className={`punch-row-note-button ${historyPanelOpen ? "is-active" : ""}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onToggleHistoryPanel(row.id);
-                }}
-              >
-                <Clock className="h-3.5 w-3.5" />
-                History
-              </button>
-            )}
-            {canReviewCompletion && (
-              <CompletionReviewActions
-                row={row}
-                onReviewCompletion={onReviewCompletion}
-                completionReviewSavingKey={completionReviewSavingKey}
-              />
-            )}
           </div>
+          {showRowActions && (
+            <div className="punch-row-actions">
+              {showCompletionButton && (
+                <button
+                  type="button"
+                  className={`punch-row-note-button is-completion ${
+                    completionPanelOpen ? "is-active" : ""
+                  }`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleCompletionPanel(row.id);
+                  }}
+                >
+                  <ImageUp className="h-3.5 w-3.5" />
+                  Upload Photo
+                </button>
+              )}
+              {showNoteButton && (
+                <button
+                  type="button"
+                  className={`punch-row-note-button ${notePanelOpen ? "is-active" : ""}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleNotePanel(row.id);
+                  }}
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Notes
+                </button>
+              )}
+              {showHistoryButton && (
+                <button
+                  type="button"
+                  className={`punch-row-note-button ${historyPanelOpen ? "is-active" : ""}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleHistoryPanel(row.id);
+                  }}
+                >
+                  <Clock className="h-3.5 w-3.5" />
+                  History
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div className="punch-row-controls">
           <WorkflowControl
@@ -3664,6 +3678,13 @@ function IssueRow({
             saving={workflowSavingKey === `${row.id}:status`}
             onChange={onWorkflowChange}
           />
+          {canReviewCompletion && (
+            <CompletionReviewActions
+              row={row}
+              onReviewCompletion={onReviewCompletion}
+              completionReviewSavingKey={completionReviewSavingKey}
+            />
+          )}
           <WorkflowControl
             row={row}
             field="priority"
@@ -4687,6 +4708,12 @@ export default function ScoutPunchListPage() {
         setRows((current) => patchRowList(current, row.id, observationPatch));
         setPreviewRow((current) => (current?.id === row.id ? { ...current, ...observationPatch } : current));
         patchCachedPunchListRows(session, row.id, observationPatch);
+      }
+      if (field === "status") {
+        clearPunchListCaches();
+        setSelectedTab(nextPatch.status === "resolved" ? TAB_RESOLVED : TAB_OPEN);
+        setSelectedRowId(row.id);
+        await loadPunchList(session, { force: true });
       }
     } catch (error) {
       setRows((current) => patchRowList(current, row.id, previousPatch));
