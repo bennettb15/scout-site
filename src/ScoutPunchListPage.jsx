@@ -1022,7 +1022,8 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-row.has-review-actions .punch-row-left {
-    height: 100%;
+    align-self: stretch;
+    height: auto;
   }
 
   .punch-thumbnail {
@@ -1052,7 +1053,9 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-row.has-review-actions .punch-thumbnail:not(.punch-thumbnail-large) {
-    height: 100%;
+    align-self: stretch;
+    height: auto;
+    min-height: 100%;
     max-height: none;
     aspect-ratio: auto;
   }
