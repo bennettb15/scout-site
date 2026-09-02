@@ -542,7 +542,7 @@ function statusStyle(status) {
     return { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0", color: "#15803d" };
   }
   if (status === "pending_review") {
-    return { backgroundColor: "#fffbeb", borderColor: "#fde68a", color: "#92400e" };
+    return { backgroundColor: "#fff7ed", borderColor: "#fdba74", color: "#ea580c" };
   }
   return { backgroundColor: "#fef2f2", borderColor: "#fecaca", color: "#b91c1c" };
 }
@@ -1078,7 +1078,7 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-flag-line.is-pending {
-    color: rgb(146 64 14);
+    color: rgb(234 88 12);
   }
 
   .punch-flag-line span {
@@ -1520,6 +1520,22 @@ const PUNCH_LIST_STYLES = `
     gap: 8px;
   }
 
+  .punch-completion-file-preview.is-pending-review {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .punch-completion-pending-photos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .punch-completion-pending-photos .punch-completion-file-thumb {
+    width: 72px;
+    height: 56px;
+    border-radius: 7px;
+  }
+
   .punch-completion-selected-header,
   .punch-completion-selected-footer {
     display: flex;
@@ -1679,6 +1695,14 @@ const PUNCH_LIST_STYLES = `
 
   .punch-completion-reject {
     background: rgb(220 38 38);
+  }
+
+  .punch-row-review-actions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
   }
 
   .punch-completion-approve:disabled,
@@ -2877,9 +2901,7 @@ function CompletionPanel({
 }) {
   const pendingActivity = pendingCompletionActivity(row);
   const pendingPhotos = pendingCompletionPhotos(row);
-  const pendingPhoto = pendingPhotos[0] || null;
   const canSubmitCompletion = canSubmitCompletionForRow(row);
-  const canReviewCompletion = canReviewCompletionForRow(row);
   const completionFiles = completionDraftFiles(completionDraft);
   const completionFileError = completionFiles.length > 0 ? validateCompletionFiles(completionFiles) : "";
   const [dragging, setDragging] = useState(false);
@@ -2899,24 +2921,30 @@ function CompletionPanel({
         Completion Photo
       </div>
       {pendingActivity && (
-        <div className="punch-completion-file-preview">
-          <button
-            type="button"
-            className="punch-completion-file-thumb punch-completion-file-thumb-button"
-            onClick={() => pendingPhoto && onPreview?.(row, pendingPhoto)}
-            disabled={!pendingPhoto}
-            aria-label="Open pending completion photo"
-            title="Open pending completion photo"
-          >
-            {pendingPhoto ? (
-              <img
-                src={pendingPhoto.preview.previewUrl}
-                alt="Pending completion photo"
-              />
+        <div className="punch-completion-file-preview is-pending-review">
+          <div className="punch-completion-pending-photos">
+            {pendingPhotos.length > 0 ? (
+              pendingPhotos.map((photo, index) => (
+                <button
+                  key={`${photoIdentity(photo) || "pending"}:${index}`}
+                  type="button"
+                  className="punch-completion-file-thumb punch-completion-file-thumb-button"
+                  onClick={() => onPreview?.(row, photo)}
+                  aria-label={`Open pending completion photo ${index + 1}`}
+                  title={`Open pending completion photo ${index + 1}`}
+                >
+                  <img
+                    src={photo.preview.previewUrl}
+                    alt={`Pending completion photo ${index + 1}`}
+                  />
+                </button>
+              ))
             ) : (
-              <Camera className="h-5 w-5" />
+              <div className="punch-completion-file-thumb">
+                <Camera className="h-5 w-5" />
+              </div>
             )}
-          </button>
+          </div>
           <div className="punch-completion-file-meta">
             <div className="punch-completion-file-name">
               {pendingPhotos.length > 1 ? `${pendingPhotos.length} Photos Pending Review` : "Pending Review"}
@@ -2926,28 +2954,6 @@ function CompletionPanel({
               {pendingActivity.note ? ` · ${pendingActivity.note}` : ""}
             </div>
           </div>
-          {canReviewCompletion && (
-            <div className="punch-completion-actions">
-              <button
-                type="button"
-                className="punch-completion-reject"
-                onClick={() => onReviewCompletion(row, "reject")}
-                disabled={Boolean(completionReviewSavingKey)}
-              >
-                <X className="h-4 w-4" />
-                {completionReviewSavingKey === `${row.id}:reject` ? "Rejecting..." : "Reject"}
-              </button>
-              <button
-                type="button"
-                className="punch-completion-approve"
-                onClick={() => onReviewCompletion(row, "approve")}
-                disabled={Boolean(completionReviewSavingKey)}
-              >
-                <Check className="h-4 w-4" />
-                {completionReviewSavingKey === `${row.id}:approve` ? "Approving..." : "Approve"}
-              </button>
-            </div>
-          )}
         </div>
       )}
       {canSubmitCompletion && (
@@ -3365,7 +3371,7 @@ function HistoryPanel({ row, tradeOptions = [], onPreview }) {
                   <button
                     type="button"
                     className="punch-note-tool"
-                    onClick={() => onPreview(row, completionPhoto)}
+                    onClick={() => onPreview(row, completionPhoto, { exact: true })}
                     aria-label="Open completion photo"
                     title="Open completion photo"
                   >
@@ -3379,6 +3385,43 @@ function HistoryPanel({ row, tradeOptions = [], onPreview }) {
       ) : (
         <div className="punch-note-empty">No history yet.</div>
       )}
+    </div>
+  );
+}
+
+function CompletionReviewActions({
+  row,
+  onReviewCompletion,
+  completionReviewSavingKey,
+  className = "",
+}) {
+  if (!canReviewCompletionForRow(row)) return null;
+  return (
+    <div className={`punch-row-review-actions ${className}`}>
+      <button
+        type="button"
+        className="punch-completion-reject"
+        onClick={(event) => {
+          event.stopPropagation();
+          onReviewCompletion(row, "reject");
+        }}
+        disabled={Boolean(completionReviewSavingKey)}
+      >
+        <X className="h-4 w-4" />
+        {completionReviewSavingKey === `${row.id}:reject` ? "Rejecting..." : "Reject"}
+      </button>
+      <button
+        type="button"
+        className="punch-completion-approve"
+        onClick={(event) => {
+          event.stopPropagation();
+          onReviewCompletion(row, "approve");
+        }}
+        disabled={Boolean(completionReviewSavingKey)}
+      >
+        <Check className="h-4 w-4" />
+        {completionReviewSavingKey === `${row.id}:approve` ? "Approving..." : "Approve"}
+      </button>
     </div>
   );
 }
@@ -3599,21 +3642,16 @@ function IssueRow({
                 History
               </button>
             )}
+            {canReviewCompletion && (
+              <CompletionReviewActions
+                row={row}
+                onReviewCompletion={onReviewCompletion}
+                completionReviewSavingKey={completionReviewSavingKey}
+              />
+            )}
           </div>
         </div>
         <div className="punch-row-controls">
-          <WorkflowControl
-            row={row}
-            field="priority"
-            label="Priority"
-            value={row.priority || "medium"}
-            displayValue={optionLabel(row.priority, PRIORITY_LABELS)}
-            options={PRIORITY_OPTIONS}
-            style={priorityStyle(row.priority)}
-            canEdit={canEditWorkflow}
-            saving={workflowSavingKey === `${row.id}:priority`}
-            onChange={onWorkflowChange}
-          />
           <WorkflowControl
             row={row}
             field="status"
@@ -3628,14 +3666,14 @@ function IssueRow({
           />
           <WorkflowControl
             row={row}
-            field="dueDate"
-            label="Due Date"
-            value={dueDateValue}
-            displayValue={formatDueDate(dueDateValue) || "None"}
-            type="date"
-            style={dueDateStyle(dueDateValue, row.status)}
+            field="priority"
+            label="Priority"
+            value={row.priority || "medium"}
+            displayValue={optionLabel(row.priority, PRIORITY_LABELS)}
+            options={PRIORITY_OPTIONS}
+            style={priorityStyle(row.priority)}
             canEdit={canEditWorkflow}
-            saving={workflowSavingKey === `${row.id}:dueDate`}
+            saving={workflowSavingKey === `${row.id}:priority`}
             onChange={onWorkflowChange}
           />
           <WorkflowControl
@@ -3650,6 +3688,18 @@ function IssueRow({
             onChange={onWorkflowChange}
             onAddOption={canEditWorkflow && canAddTradeOption ? onAddTrade : null}
             addOptionLabel="Add Trade"
+          />
+          <WorkflowControl
+            row={row}
+            field="dueDate"
+            label="Due Date"
+            value={dueDateValue}
+            displayValue={formatDueDate(dueDateValue) || "None"}
+            type="date"
+            style={dueDateStyle(dueDateValue, row.status)}
+            canEdit={canEditWorkflow}
+            saving={workflowSavingKey === `${row.id}:dueDate`}
+            onChange={onWorkflowChange}
           />
         </div>
       </div>
@@ -3806,13 +3856,18 @@ function previewTargetRow(target) {
 }
 
 function previewTargetPhoto(target) {
-  return target?.row ? target.photo || null : null;
+  return target?.row && target.exact ? target.photo || null : null;
+}
+
+function previewTargetInitialPhoto(target) {
+  return target?.row && !target.exact ? target.photo || null : null;
 }
 
 function ImagePreviewModal({ target, onClose }) {
   const [photoIndex, setPhotoIndex] = useState(0);
   const row = previewTargetRow(target);
   const targetPhoto = previewTargetPhoto(target);
+  const initialPhoto = previewTargetInitialPhoto(target);
   const photos = useMemo(
     () => (targetPhoto ? [targetPhoto] : previewPhotosForRow(row)),
     [row, targetPhoto]
@@ -3822,8 +3877,19 @@ function ImagePreviewModal({ target, onClose }) {
   const hasMultiplePhotos = photos.length > 1;
 
   useEffect(() => {
-    setPhotoIndex(0);
-  }, [row?.id, targetPhoto?.activityId, targetPhoto?.preview?.previewUrl]);
+    const initialIdentity = photoIdentity(initialPhoto);
+    const initialIndex = initialIdentity
+      ? photos.findIndex((photo) => photoIdentity(photo) === initialIdentity)
+      : -1;
+    setPhotoIndex(initialIndex >= 0 ? initialIndex : 0);
+  }, [
+    row?.id,
+    targetPhoto?.activityId,
+    targetPhoto?.preview?.previewUrl,
+    initialPhoto?.activityId,
+    initialPhoto?.preview?.previewUrl,
+    photos,
+  ]);
 
   useEffect(() => {
     if (!hasMultiplePhotos) return undefined;
@@ -4563,9 +4629,9 @@ export default function ScoutPunchListPage() {
     setNoteEditDrafts({});
   }
 
-  function handleOpenPreview(row, photo = null) {
+  function handleOpenPreview(row, photo = null, options = {}) {
     if (!row) return;
-    setPreviewRow(photo ? { row, photo } : row);
+    setPreviewRow(photo ? { row, photo, exact: Boolean(options.exact) } : row);
   }
 
   function handleStartEditNote(_row, note) {

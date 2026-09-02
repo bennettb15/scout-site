@@ -2181,7 +2181,9 @@ async function handleUpdateWorkflowField(req, res, body = null) {
       });
     }
     const workflowState = await workflowStateForObservation(service, observation.id);
-    const currentValue = workflowValueForField({ observation, workflowState }, field);
+    const currentValue = field === "status"
+      ? operationalStatusFromActivity(activityRows) || workflowValueForField({ observation, workflowState }, field)
+      : workflowValueForField({ observation, workflowState }, field);
     if ((currentValue || null) === (nextValue || null)) {
       return sendJson(res, 200, {
         updated: true,
