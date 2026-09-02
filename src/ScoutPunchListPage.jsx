@@ -1000,6 +1000,10 @@ const PUNCH_LIST_STYLES = `
     cursor: default;
   }
 
+  .punch-row.has-review-actions .punch-row-body {
+    grid-template-columns: 156px minmax(0, 1fr) minmax(360px, 420px);
+  }
+
   .punch-row-left {
     display: flex;
     align-items: stretch;
@@ -1212,6 +1216,17 @@ const PUNCH_LIST_STYLES = `
     gap: 7px;
     width: 232px;
     padding: 10px 12px 10px 0;
+  }
+
+  .punch-row.has-review-actions .punch-row-controls {
+    width: 100%;
+  }
+
+  .punch-status-review-control {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
   }
 
   .punch-control {
@@ -1725,6 +1740,19 @@ const PUNCH_LIST_STYLES = `
     color: rgb(185 28 28);
   }
 
+  .punch-completion-tool.is-primary {
+    border-color: rgb(37 99 235);
+    background: rgb(37 99 235);
+    color: white;
+    box-shadow: 0 1px 4px rgba(37, 99, 235, 0.2);
+  }
+
+  .punch-completion-tool.is-primary:hover {
+    border-color: rgb(29 78 216);
+    background: rgb(29 78 216);
+    color: white;
+  }
+
   .punch-completion-actions {
     display: flex;
     flex-wrap: wrap;
@@ -1763,20 +1791,32 @@ const PUNCH_LIST_STYLES = `
     gap: 6px;
   }
 
-  .punch-row-controls .punch-row-review-actions {
+  .punch-row-controls > .punch-row-review-actions {
     grid-column: 1 / -1;
     width: 100%;
     justify-content: stretch;
   }
 
-  .punch-row-controls .punch-completion-approve,
-  .punch-row-controls .punch-completion-reject {
+  .punch-row-controls > .punch-row-review-actions .punch-completion-approve,
+  .punch-row-controls > .punch-row-review-actions .punch-completion-reject {
     flex: 1 1 0;
     min-width: 0;
   }
 
+  .punch-status-review-control .punch-row-review-actions {
+    width: auto;
+    justify-content: flex-end;
+  }
+
+  .punch-status-review-control .punch-completion-approve,
+  .punch-status-review-control .punch-completion-reject {
+    flex: 0 0 auto;
+    min-width: 82px;
+  }
+
   .punch-completion-approve:disabled,
-  .punch-completion-reject:disabled {
+  .punch-completion-reject:disabled,
+  .punch-completion-tool.is-primary:disabled {
     cursor: wait;
     opacity: 0.55;
   }
@@ -2507,6 +2547,10 @@ const PUNCH_LIST_STYLES = `
       gap: 10px;
     }
 
+    .punch-row.has-review-actions .punch-row-body {
+      grid-template-columns: 96px minmax(0, 1fr);
+    }
+
     .punch-row {
       padding: 10px !important;
     }
@@ -2539,6 +2583,22 @@ const PUNCH_LIST_STYLES = `
       width: 100%;
       gap: 7px 10px;
       padding: 7px 6px 0;
+    }
+
+    .punch-status-review-control {
+      grid-column: 1 / -1;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 7px;
+    }
+
+    .punch-status-review-control .punch-row-review-actions {
+      justify-content: stretch;
+    }
+
+    .punch-status-review-control .punch-completion-approve,
+    .punch-status-review-control .punch-completion-reject {
+      flex: 1 1 0;
+      min-width: 0;
     }
 
     .punch-control {
@@ -3174,7 +3234,7 @@ function CompletionPanel({
                 </div>
                 <button
                   type="button"
-                  className="punch-completion-tool"
+                  className="punch-completion-tool is-primary"
                   onClick={() => onOpenCompletionPrompt(row.id)}
                   disabled={Boolean(completionFileError) || completionSaving}
                 >
@@ -3688,7 +3748,7 @@ function IssueRow({
 
   return (
     <article
-      className={`punch-row rounded-lg border bg-background p-3 shadow-sm transition ${
+      className={`punch-row ${canReviewCompletion ? "has-review-actions" : ""} rounded-lg border bg-background p-3 shadow-sm transition ${
         selected ? "border-[var(--brand)] ring-2 ring-[var(--brand)]/10" : "border-border"
       }`}
     >
@@ -3767,23 +3827,39 @@ function IssueRow({
           )}
         </div>
         <div className="punch-row-controls">
-          <WorkflowControl
-            row={row}
-            field="status"
-            label="Status"
-            value={row.status === "resolved" ? "resolved" : "active"}
-            displayValue={statusLabel(row.status)}
-            options={STATUS_OPTIONS}
-            style={statusStyle(row.status)}
-            canEdit={canEditStatus}
-            saving={workflowSavingKey === `${row.id}:status`}
-            onChange={onWorkflowChange}
-          />
           {canReviewCompletion && (
-            <CompletionReviewActions
+            <div className="punch-status-review-control">
+              <CompletionReviewActions
+                row={row}
+                onReviewCompletion={onReviewCompletion}
+                completionReviewSavingKey={completionReviewSavingKey}
+              />
+              <WorkflowControl
+                row={row}
+                field="status"
+                label="Status"
+                value={row.status === "resolved" ? "resolved" : "active"}
+                displayValue={statusLabel(row.status)}
+                options={STATUS_OPTIONS}
+                style={statusStyle(row.status)}
+                canEdit={canEditStatus}
+                saving={workflowSavingKey === `${row.id}:status`}
+                onChange={onWorkflowChange}
+              />
+            </div>
+          )}
+          {!canReviewCompletion && (
+            <WorkflowControl
               row={row}
-              onReviewCompletion={onReviewCompletion}
-              completionReviewSavingKey={completionReviewSavingKey}
+              field="status"
+              label="Status"
+              value={row.status === "resolved" ? "resolved" : "active"}
+              displayValue={statusLabel(row.status)}
+              options={STATUS_OPTIONS}
+              style={statusStyle(row.status)}
+              canEdit={canEditStatus}
+              saving={workflowSavingKey === `${row.id}:status`}
+              onChange={onWorkflowChange}
             />
           )}
           <WorkflowControl
