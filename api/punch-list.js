@@ -902,9 +902,7 @@ function publicObservationRow({
   const status = latestShotResolved
     ? "resolved"
     : statusOverride || workflowOverride(workflowState, "status", baseState.status);
-  const preview = completionPhoto && ["pending_review", "resolved"].includes(status)
-    ? completionPhoto.preview
-    : publicPreview(shot, previewUrl, reportPackage);
+  const preview = publicPreview(shot, previewUrl, reportPackage);
   const useLatestShotDisplay = usesCarriedForwardObservationDisplay(observation, shot);
   const title = useLatestShotDisplay
     ? rowTitle(shot?.reason)
@@ -2456,27 +2454,15 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       reportPackage,
       previewUrl: await previewForShot(shot),
     });
-    const completionBeforePreviewUrl =
-      completionPhoto && ["pending_review", "resolved"].includes(row.status)
-        ? await previewForShot(shot)
-        : null;
-    const historyPhoto = completionBeforePreviewUrl
-      ? {
-          label: "Before",
-          shotId: shot?.id || null,
-          packageId: reportPackage?.id || null,
-          capturedAt: shot?.captured_at || shot?.created_at || null,
-          preview: publicPreview(shot, completionBeforePreviewUrl, reportPackage),
-        }
-      : await publicHistoryPhotoForRow({
-          row,
-          shot,
-          historyShotsByIssueId,
-          historyShotsByLocationKey,
-          candidateOrderByShotId,
-          packageBySession,
-          previewForShot,
-        });
+    const historyPhoto = await publicHistoryPhotoForRow({
+      row,
+      shot,
+      historyShotsByIssueId,
+      historyShotsByLocationKey,
+      candidateOrderByShotId,
+      packageBySession,
+      previewForShot,
+    });
     if (historyPhoto) {
       row.photoHistory = { prior: historyPhoto };
     }

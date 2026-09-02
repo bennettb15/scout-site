@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  Clock,
   Download,
   FileText,
   Flag,
@@ -618,9 +619,29 @@ function propertyIdIsValidForOrg(options, orgId, propertyId) {
 }
 
 function activityNotes(row) {
-  return Array.isArray(row?.activity)
-    ? row.activity.filter((activity) => activity?.activityType === "note_added" && textValue(activity.note))
-    : [];
+  if (!Array.isArray(row?.activity)) return [];
+  return row.activity
+    .filter(
+      (activity) =>
+        (activity?.activityType === "note_added" ||
+          activity?.activityType === "completion_submitted") &&
+        textValue(activity.note)
+    )
+    .map((activity) => ({
+      ...activity,
+      id:
+        activity.activityType === "completion_submitted"
+          ? `${activity.id}:completion-note`
+          : activity.id,
+      sourceActivityId: activity.id,
+      canEdit: activity.activityType === "note_added" && canEditNote(activity),
+      canDelete: activity.activityType === "note_added" && canDeleteNote(activity),
+      permissions: {
+        ...(activity.permissions || {}),
+        canEdit: activity.activityType === "note_added" && canEditNote(activity),
+        canDelete: activity.activityType === "note_added" && canDeleteNote(activity),
+      },
+    }));
 }
 
 function canDeleteNote(note) {
@@ -670,6 +691,103 @@ function completionActivityLabel(activity) {
   if (activity?.activityType === "completion_approved") return "Approved";
   if (activity?.activityType === "completion_rejected") return "Rejected";
   return "Submitted";
+}
+
+function historyActivities(row) {
+  return Array.isArray(row?.activity) ? row.activity : [];
+}
+
+function pendingCompletionActivity(row) {
+  if (row?.status !== "pending_review") return null;
+  const activityId = row?.completionReview?.activityId;
+  const completions = completionActivities(row);
+  return (
+    completions.find(
+      (activity) =>
+        activity.activityType === "completion_submitted" &&
+        (!activityId || activity.id === activityId)
+    ) || null
+  );
+}
+
+function completionPhotoForActivity(activity, label = "Completion") {
+  if (!activity?.attachment?.previewUrl) return null;
+  return {
+    label,
+    activityId: activity.id,
+    capturedAt: activity.createdAt || null,
+    note: textValue(activity.note),
+    status: completionActivityLabel(activity),
+    preview: {
+      displayName: activity.attachment.filename || "Completion photo",
+      previewUrl: activity.attachment.previewUrl,
+      previewExpiresInSeconds: activity.attachment.previewExpiresInSeconds || null,
+      originalDownload: { available: false },
+      stampedFilename: null,
+    },
+  };
+}
+
+function pendingCompletionPhoto(row) {
+  const activity = pendingCompletionActivity(row);
+  return activity ? completionPhotoForActivity(activity, "Pending Review") : null;
+}
+
+function historyActivityLabel(activity) {
+  switch (activity?.activityType) {
+    case "completion_submitted":
+      return "Completion Submitted";
+    case "completion_approved":
+      return "Completion Approved";
+    case "completion_rejected":
+      return "Completion Rejected";
+    case "status_changed":
+      return "Status Changed";
+    case "priority_changed":
+      return "Priority Changed";
+    case "trade_changed":
+      return "Trade Changed";
+    case "due_date_changed":
+      return "Due Date Changed";
+    case "note_added":
+      return "Note Added";
+    default:
+      return "Activity";
+  }
+}
+
+function formatHistoryValue(activity, value, tradeOptions = []) {
+  if (!textValue(value)) return "None";
+  switch (activity?.activityType) {
+    case "status_changed":
+    case "completion_submitted":
+    case "completion_approved":
+    case "completion_rejected":
+      return statusLabel(value);
+    case "priority_changed":
+      return optionLabel(value, PRIORITY_LABELS);
+    case "trade_changed":
+      return tradeLabel(value, tradeOptions);
+    case "due_date_changed":
+      return formatDueDate(value) || "None";
+    default:
+      return value;
+  }
+}
+
+function historyActivityDetail(activity, tradeOptions = []) {
+  if (activity?.activityType === "note_added") return "";
+  if (activity?.activityType === "completion_submitted") return "Photo submitted for review";
+  if (activity?.activityType === "completion_approved") return "Submission approved";
+  if (activity?.activityType === "completion_rejected") return "Submission rejected";
+  if (activity?.fromValue !== activity?.toValue) {
+    return `${formatHistoryValue(activity, activity?.fromValue, tradeOptions)} -> ${formatHistoryValue(
+      activity,
+      activity?.toValue,
+      tradeOptions
+    )}`;
+  }
+  return "";
 }
 
 function tradeOptionsForRow(row, options) {
@@ -946,14 +1064,17 @@ const PUNCH_LIST_STYLES = `
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
   }
 
-  .punch-row-note-button.has-notes {
+  .punch-row-note-button.is-active,
+  .punch-row-note-button.has-notes.is-active {
     border-color: rgb(37 99 235);
     background: rgb(239 246 255);
     color: rgb(29 78 216);
     box-shadow: 0 1px 3px rgba(37, 99, 235, 0.16);
   }
 
-  .punch-row-note-button.has-notes:hover {
+  .punch-row-note-button:hover,
+  .punch-row-note-button.is-active:hover,
+  .punch-row-note-button.has-notes.is-active:hover {
     border-color: rgb(29 78 216);
     background: rgb(219 234 254);
     color: rgb(30 64 175);
@@ -963,6 +1084,13 @@ const PUNCH_LIST_STYLES = `
     border-color: rgb(203 213 225);
     background: white;
     color: rgb(28 39 66);
+  }
+
+  .punch-row-note-button.is-completion.is-active {
+    border-color: rgb(37 99 235);
+    background: rgb(239 246 255);
+    color: rgb(29 78 216);
+    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.16);
   }
 
   .punch-row-note-button.is-completion:hover {
@@ -1345,7 +1473,10 @@ const PUNCH_LIST_STYLES = `
     height: 72px;
     overflow: hidden;
     border-radius: 7px;
+    border: 0;
     background: rgb(15 23 42);
+    color: white;
+    padding: 0;
   }
 
   .punch-completion-file-thumb img {
@@ -1353,6 +1484,18 @@ const PUNCH_LIST_STYLES = `
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  .punch-completion-file-thumb-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-in;
+  }
+
+  .punch-completion-file-thumb-button:disabled {
+    cursor: default;
+    opacity: 0.55;
   }
 
   .punch-completion-file-meta {
@@ -1475,6 +1618,19 @@ const PUNCH_LIST_STYLES = `
     font-weight: 600;
     line-height: 1.4;
     white-space: pre-wrap;
+  }
+
+  .punch-history-panel {
+    display: grid;
+    gap: 10px;
+  }
+
+  .punch-history-events {
+    position: relative;
+  }
+
+  .punch-history-event {
+    border-left: 3px solid rgb(203 213 225);
   }
 
   .punch-completion-modal {
@@ -1726,6 +1882,16 @@ const PUNCH_LIST_STYLES = `
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .punch-lightbox-caption {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    color: rgb(71 85 105);
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1.35;
   }
 
   .punch-lightbox-priority {
@@ -2268,7 +2434,6 @@ function rowHistoryPhotos(row) {
   const history = row?.photoHistory;
   const photos = [];
   if (history?.prior) photos.push(history.prior);
-  if (Array.isArray(history?.photos)) photos.push(...history.photos);
   return photos.filter((photo) => photo?.preview?.previewUrl);
 }
 
@@ -2296,6 +2461,15 @@ function previewPhotosForRow(row) {
     if (identity && seen.has(identity)) continue;
     if (identity) seen.add(identity);
     photos.push(normalized);
+  }
+
+  const pendingPhoto = pendingCompletionPhoto(row);
+  if (pendingPhoto) {
+    const identity = photoIdentity(pendingPhoto);
+    if (!identity || !seen.has(identity)) {
+      if (identity) seen.add(identity);
+      photos.push(pendingPhoto);
+    }
   }
 
   return photos;
@@ -2567,12 +2741,14 @@ function CompletionPanel({
   onCompletionFileChange,
   onRemoveCompletionFile,
   onOpenCompletionPrompt,
+  onSubmitCompletion,
   onReviewCompletion,
   onPreview,
   completionSaving,
   completionReviewSavingKey,
 }) {
-  const completions = completionActivities(row);
+  const pendingActivity = pendingCompletionActivity(row);
+  const pendingPhoto = pendingActivity ? completionPhotoForActivity(pendingActivity, "Pending Review") : null;
   const canSubmitCompletion = canSubmitCompletionForRow(row);
   const canReviewCompletion = canReviewCompletionForRow(row);
   const completionFile = completionDraft?.file || null;
@@ -2582,7 +2758,7 @@ function CompletionPanel({
 
   function useCompletionFile(file) {
     if (!file || completionSaving) return;
-    onCompletionFileChange(row.id, file, { prompt: true });
+    onCompletionFileChange(row.id, file);
   }
 
   return (
@@ -2591,6 +2767,58 @@ function CompletionPanel({
         <ImageUp className="h-4 w-4" />
         Completion Photo
       </div>
+      {pendingActivity && (
+        <div className="punch-completion-file-preview">
+          <button
+            type="button"
+            className="punch-completion-file-thumb punch-completion-file-thumb-button"
+            onClick={() => pendingPhoto && onPreview?.(row, pendingPhoto)}
+            disabled={!pendingPhoto}
+            aria-label="Open pending completion photo"
+            title="Open pending completion photo"
+          >
+            {pendingPhoto ? (
+              <img
+                src={pendingPhoto.preview.previewUrl}
+                alt="Pending completion photo"
+              />
+            ) : (
+              <Camera className="h-5 w-5" />
+            )}
+          </button>
+          <div className="punch-completion-file-meta">
+            <div className="punch-completion-file-name">
+              Pending Review
+            </div>
+            <div className="punch-completion-file-status">
+              Submitted {formatDateTime(pendingActivity.createdAt) || "recently"}
+              {pendingActivity.note ? ` · ${pendingActivity.note}` : ""}
+            </div>
+          </div>
+          {canReviewCompletion && (
+            <div className="punch-completion-actions">
+              <button
+                type="button"
+                className="punch-completion-reject"
+                onClick={() => onReviewCompletion(row, "reject")}
+                disabled={Boolean(completionReviewSavingKey)}
+              >
+                <X className="h-4 w-4" />
+                {completionReviewSavingKey === `${row.id}:reject` ? "Rejecting..." : "Reject"}
+              </button>
+              <button
+                type="button"
+                className="punch-completion-approve"
+                onClick={() => onReviewCompletion(row, "approve")}
+                disabled={Boolean(completionReviewSavingKey)}
+              >
+                <Check className="h-4 w-4" />
+                {completionReviewSavingKey === `${row.id}:approve` ? "Approving..." : "Approve"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       {canSubmitCompletion && (
         <>
           {completionFile ? (
@@ -2679,59 +2907,13 @@ function CompletionPanel({
           )}
         </>
       )}
-      {row.status === "pending_review" && (
+      {row.status === "pending_review" && !pendingActivity && (
         <div className="punch-note-empty">
           Pending review{row.completionReview?.submittedAt ? ` since ${formatDateTime(row.completionReview.submittedAt)}` : ""}.
         </div>
       )}
-      {canReviewCompletion && (
-        <div className="punch-completion-actions">
-          <button
-            type="button"
-            className="punch-completion-reject"
-            onClick={() => onReviewCompletion(row, "reject")}
-            disabled={Boolean(completionReviewSavingKey)}
-          >
-            <X className="h-4 w-4" />
-            {completionReviewSavingKey === `${row.id}:reject` ? "Rejecting..." : "Reject"}
-          </button>
-          <button
-            type="button"
-            className="punch-completion-approve"
-            onClick={() => onReviewCompletion(row, "approve")}
-            disabled={Boolean(completionReviewSavingKey)}
-          >
-            <Check className="h-4 w-4" />
-            {completionReviewSavingKey === `${row.id}:approve` ? "Approving..." : "Approve"}
-          </button>
-        </div>
-      )}
-      {completions.length > 0 && (
-        <div className="punch-completion-events">
-          {completions.slice(0, 5).map((activity) => (
-            <div key={activity.id} className="punch-completion-event">
-              <div>
-                <div className="punch-completion-event-title">
-                  {completionActivityLabel(activity)} · {formatDateTime(activity.createdAt) || "Recently"}
-                </div>
-                {activity.note && (
-                  <div className="punch-completion-event-note">{activity.note}</div>
-                )}
-              </div>
-              {activity.attachment?.previewUrl && onPreview && (
-                <button
-                  type="button"
-                  className="punch-note-tool"
-                  onClick={() => onPreview(row)}
-                  aria-label="Open completion photo"
-                  title="Open completion photo"
-                >
-                  <Camera className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
+      {!canSubmitCompletion && row.status !== "pending_review" && (
+        <div className="punch-note-empty">Completion upload is not available for this item.</div>
       )}
     </div>
   );
@@ -2833,14 +3015,12 @@ function NotesPanel({
   onDeleteNote,
   onStartEditNote,
   onCancelEditNote,
-  onPreview,
   noteSaving,
   noteEditingId,
   noteDeletingId,
   activeNoteEditId,
 }) {
   const notes = activityNotes(row);
-  const completions = completionActivities(row);
   const canAddNote = canAddNoteToRow(row);
   const unavailableMessage = noteUnavailableMessage(row);
   const trimmedDraft = textValue(noteDraft);
@@ -2849,38 +3029,11 @@ function NotesPanel({
     <div className="punch-notes-panel">
       <div className="punch-notes-title">
         <FileText className="h-4 w-4" />
-        {notes.length > 0 ? "Notes" : completions.length > 0 ? "History" : "Notes"}
+        Notes
       </div>
-      {completions.length > 0 && (
-        <div className="punch-completion-events">
-          {completions.slice(0, 5).map((activity) => (
-            <div key={activity.id} className="punch-completion-event">
-              <div>
-                <div className="punch-completion-event-title">
-                  {completionActivityLabel(activity)} · {formatDateTime(activity.createdAt) || "Recently"}
-                </div>
-                {activity.note && (
-                  <div className="punch-completion-event-note">{activity.note}</div>
-                )}
-              </div>
-              {activity.attachment?.previewUrl && onPreview && (
-                <button
-                  type="button"
-                  className="punch-note-tool"
-                  onClick={() => onPreview(row)}
-                  aria-label="Open completion photo"
-                  title="Open completion photo"
-                >
-                  <Camera className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
       {notes.length > 0 ? (
         <div className="punch-note-list">
-          {notes.slice(0, 5).map((note) => {
+          {notes.map((note) => {
             const isEditing = activeNoteEditId === note.id;
             const editDraft = noteEditDrafts[note.id] ?? note.note ?? "";
             const trimmedEditDraft = textValue(editDraft);
@@ -2995,32 +3148,62 @@ function NotesPanel({
   );
 }
 
+function HistoryPanel({ row, tradeOptions = [], onPreview }) {
+  const history = historyActivities(row);
+
+  return (
+    <div className="punch-history-panel">
+      <div className="punch-notes-title">
+        <Clock className="h-4 w-4" />
+        History
+      </div>
+      {history.length > 0 ? (
+        <div className="punch-completion-events punch-history-events">
+          {history.map((activity) => {
+            const detail = historyActivityDetail(activity, tradeOptions);
+            const completionPhoto = completionPhotoForActivity(
+              activity,
+              completionActivityLabel(activity)
+            );
+            return (
+              <div key={activity.id} className="punch-completion-event punch-history-event">
+                <div>
+                  <div className="punch-completion-event-title">
+                    {historyActivityLabel(activity)} · {formatDateTime(activity.createdAt) || "Recently"}
+                  </div>
+                  {detail && <div className="punch-completion-event-note">{detail}</div>}
+                  {activity.note && activity.activityType !== "note_added" && (
+                    <div className="punch-completion-event-note">{activity.note}</div>
+                  )}
+                </div>
+                {completionPhoto && onPreview && (
+                  <button
+                    type="button"
+                    className="punch-note-tool"
+                    onClick={() => onPreview(row, completionPhoto)}
+                    aria-label="Open completion photo"
+                    title="Open completion photo"
+                  >
+                    <Camera className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="punch-note-empty">No history yet.</div>
+      )}
+    </div>
+  );
+}
+
 function RowDetail({
   row,
   tradeOptions,
   onDownloadOriginal,
   downloadId,
   onPreview,
-  noteDraft,
-  noteEditDrafts,
-  onNoteDraftChange,
-  onNoteEditDraftChange,
-  onAddNote,
-  onEditNote,
-  onDeleteNote,
-  onStartEditNote,
-  onCancelEditNote,
-  completionDraft,
-  onCompletionFileChange,
-  onRemoveCompletionFile,
-  onOpenCompletionPrompt,
-  onReviewCompletion,
-  noteSaving,
-  noteEditingId,
-  noteDeletingId,
-  activeNoteEditId,
-  completionSaving,
-  completionReviewSavingKey,
 }) {
   if (!row) {
     return (
@@ -3097,36 +3280,6 @@ function RowDetail({
           </a>
         )}
       </div>
-
-      <CompletionPanel
-        row={row}
-        completionDraft={completionDraft}
-        onCompletionFileChange={onCompletionFileChange}
-        onRemoveCompletionFile={onRemoveCompletionFile}
-        onOpenCompletionPrompt={onOpenCompletionPrompt}
-        onReviewCompletion={onReviewCompletion}
-        onPreview={onPreview}
-        completionSaving={completionSaving}
-        completionReviewSavingKey={completionReviewSavingKey}
-      />
-
-      <NotesPanel
-        row={row}
-        noteDraft={noteDraft}
-        noteEditDrafts={noteEditDrafts}
-        onNoteDraftChange={onNoteDraftChange}
-        onNoteEditDraftChange={onNoteEditDraftChange}
-        onAddNote={onAddNote}
-        onEditNote={onEditNote}
-        onDeleteNote={onDeleteNote}
-        onStartEditNote={onStartEditNote}
-        onCancelEditNote={onCancelEditNote}
-        onPreview={onPreview}
-        noteSaving={noteSaving}
-        noteEditingId={noteEditingId}
-        noteDeletingId={noteDeletingId}
-        activeNoteEditId={activeNoteEditId}
-      />
     </aside>
   );
 }
@@ -3143,6 +3296,8 @@ function IssueRow({
   workflowSavingKey,
   notePanelOpen,
   onToggleNotePanel,
+  historyPanelOpen,
+  onToggleHistoryPanel,
   noteDraft,
   noteEditDrafts,
   onNoteDraftChange,
@@ -3169,14 +3324,14 @@ function IssueRow({
 }) {
   const flagNote = row.title || row.reason || "Flagged observation";
   const notes = activityNotes(row);
-  const completions = completionActivities(row);
+  const history = historyActivities(row);
   const canAddNote = canAddNoteToRow(row);
   const canEditWorkflow = canEditWorkflowForRow(row);
   const canSubmitCompletion = canSubmitCompletionForRow(row);
   const canReviewCompletion = canReviewCompletionForRow(row);
   const showCompletionButton = canSubmitCompletion || canReviewCompletion || row.status === "pending_review";
-  const showNoteButton = canAddNote || notes.length > 0 || completions.length > 0;
-  const noteButtonLabel = notes.length > 0 ? `Notes (${notes.length})` : completions.length > 0 ? "History" : "Add Note";
+  const showNoteButton = canAddNote || notes.length > 0;
+  const showHistoryButton = history.length > 0;
   const tradeValue = tradeKey(row.trade || "general") || "general";
   const dueDateValue = row.dueDate || "";
   const workflowTradeOptions = tradeOptionsForRow(row, tradeOptions);
@@ -3220,27 +3375,42 @@ function IssueRow({
             {showCompletionButton && (
               <button
                 type="button"
-                className="punch-row-note-button is-completion"
+                className={`punch-row-note-button is-completion ${
+                  completionPanelOpen ? "is-active" : ""
+                }`}
                 onClick={(event) => {
                   event.stopPropagation();
                   onToggleCompletionPanel(row.id);
                 }}
               >
                 <ImageUp className="h-3.5 w-3.5" />
-                {canSubmitCompletion ? "Upload Photo" : canReviewCompletion ? "Review" : "Pending Review"}
+                Upload Photo
               </button>
             )}
             {showNoteButton && (
               <button
                 type="button"
-                className={`punch-row-note-button ${notes.length > 0 ? "has-notes" : ""}`}
+                className={`punch-row-note-button ${notePanelOpen ? "is-active" : ""}`}
                 onClick={(event) => {
                   event.stopPropagation();
                   onToggleNotePanel(row.id);
                 }}
               >
                 <FileText className="h-3.5 w-3.5" />
-                {noteButtonLabel}
+                Notes
+              </button>
+            )}
+            {showHistoryButton && (
+              <button
+                type="button"
+                className={`punch-row-note-button ${historyPanelOpen ? "is-active" : ""}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggleHistoryPanel(row.id);
+                }}
+              >
+                <Clock className="h-3.5 w-3.5" />
+                History
               </button>
             )}
           </div>
@@ -3304,6 +3474,7 @@ function IssueRow({
           onCompletionFileChange={onCompletionFileChange}
           onRemoveCompletionFile={onRemoveCompletionFile}
           onOpenCompletionPrompt={onOpenCompletionPrompt}
+          onSubmitCompletion={onSubmitCompletion}
           onReviewCompletion={onReviewCompletion}
           onPreview={onPreview}
           completionSaving={completionSaving}
@@ -3326,11 +3497,19 @@ function IssueRow({
             onDeleteNote={onDeleteNote}
             onStartEditNote={onStartEditNote}
             onCancelEditNote={onCancelEditNote}
-            onPreview={onPreview}
             noteSaving={noteSaving}
             noteEditingId={noteEditingId}
             noteDeletingId={noteDeletingId}
             activeNoteEditId={activeNoteEditId}
+          />
+        </div>
+      )}
+      {historyPanelOpen && (
+        <div className="punch-row-note-area">
+          <HistoryPanel
+            row={row}
+            tradeOptions={tradeOptions}
+            onPreview={onPreview}
           />
         </div>
       )}
@@ -3436,16 +3615,29 @@ function PunchReportModal({
   );
 }
 
-function ImagePreviewModal({ row, onClose }) {
+function previewTargetRow(target) {
+  return target?.row || target || null;
+}
+
+function previewTargetPhoto(target) {
+  return target?.row ? target.photo || null : null;
+}
+
+function ImagePreviewModal({ target, onClose }) {
   const [photoIndex, setPhotoIndex] = useState(0);
-  const photos = useMemo(() => previewPhotosForRow(row), [row]);
+  const row = previewTargetRow(target);
+  const targetPhoto = previewTargetPhoto(target);
+  const photos = useMemo(
+    () => (targetPhoto ? [targetPhoto] : previewPhotosForRow(row)),
+    [row, targetPhoto]
+  );
   const activeIndex = Math.min(photoIndex, Math.max(photos.length - 1, 0));
   const activePhoto = photos[activeIndex] || null;
   const hasMultiplePhotos = photos.length > 1;
 
   useEffect(() => {
     setPhotoIndex(0);
-  }, [row?.id]);
+  }, [row?.id, targetPhoto?.activityId, targetPhoto?.preview?.previewUrl]);
 
   useEffect(() => {
     if (!hasMultiplePhotos) return undefined;
@@ -3468,6 +3660,10 @@ function ImagePreviewModal({ row, onClose }) {
   const resolved = row.status === "resolved";
   const issueResolved = resolved && activePhoto.label === "Resolved";
   const issuePrefix = activePhoto.label ? `${activePhoto.label}: ` : "";
+  const activePhotoMeta = [
+    activePhoto.status,
+    formatDateTime(activePhoto.capturedAt),
+  ].filter(Boolean);
   const goPrevious = (event) => {
     event.stopPropagation();
     setPhotoIndex((index) => (index + photos.length - 1) % photos.length);
@@ -3559,6 +3755,14 @@ function ImagePreviewModal({ row, onClose }) {
             )}
             <span>{`${issuePrefix}${flagNote}`}</span>
           </div>
+          {(activePhotoMeta.length > 0 || activePhoto.note) && (
+            <div className="punch-lightbox-caption">
+              {activePhotoMeta.length > 0 && (
+                <span>{activePhotoMeta.join(" · ")}</span>
+              )}
+              {activePhoto.note && <span>{activePhoto.note}</span>}
+            </div>
+          )}
           <div className="punch-lightbox-priority">
             Priority
             <span className="punch-lightbox-priority-value" style={priorityStyle(row.priority)}>
@@ -3611,6 +3815,7 @@ export default function ScoutPunchListPage() {
   const [workflowSavingKey, setWorkflowSavingKey] = useState("");
   const [activeNoteRowId, setActiveNoteRowId] = useState("");
   const [activeCompletionRowId, setActiveCompletionRowId] = useState("");
+  const [activeHistoryRowId, setActiveHistoryRowId] = useState("");
   const [completionPromptRowId, setCompletionPromptRowId] = useState("");
   const [activeNoteEditId, setActiveNoteEditId] = useState("");
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -3915,6 +4120,8 @@ export default function ScoutPunchListPage() {
         setCompletionReviewSavingKey("");
         setWorkflowSavingKey("");
         setActiveNoteRowId("");
+        setActiveCompletionRowId("");
+        setActiveHistoryRowId("");
         setActiveNoteEditId("");
         setReportModalOpen(false);
         setReportSelectedTrades({});
@@ -3948,6 +4155,8 @@ export default function ScoutPunchListPage() {
       setCompletionReviewSavingKey("");
       setWorkflowSavingKey("");
       setActiveNoteRowId("");
+      setActiveCompletionRowId("");
+      setActiveHistoryRowId("");
       setActiveNoteEditId("");
       setReportModalOpen(false);
       setReportSelectedTrades({});
@@ -4049,6 +4258,7 @@ export default function ScoutPunchListPage() {
     setWorkflowSavingKey("");
     setActiveNoteRowId("");
     setActiveCompletionRowId("");
+    setActiveHistoryRowId("");
     setCompletionPromptRowId("");
     setActiveNoteEditId("");
     setReportModalOpen(false);
@@ -4117,6 +4327,10 @@ export default function ScoutPunchListPage() {
   function handleToggleCompletionPanel(rowId) {
     setSelectedRowId(rowId);
     setActiveCompletionRowId((current) => (current === rowId ? "" : rowId));
+    setActiveNoteRowId("");
+    setActiveHistoryRowId("");
+    setActiveNoteEditId("");
+    setNoteEditDrafts({});
   }
 
   function handleOpenCompletionPrompt(rowId) {
@@ -4127,10 +4341,26 @@ export default function ScoutPunchListPage() {
     setSelectedRowId(rowId);
     const isClosing = activeNoteRowId === rowId;
     setActiveNoteRowId(isClosing ? "" : rowId);
+    setActiveCompletionRowId("");
+    setActiveHistoryRowId("");
     if (isClosing) {
       setActiveNoteEditId("");
       setNoteEditDrafts({});
     }
+  }
+
+  function handleToggleHistoryPanel(rowId) {
+    setSelectedRowId(rowId);
+    setActiveHistoryRowId((current) => (current === rowId ? "" : rowId));
+    setActiveCompletionRowId("");
+    setActiveNoteRowId("");
+    setActiveNoteEditId("");
+    setNoteEditDrafts({});
+  }
+
+  function handleOpenPreview(row, photo = null) {
+    if (!row) return;
+    setPreviewRow(photo ? { row, photo } : row);
   }
 
   function handleStartEditNote(_row, note) {
@@ -4704,6 +4934,8 @@ export default function ScoutPunchListPage() {
     if (filteredRows.length === 0) {
       if (selectedRowId) setSelectedRowId("");
       if (activeNoteRowId) setActiveNoteRowId("");
+      if (activeCompletionRowId) setActiveCompletionRowId("");
+      if (activeHistoryRowId) setActiveHistoryRowId("");
       return;
     }
     if (!selectedRowId || !filteredRows.some((row) => row.id === selectedRowId)) {
@@ -4712,7 +4944,13 @@ export default function ScoutPunchListPage() {
     if (activeNoteRowId && !filteredRows.some((row) => row.id === activeNoteRowId)) {
       setActiveNoteRowId("");
     }
-  }, [activeNoteRowId, filteredRows, selectedRowId]);
+    if (activeCompletionRowId && !filteredRows.some((row) => row.id === activeCompletionRowId)) {
+      setActiveCompletionRowId("");
+    }
+    if (activeHistoryRowId && !filteredRows.some((row) => row.id === activeHistoryRowId)) {
+      setActiveHistoryRowId("");
+    }
+  }, [activeCompletionRowId, activeHistoryRowId, activeNoteRowId, filteredRows, selectedRowId]);
 
   const selectedRow = useMemo(
     () => filteredRows.find((row) => row.id === selectedRowId) || null,
@@ -5159,7 +5397,7 @@ export default function ScoutPunchListPage() {
                       row={row}
                       selected={row.id === selectedRowId}
                       onSelect={() => setSelectedRowId(row.id)}
-                      onPreview={setPreviewRow}
+                      onPreview={handleOpenPreview}
                       tradeOptions={tradeOptions}
                       canAddTradeOption={canAddTradeOption}
                       onWorkflowChange={handleWorkflowChange}
@@ -5167,6 +5405,8 @@ export default function ScoutPunchListPage() {
                       workflowSavingKey={workflowSavingKey}
                       notePanelOpen={activeNoteRowId === row.id}
                       onToggleNotePanel={handleToggleNotePanel}
+                      historyPanelOpen={activeHistoryRowId === row.id}
+                      onToggleHistoryPanel={handleToggleHistoryPanel}
                       noteDraft={noteDrafts[row.id] || ""}
                       noteEditDrafts={noteEditDrafts}
                       onNoteDraftChange={handleNoteDraftChange}
@@ -5201,28 +5441,7 @@ export default function ScoutPunchListPage() {
                       tradeOptions={tradeOptions}
                       onDownloadOriginal={handleDownloadOriginal}
                       downloadId={downloadId}
-                      onPreview={setPreviewRow}
-                      noteDraft={selectedRow ? noteDrafts[selectedRow.id] || "" : ""}
-                      noteEditDrafts={noteEditDrafts}
-                      onNoteDraftChange={handleNoteDraftChange}
-                      onNoteEditDraftChange={handleNoteEditDraftChange}
-                      onAddNote={handleAddNote}
-                      onEditNote={handleEditNote}
-                      onDeleteNote={handleDeleteNote}
-                      onStartEditNote={handleStartEditNote}
-                      onCancelEditNote={handleCancelEditNote}
-                      completionDraft={selectedRow ? completionDrafts[selectedRow.id] || {} : {}}
-                      onCompletionFileChange={handleCompletionFileChange}
-                      onRemoveCompletionFile={handleRemoveCompletionFile}
-                      onOpenCompletionPrompt={handleOpenCompletionPrompt}
-                      onSubmitCompletion={handleSubmitCompletion}
-                      onReviewCompletion={handleReviewCompletion}
-                      noteSaving={selectedRow ? noteSavingId === selectedRow.id : false}
-                      noteEditingId={noteEditingId}
-                      noteDeletingId={noteDeletingId}
-                      activeNoteEditId={activeNoteEditId}
-                      completionSaving={selectedRow ? completionSavingId === selectedRow.id : false}
-                      completionReviewSavingKey={completionReviewSavingKey}
+                      onPreview={handleOpenPreview}
                     />
                   </div>
                 </div>
@@ -5240,7 +5459,7 @@ export default function ScoutPunchListPage() {
         onGenerate={handleGenerateReport}
         onClose={() => setReportModalOpen(false)}
       />
-      <ImagePreviewModal row={previewRow} onClose={() => setPreviewRow(null)} />
+      <ImagePreviewModal target={previewRow} onClose={() => setPreviewRow(null)} />
       <CompletionNoteModal
         row={completionPromptRow}
         completionDraft={completionPromptRow ? completionDrafts[completionPromptRow.id] || {} : {}}
