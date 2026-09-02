@@ -724,6 +724,60 @@ function historyActivities(row) {
   return Array.isArray(row?.activity) ? row.activity : [];
 }
 
+function completionSubmissionGroupKey(activity) {
+  if (activity?.activityType !== "completion_submitted") return "";
+  return textValue(activity.submissionGroupId || activity.id);
+}
+
+function compareCompletionSubmissionHistory(left, right) {
+  const leftPrimary = left?.id && left.id === left.submissionGroupId ? 0 : 1;
+  const rightPrimary = right?.id && right.id === right.submissionGroupId ? 0 : 1;
+  if (leftPrimary !== rightPrimary) return leftPrimary - rightPrimary;
+  const dateCompare = String(left?.createdAt || "").localeCompare(String(right?.createdAt || ""));
+  if (dateCompare !== 0) return dateCompare;
+  return String(left?.id || "").localeCompare(String(right?.id || ""));
+}
+
+function completionSubmissionHistoryRows(activities, groupId) {
+  if (!groupId) return [];
+  return activities
+    .filter((activity) => completionSubmissionGroupKey(activity) === groupId)
+    .sort(compareCompletionSubmissionHistory);
+}
+
+function historyTimelineItems(row) {
+  const activities = historyActivities(row);
+  const groupedSubmissionIds = new Set();
+  return activities.flatMap((activity) => {
+    if (activity?.activityType !== "completion_submitted") {
+      return [{ id: activity.id, type: "activity", activity, photos: [] }];
+    }
+
+    const groupId = completionSubmissionGroupKey(activity);
+    if (!groupId) return [{ id: activity.id, type: "activity", activity, photos: [] }];
+    if (groupedSubmissionIds.has(groupId)) return [];
+    groupedSubmissionIds.add(groupId);
+
+    const groupActivities = completionSubmissionHistoryRows(activities, groupId);
+    const primaryActivity =
+      groupActivities.find((candidate) => candidate.id === groupId) ||
+      groupActivities.find((candidate) => textValue(candidate.note)) ||
+      groupActivities[0] ||
+      activity;
+    const photos = groupActivities
+      .map((candidate) => completionPhotoForActivity(candidate, completionActivityLabel(candidate)))
+      .filter(Boolean);
+    return [
+      {
+        id: `completion-submission:${groupId}`,
+        type: "completion_submission",
+        activity: primaryActivity,
+        photos,
+      },
+    ];
+  });
+}
+
 function pendingCompletionActivity(row) {
   if (row?.status !== "pending_review") return null;
   const activityId = row?.completionReview?.activityId;
@@ -1769,6 +1823,38 @@ const PUNCH_LIST_STYLES = `
 
   .punch-history-event {
     border-left: 3px solid rgb(203 213 225);
+  }
+
+  .punch-history-photo-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 8px;
+  }
+
+  .punch-history-photo-button {
+    width: 64px;
+    height: 50px;
+    overflow: hidden;
+    border-radius: 7px;
+    border: 1px solid rgb(203 213 225);
+    background: rgb(15 23 42);
+    padding: 0;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  }
+
+  .punch-history-photo-button:hover,
+  .punch-history-photo-button:focus-visible {
+    border-color: rgb(37 99 235);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+    outline: none;
+  }
+
+  .punch-history-photo-button img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .punch-completion-modal {
@@ -3356,7 +3442,8 @@ function NotesPanel({
 }
 
 function HistoryPanel({ row, tradeOptions = [], onPreview }) {
-  const history = historyActivities(row);
+  const rawHistory = historyActivities(row);
+  const history = historyTimelineItems(row);
 
   return (
     <div className="punch-history-panel">
@@ -3366,34 +3453,48 @@ function HistoryPanel({ row, tradeOptions = [], onPreview }) {
       </div>
       {history.length > 0 ? (
         <div className="punch-completion-events punch-history-events">
-          {history.map((activity) => {
+          {history.map((item) => {
+            const activity = item.activity;
             const detail = historyActivityDetail(activity, tradeOptions);
-            const completionPhoto = completionPhotoForActivity(
-              activity,
-              completionActivityLabel(activity)
-            );
+            const photos = item.photos || [];
+            const reviewedPhotoCount = ["completion_approved", "completion_rejected"].includes(activity?.activityType)
+              ? completionSubmissionHistoryRows(rawHistory, textValue(activity.fromValue)).length
+              : 0;
+            const photoDetail = item.type === "completion_submission" && photos.length > 1
+              ? `${photos.length} photos submitted for review`
+              : reviewedPhotoCount > 0
+                ? `${detail} · ${compactCount(reviewedPhotoCount, "photo")}`
+                : detail;
             return (
-              <div key={activity.id} className="punch-completion-event punch-history-event">
+              <div key={item.id} className="punch-completion-event punch-history-event">
                 <div>
                   <div className="punch-completion-event-title">
                     {historyActivityLabel(activity)} · {formatDateTime(activity.createdAt) || "Recently"}
                   </div>
-                  {detail && <div className="punch-completion-event-note">{detail}</div>}
+                  {photoDetail && <div className="punch-completion-event-note">{photoDetail}</div>}
                   {activity.note && activity.activityType !== "note_added" && (
                     <div className="punch-completion-event-note">{activity.note}</div>
                   )}
+                  {photos.length > 0 && onPreview && (
+                    <div className="punch-history-photo-strip">
+                      {photos.map((photo, index) => (
+                        <button
+                          key={`${photoIdentity(photo) || "completion"}:${index}`}
+                          type="button"
+                          className="punch-history-photo-button"
+                          onClick={() => onPreview(row, photo, { photos })}
+                          aria-label={`Open completion photo ${index + 1}`}
+                          title={`Open completion photo ${index + 1}`}
+                        >
+                          <img
+                            src={photo.preview.previewUrl}
+                            alt={`Completion photo ${index + 1}`}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {completionPhoto && onPreview && (
-                  <button
-                    type="button"
-                    className="punch-note-tool"
-                    onClick={() => onPreview(row, completionPhoto, { exact: true })}
-                    aria-label="Open completion photo"
-                    title="Open completion photo"
-                  >
-                    <Camera className="h-3.5 w-3.5" />
-                  </button>
-                )}
               </div>
             );
           })}
@@ -3884,14 +3985,21 @@ function previewTargetInitialPhoto(target) {
   return target?.row && !target.exact ? target.photo || null : null;
 }
 
+function previewTargetPhotos(target) {
+  if (!target?.row || !Array.isArray(target.photos)) return null;
+  const photos = target.photos.filter((photo) => photo?.preview?.previewUrl);
+  return photos.length > 0 ? photos : null;
+}
+
 function ImagePreviewModal({ target, onClose }) {
   const [photoIndex, setPhotoIndex] = useState(0);
   const row = previewTargetRow(target);
   const targetPhoto = previewTargetPhoto(target);
   const initialPhoto = previewTargetInitialPhoto(target);
+  const targetPhotos = useMemo(() => previewTargetPhotos(target), [target]);
   const photos = useMemo(
-    () => (targetPhoto ? [targetPhoto] : previewPhotosForRow(row)),
-    [row, targetPhoto]
+    () => targetPhotos || (targetPhoto ? [targetPhoto] : previewPhotosForRow(row)),
+    [row, targetPhoto, targetPhotos]
   );
   const activeIndex = Math.min(photoIndex, Math.max(photos.length - 1, 0));
   const activePhoto = photos[activeIndex] || null;
@@ -3909,6 +4017,7 @@ function ImagePreviewModal({ target, onClose }) {
     targetPhoto?.preview?.previewUrl,
     initialPhoto?.activityId,
     initialPhoto?.preview?.previewUrl,
+    targetPhotos,
     photos,
   ]);
 
@@ -4652,7 +4761,16 @@ export default function ScoutPunchListPage() {
 
   function handleOpenPreview(row, photo = null, options = {}) {
     if (!row) return;
-    setPreviewRow(photo ? { row, photo, exact: Boolean(options.exact) } : row);
+    setPreviewRow(
+      photo
+        ? {
+            row,
+            photo,
+            exact: Boolean(options.exact),
+            photos: Array.isArray(options.photos) ? options.photos : null,
+          }
+        : row
+    );
   }
 
   function handleStartEditNote(_row, note) {
