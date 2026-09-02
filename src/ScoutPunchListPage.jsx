@@ -1462,6 +1462,15 @@ const PUNCH_LIST_STYLES = `
     opacity: 0.55;
   }
 
+  .punch-completion-upload.is-compact {
+    min-height: 84px;
+  }
+
+  .punch-completion-upload-stack {
+    display: grid;
+    gap: 8px;
+  }
+
   .punch-completion-input {
     position: absolute;
     inset: 0;
@@ -1507,7 +1516,24 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-completion-file-preview.is-multiple {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .punch-completion-selected-header,
+  .punch-completion-selected-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .punch-completion-selected-title {
+    color: rgb(15 23 42);
+    font-size: 12px;
+    font-weight: 900;
+    line-height: 1.2;
   }
 
   .punch-completion-file-list {
@@ -2858,6 +2884,7 @@ function CompletionPanel({
   const completionFileError = completionFiles.length > 0 ? validateCompletionFiles(completionFiles) : "";
   const [dragging, setDragging] = useState(false);
   const inputId = `completion-photo-${row.id}`;
+  const addInputId = `${inputId}-add`;
 
   function useCompletionFiles(files, options = {}) {
     const nextFiles = Array.from(files || []).filter(Boolean);
@@ -2924,9 +2951,87 @@ function CompletionPanel({
         </div>
       )}
       {canSubmitCompletion && (
-        <>
-          {completionFiles.length > 0 ? (
+        <div className="punch-completion-upload-stack">
+          <label
+            htmlFor={inputId}
+            className={`punch-completion-upload ${completionFiles.length > 0 ? "is-compact" : ""} ${
+              dragging ? "is-dragging" : ""
+            } ${completionSaving ? "is-disabled" : ""}`}
+            onDragEnter={(event) => {
+              event.preventDefault();
+              setDragging(true);
+            }}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={(event) => {
+              event.preventDefault();
+              setDragging(false);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragging(false);
+              useCompletionFiles(event.dataTransfer.files);
+            }}
+          >
+            <input
+              id={inputId}
+              type="file"
+              multiple
+              accept={COMPLETION_PHOTO_ACCEPT}
+              className="punch-completion-input"
+              onChange={(event) => {
+                useCompletionFiles(event.target.files);
+                event.target.value = "";
+              }}
+              disabled={completionSaving}
+              aria-label="Upload completion photo"
+            />
+            <span className="punch-completion-upload-copy">
+              <ImageUp className={completionFiles.length > 0 ? "h-6 w-6" : "h-7 w-7"} />
+              <span className="punch-completion-upload-title">Upload Photo</span>
+              <span className="punch-completion-upload-subtitle">
+                Drag photo here or choose from files. JPG, PNG, HEIC, HEIF, and WebP are supported.
+              </span>
+            </span>
+          </label>
+          {completionFiles.length > 0 && (
             <div className="punch-completion-file-preview is-multiple">
+              <div className="punch-completion-selected-header">
+                <div className="punch-completion-selected-title">
+                  {completionFiles.length === 1
+                    ? "1 photo selected"
+                    : `${completionFiles.length} photos selected`}
+                </div>
+                <div className="punch-completion-file-tools">
+                  <label htmlFor={addInputId} className="punch-completion-tool">
+                    Add Photo
+                  </label>
+                  <input
+                    id={addInputId}
+                    type="file"
+                    multiple
+                    accept={COMPLETION_PHOTO_ACCEPT}
+                    className="sr-only"
+                    onChange={(event) => {
+                      useCompletionFiles(event.target.files);
+                      event.target.value = "";
+                    }}
+                    disabled={completionSaving}
+                  />
+                  {completionFiles.length > 1 && (
+                    <button
+                      type="button"
+                      className="punch-completion-tool is-delete"
+                      onClick={() => onRemoveCompletionFile(row.id)}
+                      disabled={completionSaving}
+                    >
+                      Clear all
+                    </button>
+                  )}
+                </div>
+              </div>
               <div className="punch-completion-file-list">
                 {completionFiles.map((file, index) => {
                   const fileError = validateCompletionFile(file);
@@ -2955,28 +3060,10 @@ function CompletionPanel({
                   );
                 })}
               </div>
-              <div className="punch-completion-file-tools">
-                <label className="punch-completion-tool">
-                  Add
-                  <input
-                    type="file"
-                    multiple
-                    accept={COMPLETION_PHOTO_ACCEPT}
-                    className="sr-only"
-                    onChange={(event) => useCompletionFiles(event.target.files)}
-                    disabled={completionSaving}
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="punch-completion-tool is-delete"
-                  onClick={() => onRemoveCompletionFile(row.id)}
-                  disabled={completionSaving}
-                  aria-label="Remove all completion photos"
-                  title="Remove all completion photos"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+              <div className="punch-completion-selected-footer">
+                <div className="punch-completion-file-status">
+                  {completionFileError || completionFilesReadyLabel(completionFiles)}
+                </div>
                 <button
                   type="button"
                   className="punch-completion-tool"
@@ -2987,50 +3074,8 @@ function CompletionPanel({
                 </button>
               </div>
             </div>
-          ) : (
-            <label
-              htmlFor={inputId}
-              className={`punch-completion-upload ${dragging ? "is-dragging" : ""} ${
-                completionSaving ? "is-disabled" : ""
-              }`}
-              onDragEnter={(event) => {
-                event.preventDefault();
-                setDragging(true);
-              }}
-              onDragOver={(event) => {
-                event.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={(event) => {
-                event.preventDefault();
-                setDragging(false);
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                setDragging(false);
-                useCompletionFiles(event.dataTransfer.files);
-              }}
-            >
-              <input
-                id={inputId}
-                type="file"
-                multiple
-                accept={COMPLETION_PHOTO_ACCEPT}
-                className="punch-completion-input"
-                onChange={(event) => useCompletionFiles(event.target.files)}
-                disabled={completionSaving}
-                aria-label="Upload completion photo"
-              />
-              <span className="punch-completion-upload-copy">
-                <ImageUp className="h-7 w-7" />
-                <span className="punch-completion-upload-title">Upload Photo</span>
-                <span className="punch-completion-upload-subtitle">
-                  Drag photo here or choose from files. JPG, PNG, HEIC, HEIF, and WebP are supported.
-                </span>
-              </span>
-            </label>
           )}
-        </>
+        </div>
       )}
       {row.status === "pending_review" && !pendingActivity && (
         <div className="punch-note-empty">
