@@ -988,6 +988,10 @@ const PUNCH_LIST_STYLES = `
   .punch-row {
     --punch-review-action-width: 128px;
     --punch-workflow-control-width: 232px;
+    --punch-workflow-control-gutter: 12px;
+    --punch-workflow-column-width: calc(
+      var(--punch-workflow-control-width) + var(--punch-workflow-control-gutter)
+    );
     --punch-review-control-gap: 8px;
     overflow: hidden;
     cursor: default;
@@ -996,7 +1000,7 @@ const PUNCH_LIST_STYLES = `
   .punch-row-body {
     position: relative;
     display: grid;
-    grid-template-columns: 156px minmax(0, 1fr) var(--punch-workflow-control-width);
+    grid-template-columns: 156px minmax(0, 1fr) var(--punch-workflow-column-width);
     align-items: stretch;
     gap: 16px;
     width: 100%;
@@ -1004,7 +1008,7 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-row.has-review-actions .punch-row-body {
-    grid-template-columns: 156px minmax(0, 1fr) var(--punch-workflow-control-width);
+    grid-template-columns: 156px minmax(0, 1fr) var(--punch-workflow-column-width);
   }
 
   .punch-row-left {
@@ -1224,17 +1228,18 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-row-controls {
+    box-sizing: border-box;
     display: grid;
     align-content: start;
     gap: 7px;
     justify-self: end;
-    width: var(--punch-workflow-control-width);
-    padding: 10px 12px 10px 0;
+    width: var(--punch-workflow-column-width);
+    padding: 10px var(--punch-workflow-control-gutter) 10px 0;
   }
 
   .punch-row.has-review-actions .punch-row-controls {
     justify-self: end;
-    width: var(--punch-workflow-control-width);
+    width: var(--punch-workflow-column-width);
   }
 
   .punch-row-controls > .punch-control {
@@ -1244,6 +1249,7 @@ const PUNCH_LIST_STYLES = `
 
   .punch-review-control-row {
     position: relative;
+    justify-self: end;
     width: var(--punch-workflow-control-width);
   }
 
