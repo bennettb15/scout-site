@@ -1227,13 +1227,22 @@ const PUNCH_LIST_STYLES = `
     width: 232px;
   }
 
-  .punch-status-review-control {
+  .punch-review-control-row {
     display: grid;
     grid-template-columns: auto 232px;
     align-items: center;
     gap: 8px;
     justify-content: end;
     width: 100%;
+  }
+
+  .punch-review-control-row .punch-control {
+    width: 232px;
+  }
+
+  .punch-review-control-row .punch-row-review-actions {
+    width: auto;
+    justify-content: flex-end;
   }
 
   .punch-control {
@@ -1810,13 +1819,8 @@ const PUNCH_LIST_STYLES = `
     min-width: 0;
   }
 
-  .punch-status-review-control .punch-row-review-actions {
-    width: auto;
-    justify-content: flex-end;
-  }
-
-  .punch-status-review-control .punch-completion-approve,
-  .punch-status-review-control .punch-completion-reject {
+  .punch-review-control-row .punch-completion-approve,
+  .punch-review-control-row .punch-completion-reject {
     flex: 0 0 auto;
     min-width: 82px;
   }
@@ -2592,10 +2596,19 @@ const PUNCH_LIST_STYLES = `
       padding: 7px 6px 0;
     }
 
-    .punch-status-review-control {
+    .punch-review-control-row {
       grid-column: 1 / -1;
       grid-template-columns: minmax(0, 1fr);
       gap: 7px;
+      justify-content: stretch;
+    }
+
+    .punch-review-control-row .punch-control {
+      width: 100%;
+    }
+
+    .punch-review-control-row .punch-row-review-actions {
+      width: 100%;
       justify-content: stretch;
     }
 
@@ -2604,12 +2617,8 @@ const PUNCH_LIST_STYLES = `
       width: 100%;
     }
 
-    .punch-status-review-control .punch-row-review-actions {
-      justify-content: stretch;
-    }
-
-    .punch-status-review-control .punch-completion-approve,
-    .punch-status-review-control .punch-completion-reject {
+    .punch-review-control-row .punch-completion-approve,
+    .punch-review-control-row .punch-completion-reject {
       flex: 1 1 0;
       min-width: 0;
     }
@@ -3583,35 +3592,43 @@ function CompletionReviewActions({
   row,
   onReviewCompletion,
   completionReviewSavingKey,
+  action = "both",
   className = "",
 }) {
   if (!canReviewCompletionForRow(row)) return null;
+  const showReject = action === "both" || action === "reject";
+  const showApprove = action === "both" || action === "approve";
+
   return (
     <div className={`punch-row-review-actions ${className}`}>
-      <button
-        type="button"
-        className="punch-completion-reject"
-        onClick={(event) => {
-          event.stopPropagation();
-          onReviewCompletion(row, "reject");
-        }}
-        disabled={Boolean(completionReviewSavingKey)}
-      >
-        <X className="h-4 w-4" />
-        {completionReviewSavingKey === `${row.id}:reject` ? "Rejecting..." : "Reject"}
-      </button>
-      <button
-        type="button"
-        className="punch-completion-approve"
-        onClick={(event) => {
-          event.stopPropagation();
-          onReviewCompletion(row, "approve");
-        }}
-        disabled={Boolean(completionReviewSavingKey)}
-      >
-        <Check className="h-4 w-4" />
-        {completionReviewSavingKey === `${row.id}:approve` ? "Approving..." : "Approve"}
-      </button>
+      {showReject && (
+        <button
+          type="button"
+          className="punch-completion-reject"
+          onClick={(event) => {
+            event.stopPropagation();
+            onReviewCompletion(row, "reject");
+          }}
+          disabled={Boolean(completionReviewSavingKey)}
+        >
+          <X className="h-4 w-4" />
+          {completionReviewSavingKey === `${row.id}:reject` ? "Rejecting..." : "Reject"}
+        </button>
+      )}
+      {showApprove && (
+        <button
+          type="button"
+          className="punch-completion-approve"
+          onClick={(event) => {
+            event.stopPropagation();
+            onReviewCompletion(row, "approve");
+          }}
+          disabled={Boolean(completionReviewSavingKey)}
+        >
+          <Check className="h-4 w-4" />
+          {completionReviewSavingKey === `${row.id}:approve` ? "Approving..." : "Approve"}
+        </button>
+      )}
     </div>
   );
 }
@@ -3841,11 +3858,12 @@ function IssueRow({
         </div>
         <div className="punch-row-controls">
           {canReviewCompletion && (
-            <div className="punch-status-review-control">
+            <div className="punch-review-control-row">
               <CompletionReviewActions
                 row={row}
                 onReviewCompletion={onReviewCompletion}
                 completionReviewSavingKey={completionReviewSavingKey}
+                action="reject"
               />
               <WorkflowControl
                 row={row}
@@ -3875,18 +3893,41 @@ function IssueRow({
               onChange={onWorkflowChange}
             />
           )}
-          <WorkflowControl
-            row={row}
-            field="priority"
-            label="Priority"
-            value={row.priority || "medium"}
-            displayValue={optionLabel(row.priority, PRIORITY_LABELS)}
-            options={PRIORITY_OPTIONS}
-            style={priorityStyle(row.priority)}
-            canEdit={canEditWorkflow}
-            saving={workflowSavingKey === `${row.id}:priority`}
-            onChange={onWorkflowChange}
-          />
+          {canReviewCompletion ? (
+            <div className="punch-review-control-row">
+              <CompletionReviewActions
+                row={row}
+                onReviewCompletion={onReviewCompletion}
+                completionReviewSavingKey={completionReviewSavingKey}
+                action="approve"
+              />
+              <WorkflowControl
+                row={row}
+                field="priority"
+                label="Priority"
+                value={row.priority || "medium"}
+                displayValue={optionLabel(row.priority, PRIORITY_LABELS)}
+                options={PRIORITY_OPTIONS}
+                style={priorityStyle(row.priority)}
+                canEdit={canEditWorkflow}
+                saving={workflowSavingKey === `${row.id}:priority`}
+                onChange={onWorkflowChange}
+              />
+            </div>
+          ) : (
+            <WorkflowControl
+              row={row}
+              field="priority"
+              label="Priority"
+              value={row.priority || "medium"}
+              displayValue={optionLabel(row.priority, PRIORITY_LABELS)}
+              options={PRIORITY_OPTIONS}
+              style={priorityStyle(row.priority)}
+              canEdit={canEditWorkflow}
+              saving={workflowSavingKey === `${row.id}:priority`}
+              onChange={onWorkflowChange}
+            />
+          )}
           <WorkflowControl
             row={row}
             field="trade"
