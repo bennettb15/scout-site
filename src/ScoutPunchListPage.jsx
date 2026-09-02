@@ -1014,6 +1014,10 @@ const PUNCH_LIST_STYLES = `
     min-height: 156px;
   }
 
+  .punch-row.has-review-actions .punch-row-left {
+    height: 100%;
+  }
+
   .punch-thumbnail {
     display: flex;
     align-items: center;
@@ -1038,6 +1042,12 @@ const PUNCH_LIST_STYLES = `
     max-height: 156px;
     aspect-ratio: 1 / 1;
     flex: 0 0 156px;
+  }
+
+  .punch-row.has-review-actions .punch-thumbnail:not(.punch-thumbnail-large) {
+    height: 100%;
+    max-height: none;
+    aspect-ratio: auto;
   }
 
   .punch-thumbnail-button {
@@ -1822,7 +1832,11 @@ const PUNCH_LIST_STYLES = `
   .punch-review-control-row .punch-completion-approve,
   .punch-review-control-row .punch-completion-reject {
     flex: 0 0 auto;
+    height: 28px;
     min-width: 82px;
+    width: 128px;
+    border-radius: 7px;
+    font-size: 12px;
   }
 
   .punch-completion-approve:disabled,
@@ -2620,7 +2634,11 @@ const PUNCH_LIST_STYLES = `
     .punch-review-control-row .punch-completion-approve,
     .punch-review-control-row .punch-completion-reject {
       flex: 1 1 0;
+      height: 32px;
       min-width: 0;
+      width: 100%;
+      border-radius: 8px;
+      font-size: 13px;
     }
 
     .punch-control {
