@@ -1001,7 +1001,7 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-row.has-review-actions .punch-row-body {
-    grid-template-columns: 156px minmax(0, 1fr) minmax(360px, 420px);
+    grid-template-columns: 156px minmax(0, 1fr) max-content;
   }
 
   .punch-row-left {
@@ -1229,7 +1229,8 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-row.has-review-actions .punch-row-controls {
-    width: 100%;
+    justify-self: end;
+    width: max-content;
   }
 
   .punch-row.has-review-actions .punch-row-controls > .punch-control {
@@ -1239,11 +1240,11 @@ const PUNCH_LIST_STYLES = `
 
   .punch-review-control-row {
     display: grid;
-    grid-template-columns: auto 232px;
+    grid-template-columns: 128px 232px;
     align-items: center;
     gap: 8px;
     justify-content: end;
-    width: 100%;
+    width: max-content;
   }
 
   .punch-review-control-row .punch-control {
