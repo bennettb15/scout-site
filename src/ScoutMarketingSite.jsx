@@ -208,7 +208,7 @@ function doScroll(behavior = "auto") {
   window.scrollTo({ top, behavior });
 }
 
-// 1) initial scroll: smooth for all sections (including Pricing)
+// 1) initial scroll
 doScroll("smooth");
 
 
@@ -222,10 +222,7 @@ setTimeout(() => {
 
   const diff = Math.abs(window.scrollY - correctedTop);
 
-  // Pricing is the section that tends to shift; make its correction instant to avoid a visible hitch.
-  const isPricing = id === "pricing";
-
-  const behavior = isPricing ? "auto" : (diff <= 120 ? "smooth" : "auto");
+  const behavior = diff <= 120 ? "smooth" : "auto";
   doScroll(behavior);
 }, 350);
 
@@ -312,7 +309,6 @@ async function handleContactSubmit(e) {
   { label: "Services", href: "#services" },
   { label: "How it works", href: "#how" },
   { label: "Value", href: "#value" },
-  { label: "Pricing", href: "#pricing" },
   { label: "FAQ", href: "#faq" },
   { label: "Contact", href: "#contact" },
 ];
@@ -938,161 +934,10 @@ async function handleContactSubmit(e) {
       <span className="font-semibold text-foreground">Bottom line:</span>{" "}
       A single unnecessary site visit or over-scoped repair can easily exceed the cost of ongoing documentation.
     </div>
-
-    {/*<Button
-      variant="outline"
-      className="rounded-2xl hover:border-[var(--brand)]"
-      onClick={() => scrollToSection("#pricing")}
-    >
-      View pricing
-      <ArrowRight className="ml-2 h-4 w-4" />
-    </Button>*/}
   </div>
 </div>
 
 </Section>
-
-
-
-
-
-
-
-      <Section
-  id="pricing"
-  eyebrow="Pricing"
-  title="Straightforward pricing that scales with complexity"
-  subtitle="Pricing depends on property size, number of buildings/elevations, access, and desired cadence. Use the ranges below as planning guidance; quotes are finalized after scoping."
-   /*className="py-10 md:py-14"*/
->
-  {/* ADD md:items-stretch so cards can share height */}
-  <div className="grid gap-4 md:grid-cols-3 md:items-stretch">
-    
-    {/* CARD 1 */}
-    <Card className="flex h-full flex-col rounded-3xl shadow-sm">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">One-time baseline</CardTitle>
-          <Badge
-            variant="secondary"
-            className="rounded-full border border-border bg-[var(--brand)]/5 text-foreground"
-          >
-            Popular
-          </Badge>
-        </div>
-      </CardHeader>
-
-      {/* Make content a flex column */}
-      <CardContent className="flex flex-1 flex-col">
-        <div className="text-3xl font-semibold tracking-tight">$350-$950</div>
-        <div className="mt-1 text-sm text-foreground/70">
-          Typical small-to-mid properties
-        </div>
-
-        <ul className="mt-4 space-y-2 text-sm text-foreground/70">
-          {[
-            "Exterior documentation + key site features",
-            "Structured PDF report + organized photo set",
-            "Clear scope / limitations language",
-          ].map((x) => (
-            <li key={x} className="flex items-start gap-2">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 text-[var(--brand)]" />
-              <span>{x}</span>
-            </li>
-          ))}
-        </ul>
-<div className="h-3" />
-        {/* CHANGE mt-5 -> mt-auto */}
-        <Button
-          className="mt-auto w-full rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
-          onClick={() => scrollToSection("#contact")}
-
-        >
-          Request pricing
-          <ArrowRight className="ml-2 h-4 w-4" />
-        </Button>
-      </CardContent>
-    </Card>
-
-    {/* CARD 2 */}
-    <Card className="flex h-full flex-col rounded-3xl shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-lg">Quarterly tracking</CardTitle>
-      </CardHeader>
-
-      <CardContent className="flex flex-1 flex-col">
-        <div className="text-3xl font-semibold tracking-tight">$250-$750</div>
-        <div className="mt-1 text-sm text-foreground/70">Per visit (recurring)</div>
-
-        <ul className="mt-4 space-y-2 text-sm text-foreground/70">
-          {[
-            "Repeatable photo index for comparisons",
-            "Visual change / no visible change notation",
-            "Seasonal issues captured consistently",
-          ].map((x) => (
-            <li key={x} className="flex items-start gap-2">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 text-[var(--brand)]" />
-              <span>{x}</span>
-            </li>
-          ))}
-        </ul>
-<div className="h-3" />
-        <Button
-          variant="outline"
-          className="mt-auto w-full rounded-2xl hover:border-[var(--brand)]"
-          onClick={() => scrollToSection("#contact")}
-
-        >
-          Build a cadence
-        </Button>
-      </CardContent>
-    </Card>
-
-    {/* CARD 3 */}
-    <Card className="flex h-full flex-col rounded-3xl shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-lg">After-storm documentation</CardTitle>
-      </CardHeader>
-
-      <CardContent className="flex flex-1 flex-col">
-        <div className="text-3xl font-semibold tracking-tight">$450-$1,500</div>
-        <div className="mt-1 text-sm text-foreground/70">
-          Priority scheduling available
-        </div>
-
-        <ul className="mt-4 space-y-2 text-sm text-foreground/70">
-          {[
-            "Time-stamped photo set focused on impacted areas",
-            "Rapid delivery for claim file support",
-            "Clear documentation scope",
-          ].map((x) => (
-            <li key={x} className="flex items-start gap-2">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 text-[var(--brand)]" />
-              <span>{x}</span>
-            </li>
-          ))}
-        </ul>
-<div className="h-3" />
-        <Button
-          variant="outline"
-          className="mt-auto w-full rounded-2xl hover:border-[var(--brand)]"
-          onClick={() => scrollToSection("#contact")}
-
-        >
-          Get storm support
-        </Button>
-      </CardContent>
-    </Card>
-
-  </div>
-
-  <p className="mt-6 text-xs leading-relaxed text-foreground/60">
-    Note: These ranges are provided for planning purposes and may vary
-    based on scope, access, number of buildings/elevations, and requested
-    deliverables. Services are limited to visual documentation only.
-  </p>
-</Section>
-
 
       <Section
         id="faq"
