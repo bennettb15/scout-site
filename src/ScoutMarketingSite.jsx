@@ -399,13 +399,13 @@ async function handleContactSubmit(e) {
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
-              className="hidden rounded-2xl md:inline-flex hover:border-[var(--brand)]"
+              className="rounded-2xl hover:border-[var(--brand)]"
               asChild
             >
               <a href="/reports">Client Portal</a>
             </Button>
             <Button
-              className="rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
+              className="hidden rounded-2xl bg-[var(--brand)] text-white hover:opacity-90 md:inline-flex"
               onClick={() => scrollToSection("#contact")}
 
             >
