@@ -1189,6 +1189,27 @@ const PUNCH_LIST_STYLES = `
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
   }
 
+  .punch-row-note-count {
+    display: inline-flex;
+    min-width: 16px;
+    height: 16px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgb(37 99 235);
+    padding: 0 5px;
+    color: white;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .punch-row-note-button.is-active .punch-row-note-count,
+  .punch-row-note-button:hover .punch-row-note-count {
+    background: rgb(29 78 216);
+  }
+
   .punch-row-note-button.is-active,
   .punch-row-note-button.has-notes.is-active {
     border-color: rgb(37 99 235);
@@ -3812,13 +3833,14 @@ function IssueRow({
 }) {
   const flagNote = row.title || row.reason || "Flagged observation";
   const notes = activityNotes(row);
+  const noteCount = notes.length;
   const history = historyActivities(row);
   const canAddNote = canAddNoteToRow(row);
   const canEditWorkflow = canEditWorkflowForRow(row);
   const canSubmitCompletion = canSubmitCompletionForRow(row);
   const canReviewCompletion = canReviewCompletionForRow(row);
   const showCompletionButton = canSubmitCompletion || canReviewCompletion || row.status === "pending_review";
-  const showNoteButton = canAddNote || notes.length > 0;
+  const showNoteButton = canAddNote || noteCount > 0;
   const showHistoryButton = history.length > 0;
   const showRowActions = showCompletionButton || showNoteButton || showHistoryButton;
   const tradeValue = tradeKey(row.trade || "general") || "general";
@@ -3882,7 +3904,9 @@ function IssueRow({
               {showNoteButton && (
                 <button
                   type="button"
-                  className={`punch-row-note-button ${notePanelOpen ? "is-active" : ""}`}
+                  className={`punch-row-note-button ${noteCount > 0 ? "has-notes" : ""} ${
+                    notePanelOpen ? "is-active" : ""
+                  }`}
                   onClick={(event) => {
                     event.stopPropagation();
                     onToggleNotePanel(row.id);
@@ -3890,6 +3914,11 @@ function IssueRow({
                 >
                   <FileText className="h-3.5 w-3.5" />
                   Notes
+                  {noteCount > 0 && (
+                    <span className="punch-row-note-count" aria-label={`${noteCount} visible notes`}>
+                      {noteCount}
+                    </span>
+                  )}
                 </button>
               )}
               {showHistoryButton && (
