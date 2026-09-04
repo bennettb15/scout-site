@@ -2685,7 +2685,7 @@ const PUNCH_LIST_STYLES = `
     .punch-review-control-row {
       display: grid;
       position: static;
-      grid-column: 1 / -1;
+      grid-column: auto;
       grid-template-columns: minmax(0, 1fr);
       gap: 7px;
       justify-content: stretch;
