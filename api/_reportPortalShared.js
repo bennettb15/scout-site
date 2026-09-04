@@ -192,6 +192,7 @@ function normalizedOperationalStatus(value) {
     ?.replace(/([a-z])([A-Z])/g, "$1_$2")
     .replace(/[\s-]+/g, "_")
     .toLowerCase();
+  if (text === "pending_review" || text === "pending") return "pending_review";
   if (text === "resolved" || text === "closed") return "resolved";
   if (text === "active" || text === "open" || text === "reopened") return "active";
   return "";
@@ -254,15 +255,15 @@ function issueOperationalStatus(issue) {
 
 function snapshotIssueOperationalStatus(shot, issuesById) {
   const shotStatus = normalizedOperationalStatus(shot?.issueStatus || shot?.issue_status);
+  const issue = issuesById.get(snapshotIssueId(shot));
+  const issueStatus = issueOperationalStatus(issue);
+  if (shotStatus === "pending_review" || issueStatus === "pending_review") return "pending_review";
   if (shotStatus === "active") return "active";
   if (
     textValue(shot?.activeIssueID || shot?.activeIssueId || shot?.active_issue_id)
   ) {
     return "active";
   }
-
-  const issue = issuesById.get(snapshotIssueId(shot));
-  const issueStatus = issueOperationalStatus(issue);
   if (issueStatus === "active") return "active";
 
   if (

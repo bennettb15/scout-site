@@ -4,9 +4,19 @@ function keyValue(value) {
 }
 
 function normalizedStatus(value) {
-  const text = keyValue(value);
+  return normalizedExplicitStatus(value) || "active";
+}
+
+export function normalizedExplicitStatus(value) {
+  const text = String(value || "")
+    .trim()
+    .replace(/([a-z])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLowerCase();
+  if (text === "pending_review" || text === "pending") return "pending_review";
   if (text === "resolved" || text === "closed") return "resolved";
-  return "active";
+  if (text === "active" || text === "open" || text === "reopened") return "active";
+  return "";
 }
 
 export function packageTimestamp(row) {
@@ -16,6 +26,12 @@ export function packageTimestamp(row) {
 function shotReopenOperationalStatus(row) {
   if (!row?.snapshot_reopened_in_session) return "";
   return normalizedStatus(row.snapshot_issue_status || row.issue_status);
+}
+
+function shotPendingReviewOperationalStatus(row) {
+  return normalizedExplicitStatus(row?.snapshot_issue_status || row?.issue_status) === "pending_review"
+    ? "pending_review"
+    : "";
 }
 
 function timeValue(value) {
@@ -34,11 +50,11 @@ function compareOperationalTime(left, right) {
 
 export function latestStatusOverride({ operationalState, shot, reportPackage }) {
   const activityStatus = operationalState?.status || "";
-  const reopenStatus = shotReopenOperationalStatus(shot);
-  if (!reopenStatus) return activityStatus;
-  if (!activityStatus) return reopenStatus;
+  const scoutStatus = shotReopenOperationalStatus(shot) || shotPendingReviewOperationalStatus(shot);
+  if (!scoutStatus) return activityStatus;
+  if (!activityStatus) return scoutStatus;
 
   const packageTime = packageTimestamp(reportPackage) || shot?.updated_at || shot?.captured_at || shot?.created_at;
   const activityTime = operationalState?.activity?.created_at;
-  return compareOperationalTime(packageTime, activityTime) > 0 ? reopenStatus : activityStatus;
+  return compareOperationalTime(packageTime, activityTime) > 0 ? scoutStatus : activityStatus;
 }

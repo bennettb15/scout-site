@@ -22,7 +22,7 @@ import {
   sortPhotoRowsBySnapshot,
   stampedPhotoFilename,
 } from "./_reportPortalShared.js";
-import { latestStatusOverride, packageTimestamp } from "../api-lib/punchListStatus.js";
+import { latestStatusOverride, normalizedExplicitStatus, packageTimestamp } from "../api-lib/punchListStatus.js";
 import {
   ensureUserProfile,
   isApprovedAdminEmail,
@@ -1318,6 +1318,9 @@ function isResolvedShot(row) {
 }
 
 function statusFromLatestShot(row) {
+  if (normalizedExplicitStatus(row?.snapshot_issue_status || row?.issue_status) === "pending_review") {
+    return "pending_review";
+  }
   return isResolvedShot(row) ? "resolved" : "active";
 }
 

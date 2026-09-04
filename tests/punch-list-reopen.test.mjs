@@ -74,6 +74,44 @@ test("resolved capture metadata remains resolved", () => {
   assert.equal(metadata.is_resolved_in_session, true);
 });
 
+test("SC package pending_review metadata drives Website Pending Review", () => {
+  const snapshotMetadata = buildSnapshotPhotoMetadata({
+    id: sessionId,
+    shots: [
+      {
+        shotID: shotId,
+        issueID: issueId,
+        issueStatus: "pending_review",
+        captureKind: "resolved_capture",
+      },
+    ],
+    issues: [{ id: issueId, issueStatus: "active" }],
+  });
+  const metadata = snapshotMetadata.byShotId.get(shotId);
+  const enriched = enrichPhotoRowWithSnapshotMetadata(
+    {
+      id: shotId,
+      issue_status: "active",
+      is_resolved_in_session: false,
+    },
+    snapshotMetadata
+  );
+
+  assert.equal(metadata.issue_status, "pending_review");
+  assert.equal(metadata.is_resolved_in_session, false);
+  assert.equal(enriched.issue_status, "pending_review");
+  assert.equal(enriched.snapshot_issue_status, "pending_review");
+  assert.equal(enriched.is_resolved_in_session, false);
+  assert.equal(
+    latestStatusOverride({
+      operationalState: null,
+      shot: enriched,
+      reportPackage: { session_completed_at: "2026-09-04T14:00:00.000Z" },
+    }),
+    "pending_review"
+  );
+});
+
 test("resolution_required without reopen does not clear existing resolved state", () => {
   const snapshotMetadata = buildSnapshotPhotoMetadata({
     id: sessionId,
@@ -103,6 +141,42 @@ test("resolution_required without reopen does not clear existing resolved state"
   assert.equal(enriched.is_resolved_in_session, true);
 });
 
+test("resolved_capture support doc stays resolved instead of Pending Review", () => {
+  const snapshotMetadata = buildSnapshotPhotoMetadata({
+    id: sessionId,
+    shots: [
+      {
+        shotID: shotId,
+        issueID: issueId,
+        issueStatus: "resolved",
+        captureKind: "resolved_capture",
+      },
+    ],
+    issues: [{ id: issueId, issueStatus: "resolved" }],
+  });
+
+  const enriched = enrichPhotoRowWithSnapshotMetadata(
+    {
+      id: shotId,
+      issue_status: "active",
+      is_resolved_in_session: false,
+    },
+    snapshotMetadata
+  );
+
+  assert.equal(enriched.issue_status, "resolved");
+  assert.equal(enriched.snapshot_issue_status, "resolved");
+  assert.equal(enriched.is_resolved_in_session, true);
+  assert.equal(
+    latestStatusOverride({
+      operationalState: null,
+      shot: enriched,
+      reportPackage: { session_completed_at: "2026-09-04T14:00:00.000Z" },
+    }),
+    ""
+  );
+});
+
 test("SC explicit reopen after portal resolved returns Website Open", () => {
   const shot = {
     snapshot_reopened_in_session: true,
@@ -118,6 +192,52 @@ test("SC explicit reopen after portal resolved returns Website Open", () => {
       },
       shot,
       reportPackage,
+    }),
+    "active"
+  );
+});
+
+test("newer Website approval and rejection win over older SC Pending Review", () => {
+  const reportPackage = { session_completed_at: "2026-09-04T14:00:00.000Z" };
+  const shot = { snapshot_issue_status: "pending_review" };
+
+  assert.equal(
+    latestStatusOverride({
+      operationalState: {
+        status: "resolved",
+        source: "completion",
+        activity: { created_at: "2026-09-04T14:01:00.000Z" },
+      },
+      shot,
+      reportPackage,
+    }),
+    "resolved"
+  );
+
+  assert.equal(
+    latestStatusOverride({
+      operationalState: {
+        status: "active",
+        source: "completion",
+        activity: { created_at: "2026-09-04T14:01:00.000Z" },
+      },
+      shot,
+      reportPackage,
+    }),
+    "active"
+  );
+});
+
+test("newer Website status_changed Active reopens over older SC Pending Review", () => {
+  assert.equal(
+    latestStatusOverride({
+      operationalState: {
+        status: "active",
+        source: "workflow",
+        activity: { created_at: "2026-09-04T14:01:00.000Z" },
+      },
+      shot: { snapshot_issue_status: "pendingReview" },
+      reportPackage: { session_completed_at: "2026-09-04T14:00:00.000Z" },
     }),
     "active"
   );
