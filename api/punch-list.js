@@ -22,6 +22,7 @@ import {
   sortPhotoRowsBySnapshot,
   stampedPhotoFilename,
 } from "./_reportPortalShared.js";
+import { latestStatusOverride, packageTimestamp } from "./_punchListStatus.js";
 import {
   ensureUserProfile,
   isApprovedAdminEmail,
@@ -580,10 +581,6 @@ async function signedCompletionPhotoUrl(service, activity) {
     .from(DELIVERABLES_BUCKET)
     .createSignedUrl(activity.storage_path, SIGNED_URL_SECONDS);
   return data?.signedUrl || null;
-}
-
-function packageTimestamp(row) {
-  return row?.session_completed_at || row?.completed_at || "";
 }
 
 function priorSessionDate(reportPackage, session) {
@@ -2565,13 +2562,6 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     const completionPhoto = completionState?.submission
       ? completionPhotos[0] || null
       : null;
-    const completionPhotoIsPrimary = Boolean(
-      completionPhoto &&
-        operationalState?.source === "completion" &&
-        ["pending_review", "resolved"].includes(operationalState.status) &&
-        operationalState.groupId &&
-        completionState?.groupId === operationalState.groupId
-    );
     const observationShot = observation.shot_id ? shotsById.get(observation.shot_id) : null;
     const shot =
       latestFlaggedShotForObservation(
@@ -2581,6 +2571,19 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
         latestFlaggedShotByLocationKey
       ) || observationShot;
     const reportPackage = packageBySession.get(shot?.session_id || observation.session_id) || null;
+    const statusOverride = latestStatusOverride({
+      operationalState,
+      shot,
+      reportPackage,
+    });
+    const completionPhotoIsPrimary = Boolean(
+      completionPhoto &&
+        statusOverride === operationalState?.status &&
+        operationalState?.source === "completion" &&
+        ["pending_review", "resolved"].includes(operationalState.status) &&
+        operationalState.groupId &&
+        completionState?.groupId === operationalState.groupId
+    );
     const row = publicObservationRow({
       observation,
       update: latestUpdateByObservationId.get(observation.id) || null,
@@ -2591,7 +2594,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       workflowState: workflowStateFromActivity(
         activityRowsForObservation(workflowActivityByObservationId, observation.id)
       ),
-      statusOverride: operationalState?.status || "",
+      statusOverride,
       completionState,
       completionPhoto,
       completionPhotos,

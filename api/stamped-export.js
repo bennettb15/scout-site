@@ -87,6 +87,16 @@ function boolValue(value) {
   return ["true", "1", "yes", "y"].includes(text || "");
 }
 
+function normalizedOperationalStatus(value) {
+  const text = textValue(value)
+    ?.replace(/([a-z])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLowerCase();
+  if (text === "resolved" || text === "closed") return "resolved";
+  if (text === "active" || text === "open" || text === "reopened") return "active";
+  return "";
+}
+
 function safeAngleIndex(value) {
   const number = Number.parseInt(String(value ?? ""), 10);
   return Number.isFinite(number) && number > 0 ? number : null;
@@ -119,6 +129,12 @@ function snapshotCapturedAt(shot) {
   return textValue(shot?.createdAt || shot?.capturedAt || shot?.captured_at);
 }
 
+function snapshotCaptureKind(shot) {
+  return textValue(shot?.captureKind || shot?.capture_kind || shot?.kind)
+    ?.replace(/([a-z])([A-Z])/g, "$1_$2")
+    .toLowerCase();
+}
+
 function issueReason(issue) {
   return textValue(issue?.currentReason || issue?.reason || issue?.detailNote || issue?.noteText);
 }
@@ -130,7 +146,23 @@ function flaggedReasonFromSnapshot(shot, issuesById) {
   return issueReason(issue);
 }
 
-function snapshotResolvedInSession(shot, issuesById) {
+function issueOperationalStatus(issue) {
+  return normalizedOperationalStatus(issue?.issueStatus || issue?.issue_status || issue?.status);
+}
+
+function snapshotIssueOperationalStatus(shot, issuesById) {
+  const shotStatus = normalizedOperationalStatus(shot?.issueStatus || shot?.issue_status);
+  if (shotStatus === "active") return "active";
+  if (
+    textValue(shot?.activeIssueID || shot?.activeIssueId || shot?.active_issue_id)
+  ) {
+    return "active";
+  }
+
+  const issue = issuesById.get(snapshotIssueId(shot));
+  const issueStatus = issueOperationalStatus(issue);
+  if (issueStatus === "active") return "active";
+
   if (
     boolValue(
       shot?.isResolvedInSession ||
@@ -139,11 +171,24 @@ function snapshotResolvedInSession(shot, issuesById) {
         shot?.resolved_in_session
     )
   ) {
-    return true;
+    return "resolved";
   }
-  const issue = issuesById.get(snapshotIssueId(shot));
-  const status = textValue(shot?.issueStatus || shot?.issue_status || issue?.status || issue?.issueStatus);
-  return String(status || "").toLowerCase() === "resolved";
+  if (snapshotCaptureKind(shot) === "resolved_capture") {
+    return "resolved";
+  }
+  if (shotStatus === "resolved") return "resolved";
+  if (
+    textValue(shot?.resolvedIssueID || shot?.resolvedIssueId || shot?.resolved_issue_id)
+  ) {
+    return "resolved";
+  }
+  if (issueStatus === "resolved") return "resolved";
+
+  return "";
+}
+
+function snapshotResolvedInSession(shot, issuesById) {
+  return snapshotIssueOperationalStatus(shot, issuesById) === "resolved";
 }
 
 function buildSnapshotPhotoMetadata(rawSession) {
@@ -164,6 +209,7 @@ function buildSnapshotPhotoMetadata(rawSession) {
 
   shots.forEach((shot, index) => {
     const shotId = snapshotShotId(shot);
+    const issueStatus = snapshotIssueOperationalStatus(shot, issuesById);
     const storagePath = snapshotStoragePath(shot);
     const filename = snapshotOriginalFilename(shot);
     const metadata = {
@@ -174,7 +220,9 @@ function buildSnapshotPhotoMetadata(rawSession) {
       shot_key: textValue(shot?.shotKey || shot?.shot_key),
       captured_at: snapshotCapturedAt(shot),
       is_flagged: boolValue(shot?.isFlagged || shot?.is_flagged || shot?.flagged),
-      is_resolved_in_session: snapshotResolvedInSession(shot, issuesById),
+      issue_status: issueStatus || null,
+      has_issue_state_signal: Boolean(issueStatus),
+      is_resolved_in_session: issueStatus === "resolved" || (!issueStatus && snapshotResolvedInSession(shot, issuesById)),
       reason: flaggedReasonFromSnapshot(shot, issuesById),
       priority: textValue(shot?.priority),
       snapshot_order: index,
@@ -268,7 +316,10 @@ function enrichShotRow(row, snapshotMetadata) {
     shot_key: metadata.shot_key || row.shot_key,
     captured_at: metadata.captured_at || row.captured_at,
     is_flagged: metadata.is_flagged,
-    is_resolved_in_session: metadata.is_resolved_in_session || row.is_resolved_in_session,
+    is_resolved_in_session: metadata.has_issue_state_signal
+      ? metadata.is_resolved_in_session
+      : metadata.is_resolved_in_session || row.is_resolved_in_session,
+    issue_status: metadata.issue_status || row.issue_status,
     reason: metadata.reason || row.reason,
     priority: metadata.priority || row.priority || null,
     snapshot_order: metadata.snapshot_order,

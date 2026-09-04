@@ -187,6 +187,16 @@ function boolValue(value) {
   return ["true", "1", "yes", "y"].includes(text || "");
 }
 
+function normalizedOperationalStatus(value) {
+  const text = textValue(value)
+    ?.replace(/([a-z])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLowerCase();
+  if (text === "resolved" || text === "closed") return "resolved";
+  if (text === "active" || text === "open" || text === "reopened") return "active";
+  return "";
+}
+
 function safeAngleIndex(value) {
   const number = Number.parseInt(String(value ?? ""), 10);
   return Number.isFinite(number) && number > 0 ? number : null;
@@ -221,6 +231,12 @@ function snapshotCapturedAt(shot) {
   return textValue(shot?.createdAt || shot?.capturedAt || shot?.captured_at);
 }
 
+function snapshotCaptureKind(shot) {
+  return textValue(shot?.captureKind || shot?.capture_kind || shot?.kind)
+    ?.replace(/([a-z])([A-Z])/g, "$1_$2")
+    .toLowerCase();
+}
+
 function issueReason(issue) {
   return textValue(issue?.currentReason || issue?.reason || issue?.detailNote || issue?.noteText);
 }
@@ -232,7 +248,23 @@ function flaggedReasonFromSnapshot(shot, issuesById) {
   return issueReason(issue);
 }
 
-function snapshotResolvedInSession(shot, issuesById) {
+function issueOperationalStatus(issue) {
+  return normalizedOperationalStatus(issue?.issueStatus || issue?.issue_status || issue?.status);
+}
+
+function snapshotIssueOperationalStatus(shot, issuesById) {
+  const shotStatus = normalizedOperationalStatus(shot?.issueStatus || shot?.issue_status);
+  if (shotStatus === "active") return "active";
+  if (
+    textValue(shot?.activeIssueID || shot?.activeIssueId || shot?.active_issue_id)
+  ) {
+    return "active";
+  }
+
+  const issue = issuesById.get(snapshotIssueId(shot));
+  const issueStatus = issueOperationalStatus(issue);
+  if (issueStatus === "active") return "active";
+
   if (
     boolValue(
       shot?.isResolvedInSession ||
@@ -241,20 +273,51 @@ function snapshotResolvedInSession(shot, issuesById) {
         shot?.resolved_in_session
     )
   ) {
-    return true;
+    return "resolved";
   }
-  const captureKind = textValue(shot?.captureKind || shot?.capture_kind || shot?.kind)
-    ?.replace(/([a-z])([A-Z])/g, "$1_$2")
-    .toLowerCase();
-  if (captureKind === "resolved_capture") {
-    return true;
+  if (snapshotCaptureKind(shot) === "resolved_capture") {
+    return "resolved";
   }
-  const issue = issuesById.get(snapshotIssueId(shot));
-  const status = textValue(shot?.issueStatus || shot?.issue_status || issue?.status || issue?.issueStatus);
-  return String(status || "").toLowerCase() === "resolved";
+  if (shotStatus === "resolved") return "resolved";
+  if (
+    textValue(shot?.resolvedIssueID || shot?.resolvedIssueId || shot?.resolved_issue_id)
+  ) {
+    return "resolved";
+  }
+  if (issueStatus === "resolved") return "resolved";
+
+  return "";
 }
 
-function buildSnapshotPhotoMetadata(rawSession) {
+function snapshotResolvedInSession(shot, issuesById) {
+  return snapshotIssueOperationalStatus(shot, issuesById) === "resolved";
+}
+
+function issueReopenedInSession(issue, sessionId) {
+  const events = Array.isArray(issue?.historyEvents)
+    ? issue.historyEvents
+    : Array.isArray(issue?.history_events)
+      ? issue.history_events
+      : [];
+  return events.some((event) => {
+    const type = textValue(event?.type || event?.kind || event?.activityType || event?.activity_type)
+      ?.replace(/([a-z])([A-Z])/g, "$1_$2")
+      .replace(/[\s-]+/g, "_")
+      .toLowerCase();
+    if (type !== "reopened" && type !== "reopen") return false;
+
+    const eventSessionId = idValue(event?.sessionId || event?.sessionID || event?.session_id);
+    if (sessionId && eventSessionId && eventSessionId !== sessionId) return false;
+
+    const details = event?.details && typeof event.details === "object" ? event.details : {};
+    const afterStatus = normalizedOperationalStatus(
+      event?.afterValue || event?.after_value || details.afterValue || details.after_value
+    );
+    return !afterStatus || afterStatus === "active";
+  });
+}
+
+export function buildSnapshotPhotoMetadata(rawSession) {
   const shots = Array.isArray(rawSession?.shots) ? rawSession.shots : [];
   const issues = Array.isArray(rawSession?.issues)
     ? rawSession.issues
@@ -266,6 +329,7 @@ function buildSnapshotPhotoMetadata(rawSession) {
       .map((issue) => [idValue(issue?.id || issue?.issueID || issue?.issueId), issue])
       .filter(([id]) => id)
   );
+  const sessionId = idValue(rawSession?.sessionID || rawSession?.sessionId || rawSession?.id);
   const byShotId = new Map();
   const byStoragePath = new Map();
   const byFilename = new Map();
@@ -274,11 +338,16 @@ function buildSnapshotPhotoMetadata(rawSession) {
   shots.forEach((shot, index) => {
     const shotId = snapshotShotId(shot);
     const issueId = snapshotIssueId(shot);
+    const issue = issuesById.get(issueId);
+    const issueStatus = snapshotIssueOperationalStatus(shot, issuesById);
     const storagePath = snapshotStoragePath(shot);
     const filename = snapshotOriginalFilename(shot);
     const metadata = {
       shot_id: shotId || null,
       issue_id: issueId || null,
+      issue_status: issueStatus || null,
+      has_issue_state_signal: Boolean(issueStatus),
+      snapshot_reopened_in_session: Boolean(issueStatus === "active" && issueReopenedInSession(issue, sessionId)),
       storage_path: storagePath,
       original_filename: filename,
       building: textValue(shot?.building),
@@ -288,7 +357,7 @@ function buildSnapshotPhotoMetadata(rawSession) {
       shot_key: textValue(shot?.shotKey || shot?.shot_key),
       captured_at: snapshotCapturedAt(shot),
       is_flagged: boolValue(shot?.isFlagged || shot?.is_flagged || shot?.flagged),
-      is_resolved_in_session: snapshotResolvedInSession(shot, issuesById),
+      is_resolved_in_session: issueStatus === "resolved" || (!issueStatus && snapshotResolvedInSession(shot, issuesById)),
       reason: flaggedReasonFromSnapshot(shot, issuesById),
       priority: textValue(shot?.priority),
       snapshot_order: index,
@@ -383,7 +452,12 @@ export function enrichPhotoRowWithSnapshotMetadata(row, snapshotMetadata) {
     shot_key: metadata.shot_key || row.shot_key,
     captured_at: metadata.captured_at || row.captured_at,
     is_flagged: metadata.is_flagged,
-    is_resolved_in_session: metadata.is_resolved_in_session || row.is_resolved_in_session,
+    is_resolved_in_session: metadata.has_issue_state_signal
+      ? metadata.is_resolved_in_session
+      : metadata.is_resolved_in_session || row.is_resolved_in_session,
+    issue_status: metadata.issue_status || row.issue_status,
+    snapshot_issue_status: metadata.issue_status || null,
+    snapshot_reopened_in_session: Boolean(metadata.snapshot_reopened_in_session),
     reason: metadata.reason || row.reason,
     priority: metadata.priority || row.priority || null,
     snapshot_order: metadata.snapshot_order,
