@@ -1134,7 +1134,7 @@ function publicShotRow({ shot, org, property, session, reportPackage, previewUrl
       canAddNote: noteEditable,
       canEditWorkflow: workflowEditable,
       canSubmitCompletion: noteEditable && status === "active",
-      canReviewCompletion: false,
+      canReviewCompletion: Boolean(workflowEditable && status === "pending_review"),
     },
   };
 }
@@ -2176,10 +2176,11 @@ async function handleUpdateWorkflowField(req, res, body = null) {
   } catch (error) {
     return sendJson(res, error.statusCode || 400, { error: error.message });
   }
-  const forceActivity = field === "status" && body.forceActivity === true;
-  const forcedFromValue = forceActivity && keyValue(body.fromValue) === "pending_review"
-    ? "pending_review"
-    : null;
+  const forceActivity =
+    field === "status" &&
+    body.forceActivity === true &&
+    keyValue(body.fromValue) === "pending_review";
+  const forcedFromValue = forceActivity ? "pending_review" : null;
   let note = null;
   try {
     note = forceActivity ? validateOptionalCompletionNote(body.note) : null;

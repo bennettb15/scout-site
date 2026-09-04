@@ -701,7 +701,10 @@ function canSubmitCompletionForRow(row) {
 }
 
 function canReviewCompletionForRow(row) {
-  return Boolean(row?.status === "pending_review" && row?.permissions?.canReviewCompletion);
+  return Boolean(
+    row?.status === "pending_review" &&
+      (row?.permissions?.canReviewCompletion || canEditWorkflowForRow(row))
+  );
 }
 
 function completionActivities(row) {
