@@ -3,8 +3,8 @@ import test from "node:test";
 import {
   buildSnapshotPhotoMetadata,
   enrichPhotoRowWithSnapshotMetadata,
-} from "./_reportPortalShared.js";
-import { latestStatusOverride } from "./_punchListStatus.js";
+} from "../api/_reportPortalShared.js";
+import { latestStatusOverride } from "../api-lib/punchListStatus.js";
 
 const sessionId = "11111111-1111-4111-8111-111111111111";
 const issueId = "22222222-2222-4222-8222-222222222222";
