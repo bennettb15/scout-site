@@ -2176,6 +2176,16 @@ async function handleUpdateWorkflowField(req, res, body = null) {
   } catch (error) {
     return sendJson(res, error.statusCode || 400, { error: error.message });
   }
+  const forceActivity = field === "status" && body.forceActivity === true;
+  const forcedFromValue = forceActivity && keyValue(body.fromValue) === "pending_review"
+    ? "pending_review"
+    : null;
+  let note = null;
+  try {
+    note = forceActivity ? validateOptionalCompletionNote(body.note) : null;
+  } catch (error) {
+    return sendJson(res, error.statusCode || 400, { error: error.message });
+  }
 
   try {
     const auth = await authenticateRequest(req);
@@ -2194,7 +2204,7 @@ async function handleUpdateWorkflowField(req, res, body = null) {
     const currentValue = field === "status"
       ? operationalStatusFromActivity(activityRows) || workflowValueForField({ observation, workflowState }, field)
       : workflowValueForField({ observation, workflowState }, field);
-    if ((currentValue || null) === (nextValue || null)) {
+    if ((currentValue || null) === (nextValue || null) && !forceActivity) {
       return sendJson(res, 200, {
         updated: true,
         unchanged: true,
@@ -2214,9 +2224,9 @@ async function handleUpdateWorkflowField(req, res, body = null) {
         observation_id: observation.id,
         shot_id: observation.shot_id || null,
         activity_type: activityType,
-        from_value: currentValue || null,
+        from_value: forcedFromValue || currentValue || null,
         to_value: nextValue || null,
-        note: null,
+        note,
         created_by: auth.user.id,
         deleted_at: null,
       })

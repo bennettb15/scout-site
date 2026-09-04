@@ -701,7 +701,7 @@ function canSubmitCompletionForRow(row) {
 }
 
 function canReviewCompletionForRow(row) {
-  return Boolean(row?.completionReview?.activityId && row?.permissions?.canReviewCompletion);
+  return Boolean(row?.status === "pending_review" && row?.permissions?.canReviewCompletion);
 }
 
 function completionActivities(row) {
@@ -1851,6 +1851,10 @@ const PUNCH_LIST_STYLES = `
     gap: 6px;
   }
 
+  .punch-row-review-actions-mobile {
+    display: none;
+  }
+
   .punch-row-controls > .punch-row-review-actions {
     grid-column: 1 / -1;
     width: 100%;
@@ -2652,6 +2656,27 @@ const PUNCH_LIST_STYLES = `
     .punch-row-controls > .punch-control {
       justify-self: stretch;
       width: 100%;
+    }
+
+    .punch-row-review-actions-mobile {
+      display: flex;
+      grid-column: 1 / -1;
+      width: 100%;
+      gap: 8px;
+    }
+
+    .punch-row-review-actions-mobile .punch-completion-approve,
+    .punch-row-review-actions-mobile .punch-completion-reject {
+      flex: 1 1 0;
+      height: 36px;
+      min-width: 0;
+      width: 100%;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+
+    .punch-row-review-actions-desktop {
+      display: none;
     }
 
     .punch-review-control-row {
@@ -3939,12 +3964,21 @@ function IssueRow({
         </div>
         <div className="punch-row-controls">
           {canReviewCompletion && (
+            <CompletionReviewActions
+              row={row}
+              onReviewCompletion={onReviewCompletion}
+              completionReviewSavingKey={completionReviewSavingKey}
+              className="punch-row-review-actions-mobile"
+            />
+          )}
+          {canReviewCompletion && (
             <div className="punch-review-control-row">
               <CompletionReviewActions
                 row={row}
                 onReviewCompletion={onReviewCompletion}
                 completionReviewSavingKey={completionReviewSavingKey}
                 action="reject"
+                className="punch-row-review-actions-desktop"
               />
               <WorkflowControl
                 row={row}
@@ -3981,6 +4015,7 @@ function IssueRow({
                 onReviewCompletion={onReviewCompletion}
                 completionReviewSavingKey={completionReviewSavingKey}
                 action="approve"
+                className="punch-row-review-actions-desktop"
               />
               <WorkflowControl
                 row={row}
@@ -5002,11 +5037,12 @@ export default function ScoutPunchListPage() {
     });
   }
 
-  async function handleWorkflowChange(row, field, value) {
+  async function handleWorkflowChange(row, field, value, options = {}) {
     if (!session?.access_token || !canEditWorkflowForRow(row)) return;
     const nextPatch = workflowPatch(field, value);
     const previousPatch = { [field]: row[field] ?? null };
-    if ((previousPatch[field] || null) === (nextPatch[field] || null)) return;
+    const forceActivity = Boolean(options.forceActivity);
+    if (!forceActivity && (previousPatch[field] || null) === (nextPatch[field] || null)) return;
     const saveKey = `${row.id}:${field}`;
     setWorkflowSavingKey(saveKey);
     setPunchListError("");
@@ -5026,6 +5062,9 @@ export default function ScoutPunchListPage() {
           packageId: row.observationId ? null : row.packageId,
           field,
           value: nextPatch[field],
+          forceActivity,
+          fromValue: options.fromValue || null,
+          note: options.note || null,
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -5216,20 +5255,40 @@ export default function ScoutPunchListPage() {
     setCompletionReviewSavingKey(saveKey);
     setPunchListError("");
     try {
-      const response = await fetch("/api/punch-list?mode=completion-review", {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          activityId: row.completionReview.activityId,
-          action: normalizedAction,
-          note,
-        }),
-      });
+      const submissionActivityId = row?.completionReview?.activityId;
+      const nextStatus = normalizedAction === "approve" ? "resolved" : "active";
+      const response = submissionActivityId
+        ? await fetch("/api/punch-list?mode=completion-review", {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              activityId: submissionActivityId,
+              action: normalizedAction,
+              note,
+            }),
+          })
+        : await fetch("/api/punch-list", {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              observationId: row.observationId,
+              shotId: row.observationId ? null : row.shotId,
+              packageId: row.observationId ? null : row.packageId,
+              field: "status",
+              value: nextStatus,
+              forceActivity: true,
+              fromValue: "pending_review",
+              note,
+            }),
+          });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok || !body.reviewed) {
+      if (!response.ok || !(body.reviewed || body.updated)) {
         throw new Error(body.error || "Unable to review completion.");
       }
       clearPunchListCaches();
