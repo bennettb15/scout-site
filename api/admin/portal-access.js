@@ -14,6 +14,7 @@ import {
 import { sendJson } from "../_reportPortalShared.js";
 
 const ORDINARY_ACCESS_ROLES = new Set(["viewer", "field"]);
+const PORTAL_ACCESS_ROLES = new Set(["owner", "manager", "field", "viewer"]);
 const ORDINARY_ACCESS_ONLY_ERROR =
   "Only existing org-level Client Viewer or Field User access can be changed here.";
 const MAX_ORG_NAME_LENGTH = 120;
@@ -110,7 +111,7 @@ async function loadAuthUsersById(service, targetIds) {
   return byId;
 }
 
-function membershipSummary(row, profileById, orgById, authById, authStatusAvailable) {
+export function membershipSummary(row, profileById, orgById, authById, authStatusAvailable) {
   const profile = profileById.get(row.user_id) || {};
   const email = normalizeEmail(profile.email);
   const authUser = authById.get(row.user_id) || null;
@@ -133,28 +134,92 @@ function membershipSummary(row, profileById, orgById, authById, authStatusAvaila
   };
 }
 
-async function loadPortalAccess(service) {
-  const [
-    { data: orgRows, error: orgsError },
-    { data: membershipRows, error: membershipsError },
-  ] = await Promise.all([
-    service
-      .from("orgs")
-      .select("id,name")
-      .is("deleted_at", null)
-      .order("name", { ascending: true }),
-    service
-      .from("org_memberships")
-      .select("id,org_id,user_id,role,access_scope,created_at,updated_at,deleted_at")
-      .is("deleted_at", null)
-      .in("role", Array.from(ORDINARY_ACCESS_ROLES))
-      .or("access_scope.eq.org,access_scope.is.null")
-      .order("created_at", { ascending: false }),
-  ]);
+export function membershipNeedsRequiredAdminRepair(row) {
+  return (
+    !row ||
+    row.deleted_at !== null ||
+    row.role !== "owner" ||
+    (row.access_scope || "org") !== "org"
+  );
+}
 
-  if (orgsError || membershipsError) {
+async function ensureRequiredAdminOrgAccess(service, orgRows, actorId) {
+  const orgIds = [...new Set((orgRows || []).map((row) => row.id).filter(Boolean))];
+  if (!orgIds.length) return { repairedCount: 0, missingAdminEmails: [] };
+
+  const adminUsers = [];
+  const missingAdminEmails = [];
+  for (const email of [...adminEmailSet()].sort()) {
+    const user = await findAuthUserByEmail(service, email);
+    if (!user?.id) {
+      missingAdminEmails.push(email);
+      continue;
+    }
+    await ensureUserProfile(service, user, actorId);
+    adminUsers.push({ id: user.id, email });
+  }
+
+  const userIds = adminUsers.map((user) => user.id);
+  if (!userIds.length) return { repairedCount: 0, missingAdminEmails };
+
+  const { data: existingRows, error: existingError } = await service
+    .from("org_memberships")
+    .select("id,org_id,user_id,role,access_scope,deleted_at")
+    .in("org_id", orgIds)
+    .in("user_id", userIds);
+  if (existingError) throw existingError;
+
+  const existingByOrgUser = new Map(
+    (existingRows || []).map((row) => [`${row.org_id}:${row.user_id}`, row])
+  );
+  const rowsToRepair = [];
+  for (const orgId of orgIds) {
+    for (const user of adminUsers) {
+      const existing = existingByOrgUser.get(`${orgId}:${user.id}`);
+      if (!membershipNeedsRequiredAdminRepair(existing)) continue;
+      rowsToRepair.push({
+        org_id: orgId,
+        user_id: user.id,
+        role: "owner",
+        access_scope: "org",
+        updated_by: actorId,
+        deleted_at: null,
+      });
+    }
+  }
+
+  if (!rowsToRepair.length) return { repairedCount: 0, missingAdminEmails };
+
+  const { error: repairError } = await service
+    .from("org_memberships")
+    .upsert(rowsToRepair, { onConflict: "org_id,user_id" });
+  if (repairError) throw repairError;
+
+  return { repairedCount: rowsToRepair.length, missingAdminEmails };
+}
+
+async function loadPortalAccess(service) {
+  const { data: orgRows, error: orgsError } = await service
+    .from("orgs")
+    .select("id,name")
+    .is("deleted_at", null)
+    .order("name", { ascending: true });
+
+  if (orgsError) {
     throw new Error("Unable to load portal access.");
   }
+
+  const adminAccessSync = await ensureRequiredAdminOrgAccess(service, orgRows || [], null);
+
+  const { data: membershipRows, error: membershipsError } = await service
+    .from("org_memberships")
+    .select("id,org_id,user_id,role,access_scope,created_at,updated_at,deleted_at")
+    .is("deleted_at", null)
+    .in("role", Array.from(PORTAL_ACCESS_ROLES))
+    .or("access_scope.eq.org,access_scope.is.null")
+    .order("created_at", { ascending: false });
+
+  if (membershipsError) throw new Error("Unable to load portal access.");
 
   const userIds = [...new Set((membershipRows || []).map((row) => row.user_id))];
   const { data: profileRows, error: profilesError } = userIds.length
@@ -184,6 +249,7 @@ async function loadPortalAccess(service) {
 
   return {
     adminEmails: [...adminEmailSet()].sort(),
+    adminAccessSync,
     orgs: (orgRows || []).map((row) => ({
       id: row.id,
       name: row.name,
@@ -514,6 +580,8 @@ async function createOrganization(req, res, context) {
       .single();
 
     if (createError) throw createError;
+    await ensureRequiredAdminOrgAccess(context.service, [org], context.user.id);
+
     return sendJson(res, 201, {
       org: {
         id: org.id,
