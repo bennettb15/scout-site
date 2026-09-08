@@ -26,6 +26,9 @@ import {
 } from "./_reportPortalShared.js";
 import { latestStatusOverride, normalizedExplicitStatus, packageTimestamp } from "../api-lib/punchListStatus.js";
 import {
+  allowedPropertyIdsForPortalAccess,
+} from "../api-lib/portalPropertyAccess.js";
+import {
   ensureUserProfile,
   isApprovedAdminEmail,
   readJsonBody,
@@ -2343,15 +2346,9 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       .order("updated_at", { ascending: false })
       .limit(MAX_ROWS)
   );
-  let visiblePackageRows = portalAccess
-    ? packageRows.filter((row) => portalAccess.canAccessProperty(row.org_id, row.property_id))
-    : packageRows;
-  let visibleObservations = portalAccess
-    ? observations.filter((row) => portalAccess.canAccessProperty(row.org_id, row.property_id))
-    : observations;
   const scopedPropertyIds = unique([
-    ...visiblePackageRows.map((row) => row.property_id),
-    ...visibleObservations.map((row) => row.property_id),
+    ...packageRows.map((row) => row.property_id),
+    ...observations.map((row) => row.property_id),
   ]);
   const propertyRows = scopedPropertyIds.length
     ? await safeRows(
@@ -2362,10 +2359,34 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
           .is("deleted_at", null)
       )
     : [];
+  const currentPropertyIdsByOrg = new Map();
+  for (const property of propertyRows) {
+    const rows = currentPropertyIdsByOrg.get(property.org_id) || [];
+    rows.push(property.id);
+    currentPropertyIdsByOrg.set(property.org_id, rows);
+  }
   const currentPropertyIds = new Set(propertyRows.map((row) => row.id));
-  visiblePackageRows = visiblePackageRows.filter((row) => currentPropertyIds.has(row.property_id));
-  visibleObservations = visibleObservations.filter((row) =>
-    currentPropertyIds.has(row.property_id)
+  const allowedPropertyIdsByOrg = new Map();
+  function canSeeCurrentProperty(orgId, propertyId) {
+    if (!portalAccess) return currentPropertyIds.has(propertyId);
+    if (!allowedPropertyIdsByOrg.has(orgId)) {
+      allowedPropertyIdsByOrg.set(
+        orgId,
+        allowedPropertyIdsForPortalAccess(
+          portalAccess,
+          orgId,
+          currentPropertyIdsByOrg.get(orgId) || []
+        )
+      );
+    }
+    return allowedPropertyIdsByOrg.get(orgId).has(propertyId);
+  }
+
+  const visiblePackageRows = packageRows.filter((row) =>
+    canSeeCurrentProperty(row.org_id, row.property_id)
+  );
+  const visibleObservations = observations.filter((row) =>
+    canSeeCurrentProperty(row.org_id, row.property_id)
   );
 
   const observationIds = visibleObservations.map((row) => row.id);
@@ -2450,8 +2471,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     if (!row.property_id && reportPackage?.property_id) {
       row.property_id = reportPackage.property_id;
     }
-    if (!currentPropertyIds.has(row.property_id)) continue;
-    if (portalAccess && !portalAccess.canAccessProperty(row.org_id, row.property_id)) continue;
+    if (!canSeeCurrentProperty(row.org_id, row.property_id)) continue;
     if (!originalPathIsExpected(row)) continue;
     shotsById.set(row.id, row);
     const rows = shotsBySession.get(row.session_id) || [];

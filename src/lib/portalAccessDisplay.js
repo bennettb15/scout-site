@@ -37,11 +37,10 @@ export function portalPropertyScopeDisplay({
   }
 
   const ids = normalizePropertyIds(propertyIds, properties);
-  const propertyById = new Map((properties || []).map((property) => [property.id, property]));
   if (ids.length === 1) {
     return {
       mainText: "Selected properties",
-      subText: `1 selected: ${formatPortalPropertyLabel(propertyById.get(ids[0]) || {})}`,
+      subText: "1 selected",
     };
   }
   if (ids.length > 1) {
@@ -54,6 +53,36 @@ export function portalPropertyScopeDisplay({
     mainText: "Selected properties",
     subText: normalizeDisplayText(propertySummary) || "No properties selected",
   };
+}
+
+export function portalPropertyScopeSelectionFromCheckedIds({
+  checkedPropertyIds = [],
+  properties = [],
+  canUseOrgScope = true,
+} = {}) {
+  const allPropertyIds = normalizePropertyIds(
+    (properties || []).map((property) => property.id),
+    properties
+  );
+  const ids = normalizePropertyIds(checkedPropertyIds, properties);
+  if (canUseOrgScope && allPropertyIds.length > 0 && ids.length === allPropertyIds.length) {
+    return { accessScope: "org", propertyIds: [] };
+  }
+  return { accessScope: "property", propertyIds: ids };
+}
+
+export function checkedPropertyIdsForScopeSelection({
+  accessScope = "org",
+  propertyIds = [],
+  role = "",
+  properties = [],
+} = {}) {
+  const allPropertyIds = normalizePropertyIds(
+    (properties || []).map((property) => property.id),
+    properties
+  );
+  if (role === "owner" || accessScope !== "property") return allPropertyIds;
+  return normalizePropertyIds(propertyIds, properties);
 }
 
 export function normalizePropertyIds(values, properties = []) {

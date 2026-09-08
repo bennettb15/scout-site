@@ -90,3 +90,32 @@ export function filterRowsByCurrentPortalPropertyAccess(rows, accessRows, curren
     currentIds.has(String(row.property_id || ""))
   );
 }
+
+export function allowedPropertyIdsForPortalAccess(portalAccess, orgId, currentPropertyIds = []) {
+  const currentIds = currentPropertyIds instanceof Set
+    ? currentPropertyIds
+    : new Set(normalizePropertyIds(currentPropertyIds));
+  if (!portalAccess || !orgId) return new Set();
+  if (portalAccess.isApprovedAdmin || portalAccess.orgWideOrgIds === null) return currentIds;
+  if (portalAccess.orgWideOrgIds?.has(orgId)) return currentIds;
+
+  const allowedIds = new Set();
+  for (const row of portalAccess.rows || []) {
+    if (row.org_id !== orgId && row.orgId !== orgId) continue;
+    const accessScope = normalizeAccessScope(row.access_scope || row.accessScope, row.role);
+    if (row.role === "owner" || accessScope === ORG_ACCESS_SCOPE) {
+      return currentIds;
+    }
+    for (const propertyId of normalizePropertyIds(row.propertyIds || row.property_ids)) {
+      if (currentIds.has(propertyId)) allowedIds.add(propertyId);
+    }
+  }
+  return allowedIds;
+}
+
+export function filterRowsByAllowedPropertyIds(rows, allowedPropertyIds) {
+  const allowedIds = allowedPropertyIds instanceof Set
+    ? allowedPropertyIds
+    : new Set(normalizePropertyIds(allowedPropertyIds));
+  return (rows || []).filter((row) => allowedIds.has(String(row.property_id || "")));
+}

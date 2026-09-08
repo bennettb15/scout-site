@@ -13,12 +13,12 @@ import {
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import {
   canEditPortalPropertyScope,
+  checkedPropertyIdsForScopeSelection,
   formatPortalPropertyLabel,
-  nextPortalPropertyScopeSelection,
-  nextPortalPropertyToggleSelection,
   normalizePortalPropertyScopeDraft,
   normalizePropertyIds as normalizeDisplayPropertyIds,
   portalPropertyScopeDisplay,
+  portalPropertyScopeSelectionFromCheckedIds,
   portalPropertyScopeDraftCanSave,
   portalPropertyScopeDraftChanged,
 } from "./lib/portalAccessDisplay";
@@ -249,18 +249,29 @@ function PropertyScopeEditor({
     allowed.delete("property");
   }
   const canChangeScope = role !== "owner" && allowed.size > 0 && !disabled;
-  const visibleScopes = canChangeScope ? allowed : new Set([scope]);
   const batchMode = typeof onSave === "function";
   const activeSelection = batchMode && isEditing ? draft : { accessScope: scope, propertyIds: ids };
   const activeScope = activeSelection.accessScope === "property" ? "property" : "org";
-  const activeIds = normalizeDisplayPropertyIds(activeSelection.propertyIds, properties);
-  const selectedIds = new Set(activeIds);
+  const allPropertyIds = normalizeDisplayPropertyIds(
+    (properties || []).map((property) => property.id),
+    properties
+  );
+  const checkedIds = checkedPropertyIdsForScopeSelection({
+    role,
+    accessScope: activeScope,
+    propertyIds: activeSelection.propertyIds,
+    properties,
+  });
+  const checkedIdSet = new Set(checkedIds);
+  const canUseOrgScope = allowed.has("org");
+  const allPropertiesChecked =
+    allPropertyIds.length > 0 && checkedIds.length === allPropertyIds.length;
   const display = portalPropertyScopeDisplay({
     role,
     accessScope: activeScope,
-    propertyIds: activeIds,
+    propertyIds: activeSelection.propertyIds,
     properties,
-    propertySummary: selectedPropertySummary(activeIds, properties),
+    propertySummary: selectedPropertySummary(activeSelection.propertyIds, properties),
   });
   const summary = [display.mainText, display.subText].filter(Boolean).join(" - ");
   const currentRow = row || { role, accessScope: scope, propertyIds: ids, canChangeScope };
@@ -276,31 +287,32 @@ function PropertyScopeEditor({
     );
   }, [isEditing, role, scope, propertyIdsKey, propertiesKey]);
 
-  function handleScopeChange(nextScope) {
-    const selection = nextPortalPropertyScopeSelection({
-      currentPropertyIds: activeIds,
-      nextScope,
+  function updateSelectionFromCheckedIds(nextCheckedIds) {
+    const selection = portalPropertyScopeSelectionFromCheckedIds({
+      checkedPropertyIds: nextCheckedIds,
       properties,
+      canUseOrgScope,
     });
-    if (batchMode) {
-      setDraft(selection);
-    } else {
-      onChange?.(selection.accessScope, selection.propertyIds);
-    }
+    if (batchMode) setDraft(selection);
+    else onChange?.(selection.accessScope, selection.propertyIds);
   }
 
   function handlePropertyToggle(propertyId, checked) {
-    const selection = nextPortalPropertyToggleSelection({
-      currentPropertyIds: activeIds,
-      propertyId,
-      checked,
-      properties,
-    });
-    if (batchMode) {
-      setDraft(selection);
-    } else {
-      onChange?.(selection.accessScope, selection.propertyIds);
+    const nextIds = checked
+      ? normalizeDisplayPropertyIds([...checkedIds, propertyId], properties)
+      : checkedIds.filter((id) => id !== propertyId);
+    if (nextIds.length === 0) {
+      return;
     }
+    updateSelectionFromCheckedIds(nextIds);
+  }
+
+  function handleAllPropertiesToggle(checked) {
+    if (checked) {
+      updateSelectionFromCheckedIds(allPropertyIds);
+      return;
+    }
+    updateSelectionFromCheckedIds(checkedIds.slice(0, 1));
   }
 
   async function handleSave() {
@@ -358,22 +370,28 @@ function PropertyScopeEditor({
 
   return (
     <div className="grid max-w-[380px] gap-2">
-      <label className="grid gap-1">
-        <span className="text-xs font-semibold text-foreground/55">Property scope</span>
-        <select
-          value={activeScope}
-          disabled={!canChangeScope}
-          onChange={(event) => handleScopeChange(event.target.value)}
-          className="h-10 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
-        >
-          {visibleScopes.has("org") && <option value="org">All properties</option>}
-          {visibleScopes.has("property") && <option value="property">Selected properties</option>}
-        </select>
-      </label>
-      {activeScope === "property" && (
-        <div className="max-h-40 overflow-auto rounded-lg border border-border bg-slate-50 p-2">
-          {(properties || []).length ? (
-            <div className="grid gap-1">
+      <div className="rounded-lg border border-border bg-slate-50 p-2">
+        <div className="mb-2 flex items-center justify-between gap-3 px-2 pt-1">
+          <span className="text-xs font-semibold text-foreground/65">
+            Selected properties
+          </span>
+          <span className="text-xs text-foreground/45">{display.subText}</span>
+        </div>
+        {(properties || []).length ? (
+          <div className="grid gap-1">
+            {canUseOrgScope && (
+              <label className="flex items-start gap-2 rounded-md bg-background px-2 py-2 text-xs font-semibold leading-snug text-foreground/80">
+                <input
+                  type="checkbox"
+                  checked={allPropertiesChecked}
+                  disabled={!canChangeScope || allPropertyIds.length === 0}
+                  onChange={(event) => handleAllPropertiesToggle(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-border text-[var(--brand)]"
+                />
+                <span>All properties</span>
+              </label>
+            )}
+            <div className="max-h-40 overflow-auto">
               {properties.map((property) => (
                 <label
                   key={property.id}
@@ -382,8 +400,11 @@ function PropertyScopeEditor({
                 >
                   <input
                     type="checkbox"
-                    checked={selectedIds.has(property.id)}
-                    disabled={!canChangeScope || (selectedIds.has(property.id) && activeIds.length === 1)}
+                    checked={checkedIdSet.has(property.id)}
+                    disabled={
+                      !canChangeScope ||
+                      (checkedIdSet.has(property.id) && checkedIds.length === 1)
+                    }
                     onChange={(event) => handlePropertyToggle(property.id, event.target.checked)}
                     className="mt-0.5 h-4 w-4 rounded border-border text-[var(--brand)]"
                   />
@@ -395,13 +416,13 @@ function PropertyScopeEditor({
                 </label>
               ))}
             </div>
-          ) : (
-            <div className="px-2 py-1.5 text-xs text-foreground/55">
-              No properties available.
-            </div>
-          )}
-        </div>
-      )}
+          </div>
+        ) : (
+          <div className="px-2 py-1.5 text-xs text-foreground/55">
+            No properties available.
+          </div>
+        )}
+      </div>
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <span className="block text-xs font-semibold text-foreground/55">

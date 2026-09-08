@@ -8,6 +8,9 @@ import {
   publicReportTypeLabel,
   sendJson,
 } from "./_reportPortalShared.js";
+import {
+  allowedPropertyIdsForPortalAccess,
+} from "../api-lib/portalPropertyAccess.js";
 
 function toProperty(row) {
   if (!row) return null;
@@ -96,9 +99,27 @@ async function handleReportOrgs(req, res) {
             portalAccess.orgWideOrgIds.has(row.id) ||
             portalAccess.rows.some((access) => access.org_id === row.id)
         );
+    const currentPropertyIdsByOrg = new Map();
+    for (const property of propertyRows || []) {
+      const rows = currentPropertyIdsByOrg.get(property.org_id) || [];
+      rows.push(property.id);
+      currentPropertyIdsByOrg.set(property.org_id, rows);
+    }
+    const allowedPropertyIdsByOrg = new Map();
+    for (const row of orgRows) {
+      allowedPropertyIdsByOrg.set(
+        row.id,
+        allowedPropertyIdsForPortalAccess(
+          portalAccess,
+          row.id,
+          currentPropertyIdsByOrg.get(row.id) || []
+        )
+      );
+    }
     const propertiesByOrgId = new Map();
     for (const property of propertyRows || []) {
-      if (!portalAccess.canAccessProperty(property.org_id, property.id)) continue;
+      const allowedPropertyIds = allowedPropertyIdsByOrg.get(property.org_id) || new Set();
+      if (!allowedPropertyIds.has(property.id)) continue;
       const rows = propertiesByOrgId.get(property.org_id) || [];
       rows.push(toProperty(property));
       propertiesByOrgId.set(property.org_id, rows);
@@ -139,15 +160,12 @@ export default async function handler(req, res) {
     if (packagesError) {
       return sendJson(res, 500, { error: "Unable to load report packages." });
     }
-    const accessiblePackageRows = (rawPackageRows || []).filter((row) =>
-      portalAccess.canAccessProperty(row.org_id, row.property_id)
-    );
-    const accessiblePropertyIds = unique(accessiblePackageRows.map((row) => row.property_id));
-    const { data: propertyRows, error: propertiesError } = accessiblePropertyIds.length
+    const candidatePropertyIds = unique((rawPackageRows || []).map((row) => row.property_id));
+    const { data: propertyRows, error: propertiesError } = candidatePropertyIds.length
       ? await service
           .from("properties")
           .select("id,org_id,name,address_line1,city,state,postal_code")
-          .in("id", accessiblePropertyIds)
+          .in("id", candidatePropertyIds)
           .is("deleted_at", null)
       : { data: [], error: null };
 
@@ -155,9 +173,28 @@ export default async function handler(req, res) {
       return sendJson(res, 500, { error: "Unable to load report context." });
     }
 
-    const currentPropertyIds = new Set((propertyRows || []).map((row) => row.id));
-    const packageRows = accessiblePackageRows
-      .filter((row) => currentPropertyIds.has(row.property_id))
+    const currentPropertyIdsByOrg = new Map();
+    for (const property of propertyRows || []) {
+      const rows = currentPropertyIdsByOrg.get(property.org_id) || [];
+      rows.push(property.id);
+      currentPropertyIdsByOrg.set(property.org_id, rows);
+    }
+    const allowedPropertyIdsByOrg = new Map();
+
+    const packageRows = (rawPackageRows || [])
+      .filter((row) => {
+        if (!allowedPropertyIdsByOrg.has(row.org_id)) {
+          allowedPropertyIdsByOrg.set(
+            row.org_id,
+            allowedPropertyIdsForPortalAccess(
+              portalAccess,
+              row.org_id,
+              currentPropertyIdsByOrg.get(row.org_id) || []
+            )
+          );
+        }
+        return allowedPropertyIdsByOrg.get(row.org_id).has(row.property_id);
+      })
       .slice(0, 50);
 
     const packageIds = packageRows.map((row) => row.id);

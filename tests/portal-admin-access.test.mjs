@@ -13,6 +13,8 @@ import {
 } from "../api-lib/portalAdminAccess.js";
 import {
   actorCanManagePropertyScope,
+  allowedPropertyIdsForPortalAccess,
+  filterRowsByAllowedPropertyIds,
   filterRowsByCurrentPortalPropertyAccess,
   filterRowsByPortalPropertyAccess,
   portalAccessAllowsProperty,
@@ -21,11 +23,13 @@ import {
 } from "../api-lib/portalPropertyAccess.js";
 import {
   canEditPortalPropertyScope,
+  checkedPropertyIdsForScopeSelection,
   formatPortalPropertyLabel,
   normalizePortalPropertyScopeDraft,
   nextPortalPropertyScopeSelection,
   nextPortalPropertyToggleSelection,
   portalPropertyScopeDisplay,
+  portalPropertyScopeSelectionFromCheckedIds,
   portalPropertyScopeDraftCanSave,
   portalPropertyScopeDraftChanged,
 } from "../src/lib/portalAccessDisplay.js";
@@ -504,6 +508,66 @@ test("All Properties keeps scoped report package list inside allowed property ID
   assert.deepEqual(visiblePackages.map((row) => row.id), ["package-a"]);
 });
 
+test("selected-property access excludes QA Test 9.16 when only QA Test 9.17 is selected", () => {
+  const allowedIds = allowedPropertyIdsForPortalAccess(
+    {
+      rows: [
+        {
+          org_id: orgId,
+          role: "viewer",
+          access_scope: "property",
+          propertyIds: ["qa-9-17"],
+        },
+      ],
+      orgWideOrgIds: new Set(),
+      isApprovedAdmin: false,
+    },
+    orgId,
+    ["qa-9-16", "qa-9-17"]
+  );
+
+  assert.deepEqual(
+    filterRowsByAllowedPropertyIds(
+      [
+        { id: "package-9-16", org_id: orgId, property_id: "qa-9-16" },
+        { id: "package-9-17", org_id: orgId, property_id: "qa-9-17" },
+      ],
+      allowedIds
+    ).map((row) => row.id),
+    ["package-9-17"]
+  );
+});
+
+test("org-wide access still sees QA Test 9.16 and QA Test 9.17", () => {
+  const allowedIds = allowedPropertyIdsForPortalAccess(
+    {
+      rows: [
+        {
+          org_id: orgId,
+          role: "field",
+          access_scope: "org",
+          propertyIds: [],
+        },
+      ],
+      orgWideOrgIds: new Set([orgId]),
+      isApprovedAdmin: false,
+    },
+    orgId,
+    ["qa-9-16", "qa-9-17"]
+  );
+
+  assert.deepEqual(
+    filterRowsByAllowedPropertyIds(
+      [
+        { id: "package-9-16", org_id: orgId, property_id: "qa-9-16" },
+        { id: "package-9-17", org_id: orgId, property_id: "qa-9-17" },
+      ],
+      allowedIds
+    ).map((row) => row.id),
+    ["package-9-16", "package-9-17"]
+  );
+});
+
 test("deleted or non-visible property packages are excluded", () => {
   assert.deepEqual(
     filterRowsByCurrentPortalPropertyAccess(
@@ -653,8 +717,18 @@ test("selected property scope summary is readable and not concatenated", () => {
     }),
     {
       mainText: "Selected properties",
-      subText: "1 selected: QA Test 9.17 - 917 W Coshocton St, Johnstown, OH 43031",
+      subText: "1 selected",
     }
+  );
+  assert.equal(
+    formatPortalPropertyLabel({
+      name: "QA Test 9.17",
+      addressLine1: "917 W Coshocton St",
+      city: "Johnstown",
+      state: "OH",
+      postalCode: "43031",
+    }),
+    "QA Test 9.17 - 917 W Coshocton St, Johnstown, OH 43031"
   );
 });
 
@@ -726,4 +800,47 @@ test("active row property-scope editing batches changes and saves on confirm", (
   });
   assert.equal(portalPropertyScopeDraftChanged(row, draft, properties), true);
   assert.equal(portalPropertyScopeDraftCanSave(row, draft, properties), true);
+});
+
+test("checkbox picker saves all checked properties as org-wide when permitted", () => {
+  assert.deepEqual(
+    portalPropertyScopeSelectionFromCheckedIds({
+      checkedPropertyIds: ["property-a", "property-b"],
+      properties: [
+        { id: "property-a", name: "Rental Unit 1" },
+        { id: "property-b", name: "Rental Unit 2" },
+      ],
+      canUseOrgScope: true,
+    }),
+    { accessScope: "org", propertyIds: [] }
+  );
+});
+
+test("checkbox picker keeps selected-property scope when org-wide is not permitted", () => {
+  assert.deepEqual(
+    portalPropertyScopeSelectionFromCheckedIds({
+      checkedPropertyIds: ["property-a", "property-b"],
+      properties: [
+        { id: "property-a", name: "Rental Unit 1" },
+        { id: "property-b", name: "Rental Unit 2" },
+      ],
+      canUseOrgScope: false,
+    }),
+    { accessScope: "property", propertyIds: ["property-a", "property-b"] }
+  );
+});
+
+test("checkbox picker expands org-wide scope to checked property IDs for editing", () => {
+  assert.deepEqual(
+    checkedPropertyIdsForScopeSelection({
+      role: "viewer",
+      accessScope: "org",
+      propertyIds: [],
+      properties: [
+        { id: "property-a", name: "Rental Unit 1" },
+        { id: "property-b", name: "Rental Unit 2" },
+      ],
+    }),
+    ["property-a", "property-b"]
+  );
 });
