@@ -31,6 +31,10 @@
       "destination": "/api/report-packages?mode=orgs"
     },
     {
+      "source": "/api/portal-invite",
+      "destination": "/api/admin/portal-access?mode=portalInvite"
+    },
+    {
       "source": "/punch-list",
       "destination": "/index.html"
     },

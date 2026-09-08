@@ -10,15 +10,23 @@ import {
   validateUuid,
   ensureUserProfile,
 } from "../_portalAdminShared.js";
-import { sendJson } from "../_reportPortalShared.js";
+import {
+  createServiceClient,
+  methodAllowed,
+  sendJson,
+} from "../_reportPortalShared.js";
 import {
   PortalInviteError,
+  activateInvite,
   assertInviteEmailConfigured,
   createInviteToken,
+  getInviteToken,
   hashInviteToken,
   inviteExpiresAt,
   inviteRoleLabel,
   inviteUrl,
+  loadInvitePublicDetails,
+  portalInviteErrorResponse,
   portalInviteStatus,
   sendPortalInviteEmail,
 } from "../_portalInviteShared.js";
@@ -704,7 +712,90 @@ async function revokeOrgAccess(req, res, context) {
   }
 }
 
+function isPortalInviteMode(req) {
+  if (req.query?.mode === "portalInvite") return true;
+  const host = req.headers.host || "localhost";
+  const parsed = new URL(req.url || "/", `http://${host}`);
+  return parsed.searchParams.get("mode") === "portalInvite";
+}
+
+function inviteDetailsResponse({ invite, org, publicState }) {
+  return {
+    state: publicState.state,
+    accountMode: publicState.accountMode || null,
+    email: normalizeEmail(invite?.email),
+    org: org ? { id: org.id, name: org.name } : null,
+    accessRole: invite?.role || null,
+    accessLabel: invite?.role ? inviteRoleLabel(invite.role) : null,
+    expiresAt: invite?.expires_at || null,
+  };
+}
+
+async function handlePortalInviteGet(req, res, service) {
+  try {
+    const details = await loadInvitePublicDetails(service, getInviteToken(req));
+    return sendJson(res, 200, inviteDetailsResponse(details));
+  } catch (error) {
+    return portalInviteErrorResponse(res, error);
+  }
+}
+
+async function handlePortalInvitePost(req, res, service) {
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return sendJson(res, 400, {
+      error: "Invalid JSON body.",
+      code: "invalid_json",
+    });
+  }
+
+  try {
+    const token = String(body.token || getInviteToken(req) || "").trim();
+    const details = await loadInvitePublicDetails(service, token);
+    const { user, membership } = await activateInvite({
+      service,
+      req,
+      invite: details.invite,
+      org: details.org,
+      password: body.password,
+      actorId: details.invite?.created_by || null,
+      upsertOrgMembership,
+    });
+
+    return sendJson(res, 200, {
+      state: "accepted",
+      user: {
+        id: user.id,
+        email: normalizeEmail(user.email),
+      },
+      org: {
+        id: details.org.id,
+        name: details.org.name,
+      },
+      membership: membershipResponse(membership),
+    });
+  } catch (error) {
+    return portalInviteErrorResponse(res, error);
+  }
+}
+
+async function handlePortalInvite(req, res) {
+  if (req.method === "OPTIONS") {
+    methodAllowed(req, res, ["GET", "POST", "OPTIONS"]);
+    return;
+  }
+  if (!methodAllowed(req, res, ["GET", "POST", "OPTIONS"])) return;
+
+  const service = createServiceClient();
+  if (req.method === "GET") return handlePortalInviteGet(req, res, service);
+  if (req.method === "POST") return handlePortalInvitePost(req, res, service);
+}
+
 export default async function handler(req, res) {
+  if (isPortalInviteMode(req)) return handlePortalInvite(req, res);
+
   const context = await requirePortalAdmin(req, res, [
     "GET",
     "POST",
