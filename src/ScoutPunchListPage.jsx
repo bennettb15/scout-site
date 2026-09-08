@@ -23,6 +23,7 @@ import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
   buildPunchListSummary,
   filterPunchListRowsForOverdue,
+  nextPunchListTradeFilter,
 } from "./lib/punchListSummary";
 
 const BRAND = {
@@ -1018,7 +1019,7 @@ const PUNCH_LIST_STYLES = `
   .punch-summary-heading-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: 8px;
   }
 
@@ -1041,15 +1042,40 @@ const PUNCH_LIST_STYLES = `
     background: rgb(239 246 255);
     padding: 0 8px 0 10px;
     color: rgb(30 64 175);
+    font-family: inherit;
     font-size: 12px;
     font-weight: 850;
     line-height: 1;
+    cursor: pointer;
+    transition:
+      background 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .punch-summary-trade:hover {
+    border-color: rgb(147 197 253);
+    background: rgb(219 234 254);
+    color: rgb(29 78 216);
+  }
+
+  .punch-summary-trade.is-active {
+    border-color: rgb(37 99 235);
+    background: rgb(37 99 235);
+    color: white;
+    box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+  }
+
+  .punch-summary-trade.is-active .punch-summary-count {
+    background: white;
+    color: rgb(37 99 235);
   }
 
   .punch-summary-trade.is-muted {
     border-color: rgb(226 232 240);
     background: rgb(248 250 252);
     color: rgb(100 116 139);
+    cursor: default;
   }
 
   .punch-summary-trade-label {
@@ -3991,7 +4017,9 @@ function RowDetail({
 
 function PunchListSummaryBand({
   summary,
+  selectedTrade,
   overdueOnly,
+  onTradeFilter,
   onFilterOverdue,
   onClearOverdue,
 }) {
@@ -4005,12 +4033,22 @@ function PunchListSummaryBand({
         <div className="punch-summary-heading">Open by Trade</div>
         {tradeItems.length > 0 ? (
           <div className="punch-summary-trades">
-            {tradeItems.map((item) => (
-              <div key={item.id} className="punch-summary-trade">
-                <span className="punch-summary-trade-label">{item.label}</span>
-                <span className="punch-summary-count">{item.count}</span>
-              </div>
-            ))}
+            {tradeItems.map((item) => {
+              const isActive = selectedTrade === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`punch-summary-trade ${isActive ? "is-active" : ""}`}
+                  onClick={() => onTradeFilter(item.id)}
+                  aria-pressed={isActive}
+                  title={isActive ? `Clear ${item.label} filter` : `Filter by ${item.label}`}
+                >
+                  <span className="punch-summary-trade-label">{item.label}</span>
+                  <span className="punch-summary-count">{item.count}</span>
+                </button>
+              );
+            })}
             {hiddenTradeCount > 0 && (
               <div className="punch-summary-trade is-muted">
                 <span className="punch-summary-trade-label">
@@ -6318,7 +6356,13 @@ export default function ScoutPunchListPage() {
             {showPunchListSummary && (
               <PunchListSummaryBand
                 summary={punchListSummary}
+                selectedTrade={selectedTrade}
                 overdueOnly={overdueOnly}
+                onTradeFilter={(tradeId) =>
+                  setSelectedTrade((currentTradeId) =>
+                    nextPunchListTradeFilter(currentTradeId, tradeId, ALL)
+                  )
+                }
                 onFilterOverdue={() => setOverdueOnly(true)}
                 onClearOverdue={() => setOverdueOnly(false)}
               />

@@ -99,6 +99,12 @@ export function filterPunchListRowsForOverdue(rows = [], todayDate = todayDateOn
   );
 }
 
+export function nextPunchListTradeFilter(currentTradeId, clickedTradeId, allValue = "all") {
+  const current = textValue(currentTradeId) || allValue;
+  const clicked = textValue(clickedTradeId) || allValue;
+  return current === clicked ? allValue : clicked;
+}
+
 export function buildPunchListSummary(rows = [], { tradeOptions = [], todayDate = todayDateOnlyFromDate() } = {}) {
   const visibleOpenRows = (Array.isArray(rows) ? rows : []).filter(isOpenPunchListRow);
   const tradeCountsByKey = new Map();

@@ -41,6 +41,7 @@ import {
 import {
   buildPunchListSummary,
   filterPunchListRowsForOverdue,
+  nextPunchListTradeFilter,
   tradeKey,
 } from "../src/lib/punchListSummary.js";
 
@@ -747,6 +748,49 @@ test("punch list summary respects already-applied trade filters", () => {
   });
 
   assert.deepEqual(summary.tradeCounts, [{ id: "hvac", label: "HVAC", count: 1 }]);
+});
+
+test("punch list trade chip click filters visible rows through selected trade", () => {
+  const rows = [
+    { id: "punch-a", status: "active", trade: "HVAC" },
+    { id: "punch-b", status: "active", trade: "plumbing" },
+    { id: "punch-c", status: "active", trade: "HVAC" },
+  ];
+  const selectedTrade = nextPunchListTradeFilter("all", "hvac", "all");
+  const visibleRows = rows.filter((row) => tradeKey(row.trade) === selectedTrade);
+  const summary = buildPunchListSummary(visibleRows, {
+    tradeOptions: [{ id: "hvac", label: "HVAC" }],
+    todayDate: "2026-09-08",
+  });
+
+  assert.equal(selectedTrade, "hvac");
+  assert.deepEqual(visibleRows.map((row) => row.id), ["punch-a", "punch-c"]);
+  assert.deepEqual(summary.tradeCounts, [{ id: "hvac", label: "HVAC", count: 2 }]);
+});
+
+test("punch list active trade chip click clears selected trade", () => {
+  assert.equal(nextPunchListTradeFilter("hvac", "hvac", "all"), "all");
+  assert.equal(nextPunchListTradeFilter("hvac", "plumbing", "all"), "plumbing");
+});
+
+test("punch list trade chip filter works inside overdue filter", () => {
+  const rows = [
+    { id: "overdue-hvac", status: "active", trade: "HVAC", dueDate: "2026-09-07" },
+    { id: "future-hvac", status: "active", trade: "HVAC", dueDate: "2026-09-09" },
+    { id: "overdue-plumbing", status: "pending_review", trade: "plumbing", dueDate: "2026-09-01" },
+  ];
+  const selectedTrade = nextPunchListTradeFilter("all", "hvac", "all");
+  const tradeRows = rows.filter((row) => tradeKey(row.trade) === selectedTrade);
+  const visibleRows = filterPunchListRowsForOverdue(tradeRows, "2026-09-08");
+
+  assert.deepEqual(visibleRows.map((row) => row.id), ["overdue-hvac"]);
+  assert.deepEqual(
+    buildPunchListSummary(visibleRows, {
+      tradeOptions: [{ id: "hvac", label: "HVAC" }],
+      todayDate: "2026-09-08",
+    }).tradeCounts,
+    [{ id: "hvac", label: "HVAC", count: 1 }]
+  );
 });
 
 test("punch list overdue filter limits visible rows to overdue open items", () => {
