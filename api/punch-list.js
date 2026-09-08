@@ -13,11 +13,13 @@ import {
   friendlyOriginalDownloadFilename,
   friendlyPhotoDisplayName,
   getQueryValue,
+  loadUserPortalPropertyAccess,
   loadSnapshotPhotoMetadata,
   methodAllowed,
   originalIsBrowserPreviewable,
   originalNeedsJpgPreviewDerivative,
   originalPathIsExpected,
+  portalAccessCanUseRole,
   sendJson,
   sortPhotoRowsBySnapshot,
   stampedPhotoFilename,
@@ -2312,9 +2314,14 @@ async function handleDeleteNote(req, res) {
 
 async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URLS, includeCoverPhoto = false } = {}) {
   const { client } = auth;
+  const service = await maybeServiceClient();
+  const queryClient = service || client;
+  const portalAccess = service
+    ? await loadUserPortalPropertyAccess(service, auth.user)
+    : null;
   const packageRows = await safeRows(
     applyScope(
-      client
+      queryClient
         .from("report_packages")
         .select("id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at")
         .eq("status", "ready")
@@ -2327,7 +2334,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
 
   const observations = await safeRows(
     applyScope(
-      client
+      queryClient
         .from("observations")
         .select(safeObservationSelect())
         .is("deleted_at", null),
@@ -2336,11 +2343,17 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       .order("updated_at", { ascending: false })
       .limit(MAX_ROWS)
   );
+  const visiblePackageRows = portalAccess
+    ? packageRows.filter((row) => portalAccess.canAccessProperty(row.org_id, row.property_id))
+    : packageRows;
+  const visibleObservations = portalAccess
+    ? observations.filter((row) => portalAccess.canAccessProperty(row.org_id, row.property_id))
+    : observations;
 
-  const observationIds = observations.map((row) => row.id);
+  const observationIds = visibleObservations.map((row) => row.id);
   const observationUpdates = observationIds.length
     ? await safeRows(
-        client
+        queryClient
           .from("observation_updates")
           .select("id,org_id,property_id,observation_id,session_id,shot_id,update_type,status,message,note,priority,trade,captured_at,created_at,updated_at,deleted_at")
           .in("observation_id", observationIds)
@@ -2351,7 +2364,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     : [];
   const punchListActivity = observationIds.length
     ? await safePunchListActivityRows((select) =>
-        client
+        queryClient
           .from("punchlist_activity")
           .select(select)
           .in("observation_id", observationIds)
@@ -2361,21 +2374,21 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       )
     : [];
 
-  const packageBySession = latestPackageBySession(packageRows);
+  const packageBySession = latestPackageBySession(visiblePackageRows);
   const sessionIds = unique([
-    ...packageRows.map((row) => row.session_id),
-    ...observations.map((row) => row.session_id),
+    ...visiblePackageRows.map((row) => row.session_id),
+    ...visibleObservations.map((row) => row.session_id),
     ...observationUpdates.map((row) => row.session_id),
   ]);
   const shotIds = unique([
-    ...observations.map((row) => row.shot_id),
+    ...visibleObservations.map((row) => row.shot_id),
     ...observationUpdates.map((row) => row.shot_id),
   ]);
 
   const [packageSessionShots, observationShots] = await Promise.all([
     sessionIds.length
       ? safeRows(
-          client
+          queryClient
             .from("shots")
             .select(shotSelect())
             .in("session_id", sessionIds)
@@ -2390,7 +2403,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       : [],
     shotIds.length
       ? safeRows(
-          client
+          queryClient
             .from("shots")
             .select(shotSelect())
             .in("id", shotIds)
@@ -2400,10 +2413,9 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       : [],
   ]);
 
-  const service = await maybeServiceClient();
   const snapshotMetadataByPackageId = new Map();
   if (service) {
-    for (const reportPackage of packageRows) {
+    for (const reportPackage of visiblePackageRows) {
       const metadata = await loadSnapshotPhotoMetadata(service, reportPackage);
       if (metadata) snapshotMetadataByPackageId.set(reportPackage.id, metadata);
     }
@@ -2428,30 +2440,30 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   }
 
   const orgIds = unique([
-    ...packageRows.map((row) => row.org_id),
-    ...observations.map((row) => row.org_id),
+    ...visiblePackageRows.map((row) => row.org_id),
+    ...visibleObservations.map((row) => row.org_id),
     ...Array.from(shotsById.values()).map((row) => row.org_id),
   ]);
   const propertyIds = unique([
-    ...packageRows.map((row) => row.property_id),
-    ...observations.map((row) => row.property_id),
+    ...visiblePackageRows.map((row) => row.property_id),
+    ...visibleObservations.map((row) => row.property_id),
     ...Array.from(shotsById.values()).map((row) => row.property_id),
   ]);
 
   const [{ data: orgRows }, { data: propertyRows }, { data: sessionRows }] =
     await Promise.all([
       orgIds.length
-        ? client.from("orgs").select("id,name").in("id", orgIds).is("deleted_at", null)
+        ? queryClient.from("orgs").select("id,name").in("id", orgIds).is("deleted_at", null)
         : { data: [] },
       propertyIds.length
-        ? client
+        ? queryClient
             .from("properties")
             .select("id,org_id,name,address_line1,city,state,postal_code")
             .in("id", propertyIds)
             .is("deleted_at", null)
         : { data: [] },
       sessionIds.length
-        ? client
+        ? queryClient
             .from("sessions")
             .select("id,org_id,property_id,title,started_at,completed_at")
             .in("id", sessionIds)
@@ -2465,6 +2477,14 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   const noteWriterOrgIds = await noteWriterOrgIdSet(auth, orgIds);
   const workflowEditorOrgIds = await workflowEditorOrgIdSet(auth, orgIds);
   const adminAllowed = isApprovedAdminEmail(auth.user?.email);
+  const canAddNoteForProperty = (orgId, propertyId) =>
+    adminAllowed ||
+    noteWriterOrgIds.has(orgId) ||
+    portalAccessCanUseRole(portalAccess, NOTE_WRITER_ROLES, orgId, propertyId);
+  const canEditWorkflowForProperty = (orgId, propertyId) =>
+    adminAllowed ||
+    workflowEditorOrgIds.has(orgId) ||
+    portalAccessCanUseRole(portalAccess, WORKFLOW_EDITOR_ROLES, orgId, propertyId);
   const latestUpdateByObservationId = new Map();
   for (const update of observationUpdates) {
     if (!latestUpdateByObservationId.has(update.observation_id)) {
@@ -2522,7 +2542,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   }
 
   const candidateShots = [];
-  for (const reportPackage of packageRows) {
+  for (const reportPackage of visiblePackageRows) {
     const sessionShots = shotsBySession.get(reportPackage.session_id) || [];
     candidateShots.push(...sortPhotoRowsBySnapshot(sessionShots));
   }
@@ -2564,7 +2584,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
 
   const rows = [];
   const dedupKeys = new Set();
-  for (const observation of observations) {
+  for (const observation of visibleObservations) {
     const rawActivityRows = activityRowsForObservation(rawActivityByObservationId, observation.id);
     const operationalState = operationalStateFromActivity(rawActivityRows);
     const completionState = completionStateFromActivity(rawActivityRows);
@@ -2602,9 +2622,9 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       observation,
       update: latestUpdateByObservationId.get(observation.id) || null,
       activity: activityRowsForObservation(activityByObservationId, observation.id),
-      canAddNote: noteWriterOrgIds.has(observation.org_id),
-      canEditWorkflow: workflowEditorOrgIds.has(observation.org_id),
-      canReviewCompletion: workflowEditorOrgIds.has(observation.org_id),
+      canAddNote: canAddNoteForProperty(observation.org_id, observation.property_id),
+      canEditWorkflow: canEditWorkflowForProperty(observation.org_id, observation.property_id),
+      canReviewCompletion: canEditWorkflowForProperty(observation.org_id, observation.property_id),
       workflowState: workflowStateFromActivity(
         activityRowsForObservation(workflowActivityByObservationId, observation.id)
       ),
@@ -2687,8 +2707,8 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       session: sessionById.get(shot.session_id) || null,
       reportPackage,
       previewUrl: await previewForShot(shot),
-      canAddNote: noteWriterOrgIds.has(shot.org_id),
-      canEditWorkflow: workflowEditorOrgIds.has(shot.org_id),
+      canAddNote: canAddNoteForProperty(shot.org_id, shot.property_id || reportPackage?.property_id),
+      canEditWorkflow: canEditWorkflowForProperty(shot.org_id, shot.property_id || reportPackage?.property_id),
     });
     const historyPhoto = await publicHistoryPhotoForRow({
       row,
@@ -3632,10 +3652,11 @@ async function handleFilters(req, res) {
     const auth = await authenticateRequest(req);
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
-    const { client } = auth;
+    const service = createServiceClient();
+    const portalAccess = await loadUserPortalPropertyAccess(service, auth.user);
     const [packageRows, observationRows] = await Promise.all([
       safeRows(
-        client
+        service
           .from("report_packages")
           .select("org_id,property_id")
           .eq("status", "ready")
@@ -3644,7 +3665,7 @@ async function handleFilters(req, res) {
           .limit(1000)
       ),
       safeRows(
-        client
+        service
           .from("observations")
           .select("org_id,property_id")
           .is("deleted_at", null)
@@ -3652,19 +3673,25 @@ async function handleFilters(req, res) {
           .limit(1000)
       ),
     ]);
+    const visiblePackageRows = packageRows.filter((row) =>
+      portalAccess.canAccessProperty(row.org_id, row.property_id)
+    );
+    const visibleObservationRows = observationRows.filter((row) =>
+      portalAccess.canAccessProperty(row.org_id, row.property_id)
+    );
 
     const orgIds = unique([
-      ...packageRows.map((row) => row.org_id),
-      ...observationRows.map((row) => row.org_id),
+      ...visiblePackageRows.map((row) => row.org_id),
+      ...visibleObservationRows.map((row) => row.org_id),
     ]);
     const propertyIds = unique([
-      ...packageRows.map((row) => row.property_id),
-      ...observationRows.map((row) => row.property_id),
+      ...visiblePackageRows.map((row) => row.property_id),
+      ...visibleObservationRows.map((row) => row.property_id),
     ]);
 
     const [{ data: orgRows }, { data: propertyRows }, tradeOptions, tradeOptionEditable] = await Promise.all([
       orgIds.length
-        ? client
+        ? service
             .from("orgs")
             .select("id,name")
             .in("id", orgIds)
@@ -3672,7 +3699,7 @@ async function handleFilters(req, res) {
             .order("name", { ascending: true })
         : { data: [] },
       propertyIds.length
-        ? client
+        ? service
             .from("properties")
             .select("id,org_id,name,address_line1,city,state,postal_code")
             .in("id", propertyIds)

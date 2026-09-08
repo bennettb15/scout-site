@@ -12,6 +12,10 @@ import {
   isApprovedAdminEmail,
   normalizeEmail,
 } from "../api-lib/portalAdminAccess.js";
+import {
+  PROPERTY_ACCESS_SCOPE,
+  normalizeAccessScope,
+} from "../api-lib/portalPropertyAccess.js";
 
 export {
   DEFAULT_ADMIN_EMAILS,
@@ -79,11 +83,41 @@ export async function loadManagementMemberships(service, userId) {
     .select("id,org_id,user_id,role,access_scope,deleted_at")
     .eq("user_id", userId)
     .is("deleted_at", null)
-    .in("role", Array.from(MANAGEMENT_ACCESS_ROLES))
-    .or("access_scope.eq.org,access_scope.is.null");
+    .in("role", Array.from(MANAGEMENT_ACCESS_ROLES));
 
   if (error) throw error;
-  return data || [];
+  const memberships = data || [];
+  const scopedOrgIds = [
+    ...new Set(
+      memberships
+        .filter((row) => normalizeAccessScope(row.access_scope, row.role) === PROPERTY_ACCESS_SCOPE)
+        .map((row) => row.org_id)
+    ),
+  ];
+  if (!scopedOrgIds.length) return memberships;
+
+  const { data: grantRows, error: grantError } = await service
+    .from("property_access_grants")
+    .select("org_id,property_id,user_id,deleted_at")
+    .eq("user_id", userId)
+    .in("org_id", scopedOrgIds)
+    .is("deleted_at", null);
+
+  if (grantError) throw grantError;
+  const propertyIdsByOrg = new Map();
+  for (const grant of grantRows || []) {
+    const ids = propertyIdsByOrg.get(grant.org_id) || [];
+    ids.push(grant.property_id);
+    propertyIdsByOrg.set(grant.org_id, ids);
+  }
+
+  return memberships.map((row) => ({
+    ...row,
+    propertyIds:
+      normalizeAccessScope(row.access_scope, row.role) === PROPERTY_ACCESS_SCOPE
+        ? propertyIdsByOrg.get(row.org_id) || []
+        : [],
+  }));
 }
 
 export async function readJsonBody(req) {

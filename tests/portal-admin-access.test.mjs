@@ -11,6 +11,13 @@ import {
   portalAccessRoleLabel,
   wouldRemoveLastOwner,
 } from "../api-lib/portalAdminAccess.js";
+import {
+  actorCanManagePropertyScope,
+  filterRowsByPortalPropertyAccess,
+  portalAccessAllowsProperty,
+  propertyScopeSummary,
+  visiblePropertyIdsForAccess,
+} from "../api-lib/portalPropertyAccess.js";
 
 const orgId = "11111111-1111-4111-8111-111111111111";
 const userId = "22222222-2222-4222-8222-222222222222";
@@ -244,5 +251,163 @@ test("required admin repair upgrades missing, deleted, property-scoped, or non-o
       deleted_at: null,
     }),
     false
+  );
+});
+
+test("owner access is always org-wide for property visibility", () => {
+  assert.equal(
+    portalAccessAllowsProperty(
+      { role: "owner", accessScope: "property", propertyIds: [] },
+      "property-a"
+    ),
+    true
+  );
+});
+
+test("property-scoped access allows only selected properties", () => {
+  assert.equal(
+    portalAccessAllowsProperty(
+      { role: "viewer", accessScope: "property", propertyIds: ["property-a"] },
+      "property-a"
+    ),
+    true
+  );
+  assert.equal(
+    portalAccessAllowsProperty(
+      { role: "viewer", accessScope: "property", propertyIds: ["property-a"] },
+      "property-b"
+    ),
+    false
+  );
+});
+
+test("org-wide manager can manage org-wide or selected-property access", () => {
+  assert.equal(
+    actorCanManagePropertyScope({
+      actorRole: "manager",
+      actorAccessScope: "org",
+      actorPropertyIds: [],
+      targetRole: "field",
+      targetAccessScope: "org",
+      targetPropertyIds: [],
+    }),
+    true
+  );
+  assert.equal(
+    actorCanManagePropertyScope({
+      actorRole: "manager",
+      actorAccessScope: "org",
+      actorPropertyIds: [],
+      targetRole: "viewer",
+      targetAccessScope: "property",
+      targetPropertyIds: ["property-a"],
+    }),
+    true
+  );
+});
+
+test("property-scoped manager cannot grant org-wide or outside selected properties", () => {
+  assert.equal(
+    actorCanManagePropertyScope({
+      actorRole: "manager",
+      actorAccessScope: "property",
+      actorPropertyIds: ["property-a"],
+      targetRole: "field",
+      targetAccessScope: "org",
+      targetPropertyIds: [],
+    }),
+    false
+  );
+  assert.equal(
+    actorCanManagePropertyScope({
+      actorRole: "manager",
+      actorAccessScope: "property",
+      actorPropertyIds: ["property-a"],
+      targetRole: "viewer",
+      targetAccessScope: "property",
+      targetPropertyIds: ["property-b"],
+    }),
+    false
+  );
+  assert.equal(
+    actorCanManagePropertyScope({
+      actorRole: "manager",
+      actorAccessScope: "property",
+      actorPropertyIds: ["property-a", "property-b"],
+      targetRole: "manager",
+      targetAccessScope: "property",
+      targetPropertyIds: ["property-a"],
+    }),
+    true
+  );
+});
+
+test("property-scoped manager cannot manage owner access", () => {
+  assert.equal(
+    actorCanManagePropertyScope({
+      actorRole: "manager",
+      actorAccessScope: "property",
+      actorPropertyIds: ["property-a"],
+      targetRole: "owner",
+      targetAccessScope: "org",
+      targetPropertyIds: [],
+    }),
+    false
+  );
+});
+
+test("visible property ids collapse to all when any org-wide access exists", () => {
+  assert.equal(
+    visiblePropertyIdsForAccess(
+      [
+        {
+          org_id: orgId,
+          role: "viewer",
+          access_scope: "property",
+          propertyIds: ["property-a"],
+        },
+        {
+          org_id: orgId,
+          role: "field",
+          access_scope: "org",
+          propertyIds: [],
+        },
+      ],
+      orgId
+    ),
+    null
+  );
+});
+
+test("report rows filter by portal property access", () => {
+  assert.deepEqual(
+    filterRowsByPortalPropertyAccess(
+      [
+        { id: "report-a", org_id: orgId, property_id: "property-a" },
+        { id: "report-b", org_id: orgId, property_id: "property-b" },
+      ],
+      [
+        {
+          org_id: orgId,
+          role: "viewer",
+          access_scope: "property",
+          propertyIds: ["property-a"],
+        },
+      ]
+    ).map((row) => row.id),
+    ["report-a"]
+  );
+});
+
+test("property scope summaries are readable", () => {
+  const propertyById = new Map([["property-a", { name: "Warehouse" }]]);
+  assert.equal(propertyScopeSummary({ accessScope: "org", propertyIds: [] }), "All properties");
+  assert.equal(
+    propertyScopeSummary({ accessScope: "property", propertyIds: ["property-a"], propertyById }),
+    "Warehouse"
+  );
+  assert.equal(
+    propertyScopeSummary({ accessScope: "property", propertyIds: ["property-a", "property-b"], propertyById }),
+    "2 properties"
   );
 });

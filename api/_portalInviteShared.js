@@ -24,6 +24,11 @@ import {
   portalInviteStatus,
   validateInvitePassword,
 } from "../api-lib/portalInvites.js";
+import {
+  PROPERTY_ACCESS_SCOPE,
+  normalizeAccessScope,
+  normalizePropertyIds,
+} from "../api-lib/portalPropertyAccess.js";
 
 export const PORTAL_EMAIL_LOGO_URL = "https://scoutclear.com/scout-logo-email.png";
 
@@ -276,7 +281,25 @@ export async function loadInviteByToken(service, token) {
     .maybeSingle();
 
   if (error) throw error;
-  return data || null;
+  if (!data) return null;
+
+  if (normalizeAccessScope(data.access_scope, data.role) === PROPERTY_ACCESS_SCOPE) {
+    const { data: grantRows, error: grantError } = await service
+      .from("portal_invite_property_grants")
+      .select("property_id")
+      .eq("invite_id", data.id);
+
+    if (grantError) {
+      if (grantError.code !== "42P01") throw grantError;
+      data.propertyIds = [];
+    } else {
+      data.propertyIds = normalizePropertyIds((grantRows || []).map((row) => row.property_id));
+    }
+  } else {
+    data.propertyIds = [];
+  }
+
+  return data;
 }
 
 export async function loadInvitePublicDetails(service, token, now = new Date()) {
@@ -400,6 +423,8 @@ export async function activateInvite({
     orgId: invite.org_id,
     userId: user.id,
     role: invite.role,
+    accessScope: normalizeAccessScope(invite.access_scope, invite.role),
+    propertyIds: invite.propertyIds || invite.property_ids || [],
     actorId: actorId || user.id,
   });
 

@@ -2,6 +2,7 @@ import {
   ORIGINALS_BUCKET,
   authenticateRequest,
   createServiceClient,
+  loadUserPortalPropertyAccess,
   methodAllowed,
   originalPathIsExpected,
   publicReportTypeLabel,
@@ -69,7 +70,9 @@ async function handleReportOrgs(req, res) {
     const auth = await authenticateRequest(req);
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
-    const { data, error } = await auth.client
+    const service = createServiceClient();
+    const portalAccess = await loadUserPortalPropertyAccess(service, auth.user);
+    const { data, error } = await service
       .from("orgs")
       .select("id,name")
       .is("deleted_at", null)
@@ -79,8 +82,16 @@ async function handleReportOrgs(req, res) {
       return sendJson(res, 500, { error: "Unable to load organizations." });
     }
 
+    const orgRows = portalAccess.orgWideOrgIds === null
+      ? data || []
+      : (data || []).filter(
+          (row) =>
+            portalAccess.orgWideOrgIds.has(row.id) ||
+            portalAccess.rows.some((access) => access.org_id === row.id)
+        );
+
     return sendJson(res, 200, {
-      orgs: (data || []).map((row) => ({
+      orgs: orgRows.map((row) => ({
         id: row.id,
         name: row.name,
       })),
@@ -98,9 +109,9 @@ export default async function handler(req, res) {
     const auth = await authenticateRequest(req);
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
-    const { client } = auth;
     const service = createServiceClient();
-    const { data: packageRows, error: packagesError } = await client
+    const portalAccess = await loadUserPortalPropertyAccess(service, auth.user);
+    const { data: rawPackageRows, error: packagesError } = await service
       .from("report_packages")
       .select(
         "id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at,weather_summary"
@@ -108,18 +119,21 @@ export default async function handler(req, res) {
       .eq("status", "ready")
       .is("deleted_at", null)
       .order("session_completed_at", { ascending: false })
-      .limit(50);
+      .limit(500);
 
     if (packagesError) {
       return sendJson(res, 500, { error: "Unable to load report packages." });
     }
+    const packageRows = (rawPackageRows || []).filter((row) =>
+      portalAccess.canAccessProperty(row.org_id, row.property_id)
+    ).slice(0, 50);
 
     const packageIds = packageRows.map((row) => row.id);
     if (packageIds.length === 0) {
       return sendJson(res, 200, { packages: [] });
     }
 
-    const { data: fileRows, error: filesError } = await client
+    const { data: fileRows, error: filesError } = await service
       .from("report_package_files")
       .select(
         "id,package_id,report_type,filename,mime_type,byte_size,page_count,created_at"
@@ -146,22 +160,22 @@ export default async function handler(req, res) {
       { data: shotRows, error: shotsError },
     ] =
       await Promise.all([
-        client
+        service
           .from("orgs")
           .select("id,name")
           .in("id", orgIds)
           .is("deleted_at", null),
-        client
+        service
           .from("properties")
           .select("id,org_id,name,address_line1,city,state,postal_code")
           .in("id", propertyIds)
           .is("deleted_at", null),
-        client
+        service
           .from("sessions")
           .select("id,title,started_at,completed_at")
           .in("id", sessionIds)
           .is("deleted_at", null),
-        client
+        service
           .from("temporary_exports")
           .select("id,org_id,property_id,session_id,snapshot_id,status,filename,byte_size,expires_at,created_at")
           .eq("artifact_type", "stamped_jpg_zip")

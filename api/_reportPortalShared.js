@@ -1,4 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
+import {
+  PORTAL_ACCESS_ROLES,
+  isApprovedAdminEmail,
+  normalizePortalAccessRole,
+} from "../api-lib/portalAdminAccess.js";
+import {
+  ORG_ACCESS_SCOPE,
+  PROPERTY_ACCESS_SCOPE,
+  normalizeAccessScope,
+  normalizePropertyIds,
+  portalAccessAllowsProperty,
+} from "../api-lib/portalPropertyAccess.js";
 
 export const DELIVERABLES_BUCKET = "scoutcapture-deliverables";
 export const ORIGINALS_BUCKET = "scoutcapture-originals";
@@ -93,6 +105,105 @@ export async function authenticateRequest(req) {
   }
 
   return { client, user: data.user };
+}
+
+export async function loadUserPortalPropertyAccess(service, user) {
+  if (!user?.id) {
+    return {
+      rows: [],
+      orgWideOrgIds: new Set(),
+      propertyIdsByOrg: new Map(),
+      isApprovedAdmin: false,
+      canAccessProperty: () => false,
+    };
+  }
+
+  if (isApprovedAdminEmail(user.email)) {
+    return {
+      rows: [],
+      orgWideOrgIds: null,
+      propertyIdsByOrg: null,
+      isApprovedAdmin: true,
+      canAccessProperty: () => true,
+    };
+  }
+
+  const { data: memberships, error: membershipError } = await service
+    .from("org_memberships")
+    .select("org_id,user_id,role,access_scope,deleted_at")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .in("role", Array.from(PORTAL_ACCESS_ROLES));
+
+  if (membershipError) throw membershipError;
+
+  const rows = (memberships || []).map((row) => ({
+    org_id: row.org_id,
+    role: normalizePortalAccessRole(row.role, "viewer"),
+    access_scope: normalizeAccessScope(row.access_scope, row.role),
+    propertyIds: [],
+  }));
+  const orgWideOrgIds = new Set(
+    rows
+      .filter((row) => row.role === "owner" || row.access_scope === ORG_ACCESS_SCOPE)
+      .map((row) => row.org_id)
+  );
+  const propertyScopedOrgIds = [
+    ...new Set(
+      rows
+        .filter((row) => row.access_scope === PROPERTY_ACCESS_SCOPE && !orgWideOrgIds.has(row.org_id))
+        .map((row) => row.org_id)
+    ),
+  ];
+  const propertyIdsByOrg = new Map();
+
+  if (propertyScopedOrgIds.length) {
+    const { data: grants, error: grantsError } = await service
+      .from("property_access_grants")
+      .select("org_id,property_id,user_id,deleted_at")
+      .eq("user_id", user.id)
+      .in("org_id", propertyScopedOrgIds)
+      .is("deleted_at", null);
+
+    if (grantsError) throw grantsError;
+    for (const grant of grants || []) {
+      const ids = propertyIdsByOrg.get(grant.org_id) || [];
+      ids.push(grant.property_id);
+      propertyIdsByOrg.set(grant.org_id, ids);
+    }
+  }
+
+  for (const row of rows) {
+    row.propertyIds = row.access_scope === PROPERTY_ACCESS_SCOPE
+      ? normalizePropertyIds(propertyIdsByOrg.get(row.org_id) || [])
+      : [];
+  }
+
+  return {
+    rows,
+    orgWideOrgIds,
+    propertyIdsByOrg,
+    isApprovedAdmin: false,
+    canAccessProperty: (orgId, propertyId) => {
+      if (orgWideOrgIds.has(orgId)) return true;
+      return rows.some((row) =>
+        row.org_id === orgId &&
+        portalAccessAllowsProperty(row, propertyId)
+      );
+    },
+  };
+}
+
+export function portalAccessCanUseRole(portalAccess, roles, orgId, propertyId) {
+  const allowedRoles = new Set(roles || []);
+  if (!portalAccess || !allowedRoles.size) return false;
+  if (portalAccess.isApprovedAdmin) return true;
+  return (portalAccess.rows || []).some(
+    (row) =>
+      row.org_id === orgId &&
+      allowedRoles.has(row.role) &&
+      portalAccessAllowsProperty(row, propertyId)
+  );
 }
 
 export function getQueryValue(req, name) {

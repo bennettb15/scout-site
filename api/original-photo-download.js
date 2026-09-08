@@ -6,6 +6,7 @@ import {
   enrichPhotoRowWithSnapshotMetadata,
   friendlyOriginalDownloadFilename,
   getQueryValue,
+  loadUserPortalPropertyAccess,
   loadSnapshotPhotoMetadata,
   methodAllowed,
   originalPathIsExpected,
@@ -25,7 +26,9 @@ export default async function handler(req, res) {
       return sendJson(res, 400, { error: "Missing photo id." });
     }
 
-    const { data: reportPackage, error: packageError } = await auth.client
+    const service = createServiceClient();
+    const portalAccess = await loadUserPortalPropertyAccess(service, auth.user);
+    const { data: reportPackage, error: packageError } = await service
       .from("report_packages")
       .select("id,org_id,property_id,session_id,snapshot_id,status")
       .eq("id", packageId)
@@ -39,8 +42,10 @@ export default async function handler(req, res) {
     if (!reportPackage) {
       return sendJson(res, 404, { error: "Original photo not found." });
     }
+    if (!portalAccess.canAccessProperty(reportPackage.org_id, reportPackage.property_id)) {
+      return sendJson(res, 404, { error: "Original photo not found." });
+    }
 
-    const service = createServiceClient();
     const { data: shotRow, error: shotError } = await service
       .from("shots")
       .select(

@@ -33,6 +33,7 @@ const ACCESS_ROLE_LABELS = {
   owner: "Owner",
   viewer: "Viewer",
 };
+const EMPTY_PROPERTIES = [];
 
 function formatDate(value) {
   if (!value) return "";
@@ -60,12 +61,24 @@ function formatDateTime(value) {
 
 function accessLabel(row) {
   const role = row.role || "viewer";
-  const scope = row.accessScope || "org";
-  return `${ACCESS_ROLE_LABELS[role] || role} / ${scope}`;
+  return ACCESS_ROLE_LABELS[role] || role;
 }
 
 function selectedAccessTypeLabel(role) {
   return ACCESS_ROLE_LABELS[role] || "Viewer";
+}
+
+function propertyScopeLabel({ accessScope, propertySummary, role }) {
+  if (role === "owner" || accessScope !== "property") return "All properties";
+  return propertySummary || "Selected properties";
+}
+
+function selectedPropertySummary(propertyIds, properties) {
+  const ids = Array.isArray(propertyIds) ? propertyIds : [];
+  if (!ids.length) return "No properties selected";
+  const propertyById = new Map((properties || []).map((property) => [property.id, property]));
+  if (ids.length === 1) return propertyById.get(ids[0])?.name || "1 property";
+  return `${ids.length} properties`;
 }
 
 function accessRowKey(row) {
@@ -195,9 +208,109 @@ function RoleSelect({ row, disabled, onChange }) {
         )}
       </select>
       <span className="text-xs text-foreground/45">
-        {row.accessScope || "org"} access
+        Role
       </span>
     </label>
+  );
+}
+
+function PropertyScopeEditor({
+  role,
+  accessScope,
+  propertyIds,
+  properties,
+  allowedScopes,
+  disabled,
+  onChange,
+}) {
+  const scope = role === "owner" ? "org" : accessScope === "property" ? "property" : "org";
+  const ids = Array.isArray(propertyIds) ? propertyIds : [];
+  const selectedIds = new Set(ids);
+  const allowed = new Set(
+    Array.isArray(allowedScopes) && allowedScopes.length ? allowedScopes : ["org", "property"]
+  );
+  if (!(properties || []).length && scope !== "property") {
+    allowed.delete("property");
+  }
+  const canChangeScope = role !== "owner" && allowed.size > 0 && !disabled;
+  const visibleScopes = canChangeScope ? allowed : new Set([scope]);
+  const summary = propertyScopeLabel({
+    role,
+    accessScope: scope,
+    propertySummary: selectedPropertySummary(ids, properties),
+  });
+
+  function handleScopeChange(nextScope) {
+    const normalizedScope = nextScope === "property" ? "property" : "org";
+    onChange?.(normalizedScope, normalizedScope === "property" ? ids : []);
+  }
+
+  function handlePropertyToggle(propertyId, checked) {
+    const nextIds = checked
+      ? [...ids, propertyId]
+      : ids.filter((id) => id !== propertyId);
+    onChange?.("property", nextIds);
+  }
+
+  if (role === "owner") {
+    return (
+      <div className="grid gap-1">
+        <span className="text-sm font-medium text-foreground/75">All properties</span>
+        <span className="text-xs text-foreground/45">Owner access is org-wide</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid max-w-[280px] gap-2">
+      <label className="grid gap-1">
+        <span className="sr-only">Property scope</span>
+        <select
+          value={scope}
+          disabled={!canChangeScope}
+          onChange={(event) => handleScopeChange(event.target.value)}
+          className="h-10 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
+        >
+          {visibleScopes.has("org") && <option value="org">All properties</option>}
+          {visibleScopes.has("property") && <option value="property">Selected properties</option>}
+        </select>
+      </label>
+      {scope === "property" && (
+        <div className="max-h-36 overflow-auto rounded-lg border border-border bg-slate-50 p-2">
+          {(properties || []).length ? (
+            <div className="grid gap-1">
+              {properties.map((property) => (
+                <label
+                  key={property.id}
+                  className="flex items-start gap-2 rounded-md px-2 py-1.5 text-xs font-medium text-foreground/75 hover:bg-background"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(property.id)}
+                    disabled={!canChangeScope}
+                    onChange={(event) => handlePropertyToggle(property.id, event.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-border text-[var(--brand)]"
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate">{property.name || "Unnamed property"}</span>
+                    {(property.city || property.state) && (
+                      <span className="block truncate font-normal text-foreground/45">
+                        {[property.city, property.state].filter(Boolean).join(", ")}
+                      </span>
+                    )}
+                  </span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <div className="px-2 py-1.5 text-xs text-foreground/55">
+              No properties available.
+            </div>
+          )}
+        </div>
+      )}
+      <span className="text-xs text-foreground/45">{summary}</span>
+    </div>
   );
 }
 
@@ -220,6 +333,8 @@ export default function PortalAccessAdminPage() {
   const [pendingInvites, setPendingInvites] = useState([]);
   const [selectedOrgId, setSelectedOrgId] = useState("");
   const [selectedAccessRole, setSelectedAccessRole] = useState("viewer");
+  const [selectedAccessScope, setSelectedAccessScope] = useState("org");
+  const [selectedPropertyIds, setSelectedPropertyIds] = useState([]);
   const [clientEmail, setClientEmail] = useState("");
   const [newOrgName, setNewOrgName] = useState("");
   const [creatingOrg, setCreatingOrg] = useState(false);
@@ -228,6 +343,7 @@ export default function PortalAccessAdminPage() {
   const [revokeId, setRevokeId] = useState("");
   const [cancelInviteId, setCancelInviteId] = useState("");
   const [roleChangeId, setRoleChangeId] = useState("");
+  const [scopeChangeId, setScopeChangeId] = useState("");
 
   useEffect(() => {
     document.title = BRAND.siteTitle;
@@ -390,6 +506,11 @@ export default function PortalAccessAdminPage() {
           email: clientEmail,
           orgId: selectedOrgId,
           accessRole: selectedAccessRole,
+          accessScope: selectedAccessRole === "owner" ? "org" : selectedAccessScope,
+          propertyIds:
+            selectedAccessRole !== "owner" && selectedAccessScope === "property"
+              ? selectedPropertyIds
+              : [],
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -445,6 +566,11 @@ export default function PortalAccessAdminPage() {
           email: clientEmail,
           orgId: selectedOrgId,
           accessRole: selectedAccessRole,
+          accessScope: selectedAccessRole === "owner" ? "org" : selectedAccessScope,
+          propertyIds:
+            selectedAccessRole !== "owner" && selectedAccessScope === "property"
+              ? selectedPropertyIds
+              : [],
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -591,6 +717,53 @@ export default function PortalAccessAdminPage() {
     }
   }
 
+  async function handleScopeChange(row, nextScope, nextPropertyIds) {
+    if (!session?.access_token || !row?.canChangeScope || row.role === "owner") return;
+    const normalizedScope = nextScope === "property" ? "property" : "org";
+    const normalizedPropertyIds = normalizedScope === "property" ? nextPropertyIds : [];
+    if (
+      normalizedScope === row.accessScope &&
+      JSON.stringify([...(row.propertyIds || [])].sort()) ===
+        JSON.stringify([...normalizedPropertyIds].sort())
+    ) {
+      return;
+    }
+
+    setScopeChangeId(row.id);
+    setActionMessage("");
+    setLoadError("");
+
+    try {
+      const response = await fetch("/api/admin/portal-access", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "changeScope",
+          orgId: row.orgId,
+          userId: row.userId,
+          accessScope: normalizedScope,
+          propertyIds: normalizedPropertyIds,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body.error || "Unable to change property scope.");
+      }
+      setActionMessage(
+        `Changed ${row.email || row.userId} property scope for ${row.orgName}.`
+      );
+      await loadAccess(session);
+    } catch (error) {
+      setLoadError(error.message || "Unable to change property scope.");
+      await loadAccess(session);
+    } finally {
+      setScopeChangeId("");
+    }
+  }
+
   async function handleCancelInvite(row) {
     if (!session?.access_token || !row?.id || !row?.canCancel) return;
     setCancelInviteId(row.id);
@@ -628,6 +801,10 @@ export default function PortalAccessAdminPage() {
     () => orgs.find((org) => org.id === selectedOrgId) || null,
     [orgs, selectedOrgId]
   );
+  const selectedOrgProperties = useMemo(
+    () => selectedOrg?.properties || EMPTY_PROPERTIES,
+    [selectedOrg]
+  );
 
   const inviteRoleOptions = useMemo(() => {
     const allowedRoles = Array.isArray(selectedOrg?.inviteRoles)
@@ -642,6 +819,27 @@ export default function PortalAccessAdminPage() {
       setSelectedAccessRole(inviteRoleOptions[0].value);
     }
   }, [inviteRoleOptions, selectedAccessRole]);
+
+  useEffect(() => {
+    if (selectedAccessRole === "owner") {
+      setSelectedAccessScope("org");
+      setSelectedPropertyIds([]);
+      return;
+    }
+    if (selectedAccessScope === "property" && selectedOrgProperties.length === 0) {
+      setSelectedAccessScope("org");
+    }
+    setSelectedPropertyIds((current) => {
+      const allowedIds = new Set(selectedOrgProperties.map((property) => property.id));
+      const next = current.filter((propertyId) => allowedIds.has(propertyId));
+      return next.length === current.length ? current : next;
+    });
+  }, [selectedAccessRole, selectedAccessScope, selectedOrgProperties]);
+
+  const inviteScopeIncomplete =
+    selectedAccessRole !== "owner" &&
+    selectedAccessScope === "property" &&
+    selectedPropertyIds.length === 0;
 
   const visibleRows = useMemo(() => {
     if (!selectedOrgId) return accessRows;
@@ -881,7 +1079,7 @@ export default function PortalAccessAdminPage() {
             )}
 
             <section className="rounded-lg border border-border bg-background p-5 shadow-sm">
-              <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px_auto] lg:items-end">
+              <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_190px_260px_auto] lg:items-start">
                 <label className="grid gap-1.5 text-sm font-medium text-foreground">
                   Client Email
                   <input
@@ -925,7 +1123,21 @@ export default function PortalAccessAdminPage() {
                     ))}
                   </select>
                 </label>
-                <div className="flex flex-col gap-2 sm:flex-row md:col-span-3 lg:col-span-1">
+                <div className="grid gap-1.5 text-sm font-medium text-foreground">
+                  Property Scope
+                  <PropertyScopeEditor
+                    role={selectedAccessRole}
+                    accessScope={selectedAccessScope}
+                    propertyIds={selectedPropertyIds}
+                    properties={selectedOrgProperties}
+                    disabled={submitting || setupSubmitting}
+                    onChange={(nextScope, nextPropertyIds) => {
+                      setSelectedAccessScope(nextScope);
+                      setSelectedPropertyIds(nextPropertyIds);
+                    }}
+                  />
+                </div>
+                <div className="flex flex-col gap-2 pt-6 sm:flex-row md:col-span-3 lg:col-span-1">
                   <button
                     type="button"
                     onClick={() => handleAccessSubmit("grantExisting")}
@@ -934,7 +1146,8 @@ export default function PortalAccessAdminPage() {
                       setupSubmitting ||
                       !clientEmail ||
                       !selectedOrgId ||
-                      !inviteRoleOptions.length
+                      !inviteRoleOptions.length ||
+                      inviteScopeIncomplete
                     }
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-semibold text-foreground/75 shadow-sm hover:text-foreground disabled:opacity-60"
                   >
@@ -949,7 +1162,8 @@ export default function PortalAccessAdminPage() {
                       setupSubmitting ||
                       !clientEmail ||
                       !selectedOrgId ||
-                      !inviteRoleOptions.length
+                      !inviteRoleOptions.length ||
+                      inviteScopeIncomplete
                     }
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
                   >
@@ -964,7 +1178,8 @@ export default function PortalAccessAdminPage() {
                       setupSubmitting ||
                       !clientEmail ||
                       !selectedOrgId ||
-                      !inviteRoleOptions.length
+                      !inviteRoleOptions.length ||
+                      inviteScopeIncomplete
                     }
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-100 disabled:opacity-60"
                   >
@@ -1071,13 +1286,33 @@ export default function PortalAccessAdminPage() {
                         </td>
                         <td className="px-5 py-3 text-foreground/70">
                           {row.rowType === "invite" ? (
-                            `${selectedAccessTypeLabel(row.role)} / ${row.accessScope || "org"}`
+                            <div className="grid gap-1">
+                              <span className="font-medium text-foreground/75">
+                                {selectedAccessTypeLabel(row.role)}
+                              </span>
+                              <span className="text-xs text-foreground/45">
+                                {propertyScopeLabel(row)}
+                              </span>
+                            </div>
                           ) : (
-                            <RoleSelect
-                              row={row}
-                              disabled={roleChangeId === row.id}
-                              onChange={handleRoleChange}
-                            />
+                            <div className="grid gap-3">
+                              <RoleSelect
+                                row={row}
+                                disabled={roleChangeId === row.id}
+                                onChange={handleRoleChange}
+                              />
+                              <PropertyScopeEditor
+                                role={row.role}
+                                accessScope={row.accessScope}
+                                propertyIds={row.propertyIds || []}
+                                properties={selectedOrgProperties}
+                                allowedScopes={row.allowedAccessScopes}
+                                disabled={scopeChangeId === row.id || !row.canChangeScope}
+                                onChange={(nextScope, nextPropertyIds) =>
+                                  handleScopeChange(row, nextScope, nextPropertyIds)
+                                }
+                              />
+                            </div>
                           )}
                         </td>
                         <td className="px-5 py-3 text-foreground/70">

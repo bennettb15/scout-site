@@ -5,6 +5,7 @@ import {
   createServiceClient,
   expectedPdfPath,
   getQueryValue,
+  loadUserPortalPropertyAccess,
   methodAllowed,
   sendJson,
 } from "./_reportPortalShared.js";
@@ -21,8 +22,9 @@ export default async function handler(req, res) {
       return sendJson(res, 400, { error: "Missing file id." });
     }
 
-    const { client } = auth;
-    const { data: fileRow, error: fileError } = await client
+    const service = createServiceClient();
+    const portalAccess = await loadUserPortalPropertyAccess(service, auth.user);
+    const { data: fileRow, error: fileError } = await service
       .from("report_package_files")
       .select(
         "id,package_id,org_id,property_id,session_id,report_type,storage_bucket,storage_path,filename,mime_type,byte_size,page_count,storage_deleted_at"
@@ -38,7 +40,11 @@ export default async function handler(req, res) {
       return sendJson(res, 404, { error: "Report file not found." });
     }
 
-    const { data: packageRow, error: packageError } = await client
+    if (!portalAccess.canAccessProperty(fileRow.org_id, fileRow.property_id)) {
+      return sendJson(res, 404, { error: "Report file not found." });
+    }
+
+    const { data: packageRow, error: packageError } = await service
       .from("report_packages")
       .select("id,status")
       .eq("id", fileRow.package_id)
@@ -61,7 +67,6 @@ export default async function handler(req, res) {
       return sendJson(res, 404, { error: "Report file not found." });
     }
 
-    const service = createServiceClient();
     const { data, error } = await service.storage
       .from(DELIVERABLES_BUCKET)
       .createSignedUrl(fileRow.storage_path, SIGNED_URL_SECONDS, {
