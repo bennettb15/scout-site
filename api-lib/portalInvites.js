@@ -45,11 +45,19 @@ export function invitePublicState(invite, org, authUser, now = new Date()) {
   if (state !== "ready") return { state };
   if (!org) return { state: "missing_org" };
 
-  const confirmedAt = authUser?.email_confirmed_at || authUser?.confirmed_at || null;
   return {
     state: "ready",
-    accountMode: confirmedAt ? "existing_confirmed" : "password_setup",
+    accountMode: authUserConfirmedAt(authUser) ? "existing_confirmed" : "password_setup",
   };
+}
+
+export function authUserConfirmedAt(user) {
+  return user?.email_confirmed_at || user?.confirmed_at || null;
+}
+
+export function inviteAdminActionForUser(user, activeMembership) {
+  if (!authUserConfirmedAt(user)) return "create_pending_invite";
+  return activeMembership ? "already_active" : "grant_existing_confirmed";
 }
 
 export function validateInvitePassword(password) {

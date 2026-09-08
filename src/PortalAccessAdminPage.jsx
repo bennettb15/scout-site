@@ -346,6 +346,10 @@ export default function PortalAccessAdminPage() {
           ? `${body.user.email} already has ${selectedAccessTypeLabel(
               body.membership?.role
             )} org-level access to ${body.org.name}.`
+          : body.accessGranted
+          ? `Granted existing portal account ${body.user.email} ${selectedAccessTypeLabel(
+              body.membership?.role
+            )} access to ${body.org.name} and sent a sign-in email.`
           : body.invited
           ? `Invite email sent to ${body.user.email}; ${selectedAccessTypeLabel(
               body.invite?.role
@@ -823,10 +827,11 @@ export default function PortalAccessAdminPage() {
                 </div>
               </div>
               <p className="mt-3 text-sm leading-relaxed text-foreground/60">
-                Invite User sends a Scout-branded invite and creates pending
-                access. Grant Access is for an existing portal account and makes
-                access active immediately. Use the fallback setup link only when
-                you need to copy the same setup flow manually.
+                Invite User sends a Scout-branded setup invite for new portal
+                users, or grants access immediately when the email already has a
+                confirmed portal account. Grant Access is for an existing portal
+                account when no notification is needed. Use the fallback setup
+                link only when you need to copy the same setup flow manually.
               </p>
               {setupLinkDetails?.setupUrl && (
                 <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">

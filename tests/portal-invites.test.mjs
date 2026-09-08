@@ -5,10 +5,12 @@ import {
   PortalInviteError,
   createInviteToken,
   hashInviteToken,
+  inviteAdminActionForUser,
   invitePublicState,
   portalInviteStatus,
   validateInvitePassword,
 } from "../api-lib/portalInvites.js";
+import { portalAccessAddedEmailPayload } from "../api/_portalInviteShared.js";
 
 const now = new Date("2026-09-07T12:00:00.000Z");
 
@@ -97,6 +99,54 @@ test("ready invite to new or unconfirmed account allows password setup", () => {
       accountMode: "password_setup",
     }
   );
+});
+
+test("admin invite to a new or unconfirmed user creates a pending invite", () => {
+  assert.equal(inviteAdminActionForUser(null, null), "create_pending_invite");
+  assert.equal(
+    inviteAdminActionForUser({ email_confirmed_at: null, confirmed_at: null }, null),
+    "create_pending_invite"
+  );
+});
+
+test("admin invite to an existing confirmed user grants access immediately", () => {
+  assert.equal(
+    inviteAdminActionForUser(
+      { id: "user-1", email_confirmed_at: "2026-09-07T12:00:00.000Z" },
+      null
+    ),
+    "grant_existing_confirmed"
+  );
+});
+
+test("admin invite to an existing active confirmed user is idempotent", () => {
+  assert.equal(
+    inviteAdminActionForUser(
+      { id: "user-1", email_confirmed_at: "2026-09-07T12:00:00.000Z" },
+      { id: "membership-1" }
+    ),
+    "already_active"
+  );
+});
+
+test("existing-user access email points to reports without password setup copy", () => {
+  const payload = portalAccessAddedEmailPayload({
+    email: "client@example.com",
+    org: { name: "Client Org" },
+    role: "viewer",
+    reportsUrl: "https://www.scoutclear.com/reports",
+    from: "Scout <hello@scoutclear.com>",
+    replyTo: "hello@scoutclear.com",
+  });
+
+  assert.equal(payload.to, "client@example.com");
+  assert.equal(payload.subject, "SCOUT access added for Client Org");
+  assert.match(payload.text, /You've been given Client Viewer access to Client Org\./);
+  assert.match(payload.text, /Open Reports Portal: https:\/\/www\.scoutclear\.com\/reports/);
+  assert.match(payload.html, /Open Reports Portal<\/a>/);
+  assert.match(payload.html, /href="https:\/\/www\.scoutclear\.com\/reports"/);
+  assert.doesNotMatch(payload.text, /set up|set password|invite link/i);
+  assert.doesNotMatch(payload.html, /set up|set password|invite link/i);
 });
 
 test("invite password validation rejects short passwords", () => {

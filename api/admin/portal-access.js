@@ -17,17 +17,21 @@ import {
 } from "../_reportPortalShared.js";
 import {
   PortalInviteError,
+  authUserConfirmedAt,
   activateInvite,
   assertInviteEmailConfigured,
   createInviteToken,
   getInviteToken,
   hashInviteToken,
   inviteExpiresAt,
+  inviteAdminActionForUser,
   inviteRoleLabel,
   inviteUrl,
   loadInvitePublicDetails,
   portalInviteErrorResponse,
   portalInviteStatus,
+  reportsUrl,
+  sendPortalAccessAddedEmail,
   sendPortalInviteEmail,
 } from "../_portalInviteShared.js";
 import {
@@ -68,7 +72,7 @@ function userSummary(user) {
     id: user.id,
     email: normalizeEmail(user.email),
     createdAt: user.created_at,
-    emailConfirmedAt: user.email_confirmed_at || null,
+    emailConfirmedAt: authUserConfirmedAt(user),
     invitedAt: user.invited_at || null,
     confirmationSentAt: user.confirmation_sent_at || null,
     lastSignInAt: user.last_sign_in_at || null,
@@ -319,9 +323,9 @@ async function findActiveOrgMembership(service, { orgId, userId }) {
 
 async function createPendingPortalInvite(
   service,
-  { req, org, email, role, actorId, sendEmail = false }
+  { req, org, email, role, actorId, sendEmail = false, emailSender = sendPortalInviteEmail }
 ) {
-  if (sendEmail) assertInviteEmailConfigured();
+  if (sendEmail && emailSender === sendPortalInviteEmail) assertInviteEmailConfigured();
   const token = createInviteToken();
   const now = new Date().toISOString();
   const setupUrl = inviteUrl(req, token);
@@ -358,7 +362,7 @@ async function createPendingPortalInvite(
 
   if (sendEmail) {
     try {
-      await sendPortalInviteEmail({
+      await emailSender({
         email,
         org,
         role,
@@ -383,7 +387,22 @@ async function createPendingPortalInvite(
   };
 }
 
-async function grantOrgAccess(req, res, context) {
+async function revokePendingPortalInvites(service, { orgId, email, actorId, reason }) {
+  const { error } = await service
+    .from("portal_invites")
+    .update({
+      revoked_at: new Date().toISOString(),
+      revoked_reason: reason,
+      updated_by: actorId,
+    })
+    .eq("org_id", orgId)
+    .eq("email", email)
+    .is("accepted_at", null)
+    .is("revoked_at", null);
+  if (error) throw error;
+}
+
+export async function grantOrgAccess(req, res, context) {
   let body = {};
   try {
     body = await readJsonBody(req);
@@ -416,14 +435,46 @@ async function grantOrgAccess(req, res, context) {
     const activeMembership = user?.id
       ? await findActiveOrgMembership(context.service, { orgId, userId: user.id })
       : null;
-    const confirmedAt = user?.email_confirmed_at || user?.confirmed_at || null;
-    if (activeMembership && confirmedAt) {
+    const inviteAction = inviteAdminActionForUser(user, activeMembership);
+    if (inviteAction === "already_active") {
       return sendJson(res, 200, {
         user: userSummary(user),
         invited: false,
         alreadyActive: true,
         org,
         membership: membershipResponse(activeMembership),
+      });
+    }
+    if (inviteAction === "grant_existing_confirmed") {
+      if (!context.sendAccessAddedEmail) assertInviteEmailConfigured();
+      await ensureUserProfile(context.service, user, context.user.id);
+      const membership = await upsertOrgMembership(context.service, {
+        orgId,
+        userId: user.id,
+        role: requestedRole,
+        actorId: context.user.id,
+      });
+      await revokePendingPortalInvites(context.service, {
+        orgId,
+        email,
+        actorId: context.user.id,
+        reason: "access_granted",
+      });
+      const accessEmailSender = context.sendAccessAddedEmail || sendPortalAccessAddedEmail;
+      await accessEmailSender({
+        email,
+        org,
+        role: requestedRole,
+        reportsUrl: reportsUrl(req),
+      });
+      return sendJson(res, 200, {
+        user: userSummary(user),
+        invited: false,
+        alreadyActive: false,
+        accessGranted: true,
+        notificationSent: true,
+        org,
+        membership: membershipResponse(membership),
       });
     }
 
@@ -434,6 +485,7 @@ async function grantOrgAccess(req, res, context) {
       role: requestedRole,
       actorId: context.user.id,
       sendEmail: true,
+      emailSender: context.sendPortalInviteEmail || sendPortalInviteEmail,
     });
 
     return sendJson(res, 200, {
@@ -461,7 +513,7 @@ async function grantOrgAccess(req, res, context) {
   }
 }
 
-async function grantExistingOrgAccess(req, res, context) {
+export async function grantExistingOrgAccess(req, res, context) {
   let body = {};
   try {
     body = await readJsonBody(req);
