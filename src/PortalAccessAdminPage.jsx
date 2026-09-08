@@ -245,16 +245,14 @@ function PropertyScopeSummary({
     properties,
     propertySummary: selectedPropertySummary(ids, properties),
   });
+  const isSelectedPropertyScope = display.mainText === "Selected properties";
 
   return (
     <div className="flex max-w-[300px] items-start justify-between gap-3">
       <div className="grid min-w-0 gap-1">
         <span
-          className={`block text-sm font-medium leading-snug ${
-            display.mainText === "Selected properties"
-              ? "text-blue-700"
-              : "text-foreground/75"
-          }`}
+          className="block text-sm font-medium leading-snug text-foreground/75"
+          style={isSelectedPropertyScope ? { color: "#2563eb" } : undefined}
         >
           {display.mainText}
         </span>
