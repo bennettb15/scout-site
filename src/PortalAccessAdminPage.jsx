@@ -249,7 +249,13 @@ function PropertyScopeSummary({
   return (
     <div className="flex max-w-[300px] items-start justify-between gap-3">
       <div className="grid min-w-0 gap-1">
-        <span className="block text-sm font-medium leading-snug text-foreground/75">
+        <span
+          className={`block text-sm font-medium leading-snug ${
+            display.mainText === "Selected properties"
+              ? "text-blue-700"
+              : "text-foreground/75"
+          }`}
+        >
           {display.mainText}
         </span>
         <span className="block text-xs leading-snug text-foreground/45">
