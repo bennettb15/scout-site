@@ -4,36 +4,26 @@ import {
   methodAllowed,
   sendJson,
 } from "./_reportPortalShared.js";
-
-export const PRIMARY_ADMIN_EMAIL = "brian@scoutclear.com";
-export const DEFAULT_ADMIN_EMAILS = [
-  "bennettb15@gmail.com",
+import {
+  DEFAULT_ADMIN_EMAILS,
   PRIMARY_ADMIN_EMAIL,
-];
+  adminEmailSet,
+  isApprovedAdminEmail,
+  normalizeEmail,
+} from "../api-lib/portalAdminAccess.js";
+
+export {
+  DEFAULT_ADMIN_EMAILS,
+  PRIMARY_ADMIN_EMAIL,
+  adminEmailSet,
+  isApprovedAdminEmail,
+  normalizeEmail,
+};
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DEFAULT_INVITE_REDIRECT_URL = "https://www.scoutclear.com/accept-invite";
-
-export function adminEmailSet() {
-  const configured = [
-    process.env.SCOUT_PORTAL_ADMIN_EMAILS,
-    process.env.PORTAL_ADMIN_EMAILS,
-  ]
-    .filter(Boolean)
-    .flatMap((value) => String(value).split(","));
-
-  return new Set(
-    [...DEFAULT_ADMIN_EMAILS, ...configured]
-      .map((email) => normalizeEmail(email))
-      .filter(Boolean)
-  );
-}
-
-export function normalizeEmail(value) {
-  return String(value || "").trim().toLowerCase();
-}
 
 export function validateEmail(value) {
   const email = normalizeEmail(value);
@@ -43,10 +33,6 @@ export function validateEmail(value) {
 export function validateUuid(value) {
   const id = String(value || "").trim();
   return UUID_PATTERN.test(id) ? id : "";
-}
-
-export function isApprovedAdminEmail(email) {
-  return adminEmailSet().has(normalizeEmail(email));
 }
 
 export async function requirePortalAdmin(req, res, methods) {

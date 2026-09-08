@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   membershipNeedsRequiredAdminRepair,
   membershipSummary,
-} from "../api/admin/portal-access.js";
+} from "../api-lib/portalAdminAccess.js";
 
 const orgId = "11111111-1111-4111-8111-111111111111";
 const userId = "22222222-2222-4222-8222-222222222222";
