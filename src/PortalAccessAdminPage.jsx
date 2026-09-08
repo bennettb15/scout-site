@@ -116,6 +116,7 @@ export default function PortalAccessAdminPage() {
   const [adminEmails, setAdminEmails] = useState([]);
   const [orgs, setOrgs] = useState([]);
   const [accessRows, setAccessRows] = useState([]);
+  const [pendingInvites, setPendingInvites] = useState([]);
   const [selectedOrgId, setSelectedOrgId] = useState("");
   const [selectedAccessRole, setSelectedAccessRole] = useState("viewer");
   const [clientEmail, setClientEmail] = useState("");
@@ -173,6 +174,7 @@ export default function PortalAccessAdminPage() {
       setAdminEmails(body.adminEmails || []);
       setOrgs(body.orgs || []);
       setAccessRows(body.access || []);
+      setPendingInvites(body.pendingInvites || []);
       if (!selectedOrgId && body.orgs?.[0]?.id) {
         setSelectedOrgId(body.orgs[0].id);
       }
@@ -192,6 +194,7 @@ export default function PortalAccessAdminPage() {
         setAdminEmails([]);
         setOrgs([]);
         setAccessRows([]);
+        setPendingInvites([]);
         setSelectedOrgId("");
         return;
       }
@@ -272,10 +275,16 @@ export default function PortalAccessAdminPage() {
       }
       setClientEmail("");
       setActionMessage(
-        body.invited
-          ? `Invite email sent to ${body.user.email}; ${selectedAccessTypeLabel(
+        body.alreadyActive
+          ? `${body.user.email} already has ${selectedAccessTypeLabel(
               body.membership?.role
-            )} org-level access is granted for ${body.org.name}.`
+            )} org-level access to ${body.org.name}.`
+          : body.invited
+          ? `Invite email sent to ${body.user.email}; ${selectedAccessTypeLabel(
+              body.invite?.role
+            )} ${body.alreadyGranted
+              ? "access is already assigned and account setup will finish when they accept it."
+              : "access will activate after they accept it."}`
           : `Granted existing portal account ${body.user.email} ${selectedAccessTypeLabel(
               body.membership?.role
             )} org-level access to ${body.org.name}.`
@@ -323,8 +332,8 @@ export default function PortalAccessAdminPage() {
       });
       setActionMessage(
         `Created fallback setup link for ${body.user.email}; ${selectedAccessTypeLabel(
-          body.membership?.role
-        )} org-level access is granted for ${body.org.name}.`
+          body.invite?.role
+        )} access will activate after they accept it.`
       );
       await loadAccess();
     } catch (error) {
@@ -424,6 +433,11 @@ export default function PortalAccessAdminPage() {
     if (!selectedOrgId) return accessRows;
     return accessRows.filter((row) => row.orgId === selectedOrgId);
   }, [accessRows, selectedOrgId]);
+
+  const visiblePendingInvites = useMemo(() => {
+    if (!selectedOrgId) return pendingInvites;
+    return pendingInvites.filter((row) => row.orgId === selectedOrgId);
+  }, [pendingInvites, selectedOrgId]);
 
   return (
     <div
@@ -701,11 +715,10 @@ export default function PortalAccessAdminPage() {
                 </div>
               </div>
               <p className="mt-3 text-sm leading-relaxed text-foreground/60">
-                Invite User is the normal first path for new clients. Grant
-                Access is for an existing portal account and does not send an
-                invite email. Access Type applies org-level Client Viewer or
-                Field User access. Use the fallback setup link only when invite
-                email delivery is delayed, missing, or rate-limited.
+                Invite User sends a Scout-branded invite and creates pending
+                access. Grant Access is for an existing portal account and makes
+                access active immediately. Use the fallback setup link only when
+                you need to copy the same setup flow manually.
               </p>
               {setupLinkDetails?.setupUrl && (
                 <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
@@ -714,9 +727,8 @@ export default function PortalAccessAdminPage() {
                   </div>
                   <p className="mt-1 text-sm text-amber-900/80">
                     Copy this link only if the invite email did not arrive. It opens
-                    {setupLinkDetails.setupPath === "/reset-password"
-                      ? " the Client Portal password reset page."
-                      : " the Client Portal invite setup page."}
+                    the Client Portal invite setup page and activates access only
+                    after the recipient accepts it.
                   </p>
                   <div className="mt-3 flex flex-col gap-2 md:flex-row">
                     <input
@@ -742,6 +754,65 @@ export default function PortalAccessAdminPage() {
                   )}
                 </div>
               )}
+            </section>
+
+            <section className="rounded-lg border border-border bg-background shadow-sm">
+              <div className="border-b border-border px-5 py-4">
+                <h2 className="text-base font-semibold text-foreground">
+                  Pending Invites
+                </h2>
+                <p className="mt-1 text-sm text-foreground/60">
+                  {visiblePendingInvites.length} invite
+                  {visiblePendingInvites.length === 1 ? "" : "s"} awaiting acceptance
+                </p>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left text-sm">
+                  <thead className="border-b border-border bg-slate-50 text-xs uppercase text-foreground/55">
+                    <tr>
+                      <th className="px-5 py-3 font-semibold">Email</th>
+                      <th className="px-5 py-3 font-semibold">Access</th>
+                      <th className="px-5 py-3 font-semibold">Created</th>
+                      <th className="px-5 py-3 font-semibold">Expires</th>
+                      <th className="px-5 py-3 font-semibold">State</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visiblePendingInvites.map((row) => (
+                      <tr key={row.id} className="border-b border-border last:border-b-0">
+                        <td className="px-5 py-3 font-medium text-foreground">
+                          {row.email}
+                        </td>
+                        <td className="px-5 py-3 text-foreground/70">
+                          {selectedAccessTypeLabel(row.role)} / {row.accessScope || "org"}
+                        </td>
+                        <td className="px-5 py-3 text-foreground/70">
+                          {formatDate(row.createdAt)}
+                        </td>
+                        <td className="px-5 py-3 text-foreground/70">
+                          {formatDate(row.expiresAt)}
+                        </td>
+                        <td className="px-5 py-3">
+                          <span className="inline-flex w-fit items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold leading-none text-amber-900">
+                            {row.state === "expired" ? "Expired" : "Pending"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {visiblePendingInvites.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="px-5 py-8 text-center text-sm text-foreground/60"
+                        >
+                          No pending invites.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </section>
 
             <section className="rounded-lg border border-border bg-background shadow-sm">

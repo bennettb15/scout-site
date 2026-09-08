@@ -1,7 +1,6 @@
 import {
   adminEmailSet,
   findAuthUserByEmail,
-  inviteRedirectTo,
   isApprovedAdminEmail,
   loadOrg,
   normalizeEmail,
@@ -12,6 +11,17 @@ import {
   ensureUserProfile,
 } from "../_portalAdminShared.js";
 import { sendJson } from "../_reportPortalShared.js";
+import {
+  PortalInviteError,
+  assertInviteEmailConfigured,
+  createInviteToken,
+  hashInviteToken,
+  inviteExpiresAt,
+  inviteRoleLabel,
+  inviteUrl,
+  portalInviteStatus,
+  sendPortalInviteEmail,
+} from "../_portalInviteShared.js";
 
 const ORDINARY_ACCESS_ROLES = new Set(["viewer", "field"]);
 const ORDINARY_ACCESS_ONLY_ERROR =
@@ -133,6 +143,36 @@ function membershipSummary(row, profileById, orgById, authById, authStatusAvaila
   };
 }
 
+function pendingInviteSummary(row, orgById) {
+  return {
+    id: row.id,
+    orgId: row.org_id,
+    orgName: orgById.get(row.org_id)?.name || "Organization",
+    email: normalizeEmail(row.email),
+    role: row.role,
+    accessScope: row.access_scope || "org",
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    state: portalInviteStatus(row),
+  };
+}
+
+async function loadPendingInvites(service, orgById) {
+  const { data, error } = await service
+    .from("portal_invites")
+    .select("id,org_id,email,role,access_scope,created_at,expires_at,accepted_at,revoked_at,revoked_reason")
+    .is("accepted_at", null)
+    .is("revoked_at", null)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    if (error.code === "42P01") return [];
+    throw error;
+  }
+
+  return (data || []).map((row) => pendingInviteSummary(row, orgById));
+}
+
 async function loadPortalAccess(service) {
   const [
     { data: orgRows, error: orgsError },
@@ -181,6 +221,7 @@ async function loadPortalAccess(service) {
   const accessRows = (membershipRows || []).map((row) =>
     membershipSummary(row, profileById, orgById, authById, authStatusAvailable)
   );
+  const pendingInvites = await loadPendingInvites(service, orgById);
 
   return {
     adminEmails: [...adminEmailSet()].sort(),
@@ -189,6 +230,7 @@ async function loadPortalAccess(service) {
       name: row.name,
     })),
     access: accessRows,
+    pendingInvites,
   };
 }
 
@@ -200,49 +242,7 @@ async function handleGet(req, res, context) {
   }
 }
 
-async function ensureInvitedUser(service, email, req) {
-  const existing = await findAuthUserByEmail(service, email);
-  if (existing) {
-    return { user: existing, invited: false };
-  }
-
-  const { data, error } = await service.auth.admin.inviteUserByEmail(email, {
-    redirectTo: inviteRedirectTo(req),
-  });
-  if (error) throw error;
-  if (!data?.user?.id) {
-    throw new Error("Supabase did not return an invited user.");
-  }
-  return { user: data.user, invited: true };
-}
-
-async function generateSetupLinkUser(service, email, req) {
-  const existing = await findAuthUserByEmail(service, email);
-  const redirectTo = existing
-    ? inviteRedirectTo(req).replace(/\/accept-invite$/, "/reset-password")
-    : inviteRedirectTo(req);
-  const { data, error } = await service.auth.admin.generateLink({
-    type: existing ? "recovery" : "invite",
-    email,
-    options: {
-      redirectTo,
-    },
-  });
-
-  if (error) throw error;
-  if (!data?.user?.id || !data?.properties?.action_link) {
-    throw new Error("Supabase did not return a setup link.");
-  }
-
-  return {
-    user: data.user,
-    setupUrl: data.properties.action_link,
-    setupPath: existing ? "/reset-password" : "/accept-invite",
-    setupType: existing ? "recovery" : "invite",
-  };
-}
-
-async function upsertOrgMembership(service, { orgId, userId, role, actorId }) {
+export async function upsertOrgMembership(service, { orgId, userId, role, actorId }) {
   const { data: existingMembership, error: existingMembershipError } =
     await service
       .from("org_memberships")
@@ -281,7 +281,7 @@ async function upsertOrgMembership(service, { orgId, userId, role, actorId }) {
   return membership;
 }
 
-function membershipResponse(membership) {
+export function membershipResponse(membership) {
   return {
     id: membership.id,
     orgId: membership.org_id,
@@ -290,6 +290,85 @@ function membershipResponse(membership) {
     accessScope: membership.access_scope || "org",
     createdAt: membership.created_at,
     updatedAt: membership.updated_at,
+  };
+}
+
+async function findActiveOrgMembership(service, { orgId, userId }) {
+  const { data, error } = await service
+    .from("org_memberships")
+    .select("id,org_id,user_id,role,access_scope,created_at,updated_at,deleted_at")
+    .eq("org_id", orgId)
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+}
+
+async function createPendingPortalInvite(
+  service,
+  { req, org, email, role, actorId, sendEmail = false }
+) {
+  if (sendEmail) assertInviteEmailConfigured();
+  const token = createInviteToken();
+  const now = new Date().toISOString();
+  const setupUrl = inviteUrl(req, token);
+
+  const { error: replaceError } = await service
+    .from("portal_invites")
+    .update({
+      revoked_at: now,
+      revoked_reason: "replaced",
+      updated_by: actorId,
+    })
+    .eq("org_id", org.id)
+    .eq("email", email)
+    .is("accepted_at", null)
+    .is("revoked_at", null);
+  if (replaceError) throw replaceError;
+
+  const { data: invite, error: insertError } = await service
+    .from("portal_invites")
+    .insert({
+      org_id: org.id,
+      email,
+      role,
+      access_scope: "org",
+      token_hash: hashInviteToken(token),
+      created_by: actorId,
+      updated_by: actorId,
+      last_sent_at: now,
+      expires_at: inviteExpiresAt(),
+    })
+    .select("id,org_id,email,role,access_scope,created_at,expires_at,accepted_at,revoked_at,revoked_reason")
+    .single();
+  if (insertError) throw insertError;
+
+  if (sendEmail) {
+    try {
+      await sendPortalInviteEmail({
+        email,
+        org,
+        role,
+        setupUrl,
+      });
+    } catch (error) {
+      await service
+        .from("portal_invites")
+        .update({
+          revoked_at: new Date().toISOString(),
+          revoked_reason: "email_failed",
+          updated_by: actorId,
+        })
+        .eq("id", invite.id);
+      throw error;
+    }
+  }
+
+  return {
+    invite,
+    setupUrl,
   };
 }
 
@@ -311,34 +390,62 @@ async function grantOrgAccess(req, res, context) {
       error: "Access type must be Client Viewer or Field User.",
     });
   }
+  if (isApprovedAdminEmail(email)) {
+    return sendJson(res, 400, {
+      error: "Invite User is for Client Viewer and Field User access. Approved admin emails already receive owner access.",
+    });
+  }
 
   try {
     const org = await loadOrg(context.service, orgId);
     if (!org) return sendJson(res, 404, { error: "Organization not found." });
+    await ensureUserProfile(context.service, context.user, context.user.id);
 
-    const { user, invited } = await ensureInvitedUser(context.service, email, req);
-    await ensureUserProfile(context.service, user, context.user.id);
+    const user = await findAuthUserByEmail(context.service, email);
+    const activeMembership = user?.id
+      ? await findActiveOrgMembership(context.service, { orgId, userId: user.id })
+      : null;
+    const confirmedAt = user?.email_confirmed_at || user?.confirmed_at || null;
+    if (activeMembership && confirmedAt) {
+      return sendJson(res, 200, {
+        user: userSummary(user),
+        invited: false,
+        alreadyActive: true,
+        org,
+        membership: membershipResponse(activeMembership),
+      });
+    }
 
-    const role = isApprovedAdminEmail(email) ? "owner" : requestedRole;
-    const membership = await upsertOrgMembership(context.service, {
-      orgId,
-      userId: user.id,
-      role,
+    const { invite, setupUrl } = await createPendingPortalInvite(context.service, {
+      req,
+      org,
+      email,
+      role: requestedRole,
       actorId: context.user.id,
+      sendEmail: true,
     });
 
     return sendJson(res, 200, {
-      user: userSummary(user),
-      invited,
+      user: {
+        email,
+      },
+      invited: true,
+      alreadyActive: false,
+      alreadyGranted: Boolean(activeMembership),
       org,
-      membership: membershipResponse(membership),
+      invite: pendingInviteSummary(invite, new Map([[org.id, org]])),
+      setupUrl,
+      setupPath: "/accept-invite",
     });
   } catch (error) {
-    const status = error.message === ORDINARY_ACCESS_ONLY_ERROR
-      ? 400
-      : 500;
+    const status = error instanceof PortalInviteError
+      ? error.status
+      : error.message === ORDINARY_ACCESS_ONLY_ERROR
+        ? 400
+        : 500;
     return sendJson(res, status, {
       error: error.message || "Unable to grant portal access.",
+      code: error.code || undefined,
     });
   }
 }
@@ -427,34 +534,33 @@ async function createSetupLink(req, res, context) {
     const org = await loadOrg(context.service, orgId);
     if (!org) return sendJson(res, 404, { error: "Organization not found." });
 
-    const { user, setupUrl, setupPath, setupType } = await generateSetupLinkUser(
-      context.service,
+    await ensureUserProfile(context.service, context.user, context.user.id);
+    const { invite, setupUrl } = await createPendingPortalInvite(context.service, {
+      req,
+      org,
       email,
-      req
-    );
-    await ensureUserProfile(context.service, user, context.user.id);
-
-    const membership = await upsertOrgMembership(context.service, {
-      orgId,
-      userId: user.id,
       role: requestedRole,
       actorId: context.user.id,
+      sendEmail: false,
     });
 
     return sendJson(res, 200, {
-      user: userSummary(user),
+      user: { email },
       org,
-      membership: membershipResponse(membership),
+      invite: pendingInviteSummary(invite, new Map([[org.id, org]])),
       setupUrl,
-      setupPath,
-      setupType,
+      setupPath: "/accept-invite",
+      setupType: "portal_invite",
     });
   } catch (error) {
-    const status = error.message === ORDINARY_ACCESS_ONLY_ERROR
-      ? 400
-      : 500;
+    const status = error instanceof PortalInviteError
+      ? error.status
+      : error.message === ORDINARY_ACCESS_ONLY_ERROR
+        ? 400
+        : 500;
     return sendJson(res, status, {
       error: error.message || "Unable to create setup link.",
+      code: error.code || undefined,
     });
   }
 }

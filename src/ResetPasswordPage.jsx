@@ -19,6 +19,11 @@ const BRAND = {
 const MIN_PASSWORD_LENGTH = 6;
 const REDIRECT_DELAY_MS = 700;
 
+function getInviteTokenValue() {
+  const query = new URLSearchParams(window.location.search);
+  return query.get("token") || "";
+}
+
 function getRecoveryLinkValues() {
   const query = new URLSearchParams(window.location.search);
   const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -39,11 +44,63 @@ function getRecoveryLinkValues() {
 
 export default function ResetPasswordPage() {
   const isInvite = window.location.pathname === "/accept-invite";
+  const inviteToken = isInvite ? getInviteTokenValue() : "";
+  const isPortalInvite = Boolean(inviteToken);
   const [linkStatus, setLinkStatus] = useState("checking");
+  const [inviteDetails, setInviteDetails] = useState(null);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [signInPassword, setSignInPassword] = useState("");
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const customInviteCopy = useMemo(() => {
+    const orgName = inviteDetails?.org?.name || "this organization";
+    const email = inviteDetails?.email || "the invited email";
+    const accessLabel = inviteDetails?.accessLabel || "Client Portal";
+    return {
+      expired: {
+        title: "This invite has expired.",
+        body: "Ask your SCOUT contact for a new Client Portal invite.",
+      },
+      accepted: {
+        title: "This invite was already accepted.",
+        body: "Sign in to the SCOUT Client Portal with the account that accepted this invite.",
+      },
+      replaced: {
+        title: "This invite was replaced.",
+        body: "Use the newest SCOUT invite email or ask your SCOUT contact to send a fresh link.",
+      },
+      revoked: {
+        title: "This invite is no longer active.",
+        body: "Ask your SCOUT contact for a new Client Portal invite.",
+      },
+      invalid: {
+        title: "This invite link is invalid.",
+        body: "Check that the full link was copied, or ask your SCOUT contact for a new invite.",
+      },
+      missing_org: {
+        title: "This invite is missing organization access.",
+        body: "The invited organization is no longer active. Ask your SCOUT contact to resend access.",
+      },
+      wrong_email: {
+        title: "You're signed in with the wrong account.",
+        body: `This invite belongs to ${email}. Sign out, then open the invite again with that account.`,
+      },
+      sign_in: {
+        title: `Sign in as ${email}`,
+        body: `This ${accessLabel} invite for ${orgName} is tied to an existing portal account.`,
+      },
+      ready: {
+        title: "Set up your SCOUT Client Portal account",
+        body: `Create a password for ${email} to accept ${accessLabel} access to ${orgName}.`,
+      },
+      updated: {
+        title: "Invite Accepted",
+        body: "Your SCOUT Client Portal access is ready.",
+      },
+    };
+  }, [inviteDetails]);
 
   const pageCopy = useMemo(
     () =>
@@ -75,6 +132,61 @@ export default function ResetPasswordPage() {
     [isInvite]
   );
 
+  async function acceptPortalInvite({ password, session }) {
+    const response = await fetch("/api/portal-invite", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : {}),
+      },
+      body: JSON.stringify({
+        token: inviteToken,
+        ...(password ? { password } : {}),
+      }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(body.error || "Unable to accept invite.");
+      error.code = body.code;
+      throw error;
+    }
+    return body;
+  }
+
+  async function finishAcceptedInvite(body, password) {
+    if (password && body?.user?.email && hasSupabaseConfig && supabase) {
+      await supabase.auth.signInWithPassword({
+        email: body.user.email,
+        password,
+      });
+    }
+    setLinkStatus("updated");
+    window.setTimeout(() => {
+      window.location.assign("/reports");
+    }, REDIRECT_DELAY_MS);
+  }
+
+  function applyInviteError(error) {
+    const stateByCode = {
+      already_accepted: "accepted",
+      expired: "expired",
+      invalid: "invalid",
+      missing_org: "missing_org",
+      replaced: "replaced",
+      revoked: "revoked",
+      sign_in_required: "sign-in",
+      wrong_email: "wrong-email",
+    };
+    const nextState = stateByCode[error?.code] || "";
+    if (nextState) {
+      setLinkStatus(nextState);
+      return;
+    }
+    setFormError(error?.message || "Unable to accept invite.");
+  }
+
   useEffect(() => {
     document.title = isInvite
       ? "Set Client Portal Password | SCOUT"
@@ -85,6 +197,52 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     let isActive = true;
+
+    async function establishPortalInvite() {
+      if (!hasSupabaseConfig || !supabase) {
+        setLinkStatus("missing-config");
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/portal-invite?token=${encodeURIComponent(inviteToken)}`
+        );
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error || "Unable to load invite.");
+        if (!isActive) return;
+
+        setInviteDetails(body);
+        if (body.state !== "ready") {
+          setLinkStatus(body.state === "accepted" ? "accepted" : body.state);
+          return;
+        }
+
+        if (body.accountMode !== "existing_confirmed") {
+          setLinkStatus("ready");
+          return;
+        }
+
+        const { data } = await supabase.auth.getSession();
+        const activeSession = data.session || null;
+        const activeEmail = activeSession?.user?.email?.trim().toLowerCase() || "";
+        if (!activeSession?.access_token) {
+          setLinkStatus("sign-in");
+          return;
+        }
+        if (activeEmail !== body.email) {
+          setLinkStatus("wrong-email");
+          return;
+        }
+
+        const accepted = await acceptPortalInvite({ session: activeSession });
+        if (isActive) await finishAcceptedInvite(accepted);
+      } catch (error) {
+        if (!isActive) return;
+        applyInviteError(error);
+        if (!error?.code) setLinkStatus("invalid");
+      }
+    }
 
     async function establishRecoverySession() {
       if (!hasSupabaseConfig || !supabase) {
@@ -132,9 +290,16 @@ export default function ResetPasswordPage() {
           isInvite ? "/accept-invite" : "/reset-password"
         );
         if (isActive) setLinkStatus("ready");
-      } catch {
+    } catch {
         if (isActive) setLinkStatus("invalid");
       }
+    }
+
+    if (isPortalInvite) {
+      establishPortalInvite();
+      return () => {
+        isActive = false;
+      };
     }
 
     const {
@@ -157,7 +322,7 @@ export default function ResetPasswordPage() {
       isActive = false;
       subscription?.unsubscribe();
     };
-  }, [isInvite]);
+  }, [isInvite, isPortalInvite, inviteToken]);
 
   const canSubmit = useMemo(
     () =>
@@ -196,13 +361,50 @@ export default function ResetPasswordPage() {
 
     setIsSubmitting(true);
     try {
-      await updateRecoveryPassword(newPassword);
-      setLinkStatus("updated");
-      window.setTimeout(() => {
-        window.location.assign("/reports");
-      }, REDIRECT_DELAY_MS);
+      if (isPortalInvite) {
+        const body = await acceptPortalInvite({ password: newPassword });
+        await finishAcceptedInvite(body, newPassword);
+      } else {
+        await updateRecoveryPassword(newPassword);
+        setLinkStatus("updated");
+        window.setTimeout(() => {
+          window.location.assign("/reports");
+        }, REDIRECT_DELAY_MS);
+      }
     } catch (error) {
-      setFormError(error.message || "Unable to update your password.");
+      if (isPortalInvite) {
+        applyInviteError(error);
+      } else {
+        setFormError(error.message || "Unable to update your password.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleExistingInviteSignIn(event) {
+    event.preventDefault();
+    setFormError("");
+    if (!signInPassword) {
+      setFormError("Enter your portal password.");
+      return;
+    }
+    if (!hasSupabaseConfig || !supabase) {
+      setLinkStatus("missing-config");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: inviteDetails.email,
+        password: signInPassword,
+      });
+      if (error) throw error;
+      const body = await acceptPortalInvite({ session: data.session });
+      await finishAcceptedInvite(body);
+    } catch (error) {
+      applyInviteError(error);
     } finally {
       setIsSubmitting(false);
     }
@@ -257,12 +459,79 @@ export default function ResetPasswordPage() {
               />
             )}
 
-            {linkStatus === "invalid" && (
+            {isPortalInvite &&
+              ["invalid", "expired", "accepted", "replaced", "revoked", "missing_org", "wrong-email"].includes(
+                linkStatus
+              ) && (
+                <MessageState
+                  icon="!"
+                  title={customInviteCopy[linkStatus.replace("-", "_")]?.title}
+                  body={customInviteCopy[linkStatus.replace("-", "_")]?.body}
+                />
+              )}
+
+            {!isPortalInvite && linkStatus === "invalid" && (
               <MessageState
                 icon="!"
                 title={pageCopy.invalidTitle}
                 body={pageCopy.invalidBody}
               />
+            )}
+
+            {isPortalInvite && linkStatus === "sign-in" && (
+              <>
+                <div className="mx-auto mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand)] text-2xl font-semibold text-white">
+                  <span aria-hidden="true">→</span>
+                </div>
+
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+                  {customInviteCopy.sign_in.title}
+                </h1>
+
+                <p className="mt-4 text-base leading-relaxed text-foreground/75 md:text-lg">
+                  {customInviteCopy.sign_in.body}
+                </p>
+
+                <form
+                  onSubmit={handleExistingInviteSignIn}
+                  className="mx-auto mt-7 flex w-full max-w-md flex-col gap-4 text-left"
+                >
+                  <label className="grid gap-2 text-sm font-medium text-foreground">
+                    Email
+                    <input
+                      type="email"
+                      value={inviteDetails?.email || ""}
+                      readOnly
+                      className="h-12 rounded-xl border border-input bg-slate-50 px-4 text-base text-foreground/70 shadow-sm outline-none"
+                    />
+                  </label>
+
+                  <label className="grid gap-2 text-sm font-medium text-foreground">
+                    Password
+                    <input
+                      type="password"
+                      autoComplete="current-password"
+                      value={signInPassword}
+                      onChange={(event) => setSignInPassword(event.target.value)}
+                      className="h-12 rounded-xl border border-input bg-background px-4 text-base shadow-sm outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/20"
+                    />
+                  </label>
+
+                  {formError && (
+                    <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-700">
+                      {formError}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || !signInPassword}
+                    className="mt-1 inline-flex h-12 items-center justify-center rounded-xl bg-[var(--brand)] px-5 text-base font-semibold text-white shadow-sm transition hover:bg-[var(--brand)]/92 disabled:cursor-not-allowed disabled:opacity-55"
+                  >
+                    {isSubmitting ? "Accepting..." : "Sign In and Accept"}
+                  </button>
+                </form>
+              </>
             )}
 
             {linkStatus === "ready" && (
@@ -272,11 +541,11 @@ export default function ResetPasswordPage() {
                 </div>
 
                 <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-                  {pageCopy.readyTitle}
+                  {isPortalInvite ? customInviteCopy.ready.title : pageCopy.readyTitle}
                 </h1>
 
                 <p className="mt-4 text-base leading-relaxed text-foreground/75 md:text-lg">
-                  {pageCopy.readyBody}
+                  {isPortalInvite ? customInviteCopy.ready.body : pageCopy.readyBody}
                 </p>
 
                 <form
