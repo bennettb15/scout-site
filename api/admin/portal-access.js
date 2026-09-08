@@ -35,19 +35,27 @@ import {
   sendPortalInviteEmail,
 } from "../_portalInviteShared.js";
 import {
+  ORDINARY_ACCESS_ROLES,
+  PORTAL_ACCESS_ROLES,
+  canActorChangePortalRole,
+  canActorRevokePortalRole,
   membershipNeedsRequiredAdminRepair,
   membershipSummary,
+  normalizePortalAccessRole,
+  wouldRemoveLastOwner,
 } from "../../api-lib/portalAdminAccess.js";
 
-const ORDINARY_ACCESS_ROLES = new Set(["viewer", "field"]);
-const PORTAL_ACCESS_ROLES = new Set(["owner", "manager", "field", "viewer"]);
 const ORDINARY_ACCESS_ONLY_ERROR =
-  "Only existing org-level Client Viewer or Field User access can be changed here.";
+  "Only existing org-level Viewer or Field access can be changed here.";
 const MAX_ORG_NAME_LENGTH = 120;
 
 function validateAccessRole(value) {
-  const role = String(value || "viewer").trim().toLowerCase();
+  const role = normalizePortalAccessRole(value, "viewer");
   return ORDINARY_ACCESS_ROLES.has(role) ? role : "";
+}
+
+function validateRoleChangeValue(value) {
+  return normalizePortalAccessRole(value, "");
 }
 
 function normalizeOrgName(value) {
@@ -117,12 +125,18 @@ function pendingInviteSummary(row, orgById) {
 }
 
 async function loadPendingInvites(service, orgById) {
-  const { data, error } = await service
+  const orgIds = [...orgById.keys()];
+  if (!orgIds.length) return [];
+
+  let query = service
     .from("portal_invites")
     .select("id,org_id,email,role,access_scope,created_at,expires_at,accepted_at,revoked_at,revoked_reason")
+    .in("org_id", orgIds)
     .is("accepted_at", null)
     .is("revoked_at", null)
     .order("created_at", { ascending: false });
+
+  const { data, error } = await query;
 
   if (error) {
     if (error.code === "42P01") return [];
@@ -187,32 +201,126 @@ async function ensureRequiredAdminOrgAccess(service, orgRows, actorId) {
   return { repairedCount: rowsToRepair.length, missingAdminEmails };
 }
 
-async function loadPortalAccess(service) {
-  const { data: orgRows, error: orgsError } = await service
+function actorRoleForOrg(context, orgId) {
+  if (context.isPlatformAdmin) return "owner";
+  const membership = (context.managementMemberships || []).find((row) => row.org_id === orgId);
+  return membership?.role || "";
+}
+
+function manageableOrgIds(context) {
+  return context.isPlatformAdmin
+    ? null
+    : [...new Set((context.managementMemberships || []).map((row) => row.org_id))];
+}
+
+async function activeOwnerCount(service, orgId) {
+  const { count, error } = await service
+    .from("org_memberships")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId)
+    .eq("role", "owner")
+    .is("deleted_at", null)
+    .or("access_scope.eq.org,access_scope.is.null");
+
+  if (error) throw error;
+  return count || 0;
+}
+
+function decorateAccessRowsForActor(rows, context) {
+  const ownerCountsByOrg = new Map();
+  for (const row of rows) {
+    if (row.role !== "owner") continue;
+    ownerCountsByOrg.set(row.orgId, (ownerCountsByOrg.get(row.orgId) || 0) + 1);
+  }
+
+  return rows.map((row) => {
+    const actorRole = actorRoleForOrg(context, row.orgId);
+    const isRequiredAdmin = isApprovedAdminEmail(row.email);
+    const activeOwnerCountForOrg = ownerCountsByOrg.get(row.orgId) || 0;
+    const canChooseRole = (role) =>
+      canActorChangePortalRole({
+        actorRole,
+        currentRole: row.role,
+        nextRole: role,
+        isRequiredAdmin,
+      }) &&
+      !wouldRemoveLastOwner({
+        currentRole: row.role,
+        nextRole: role,
+        activeOwnerCount: activeOwnerCountForOrg,
+      }) &&
+      (role !== "owner" || (row.accessScope || "org") === "org");
+    const allowedRoleChanges = Array.from(PORTAL_ACCESS_ROLES).filter(canChooseRole);
+
+    return {
+      ...row,
+      canChangeRole: allowedRoleChanges.some((role) => role !== row.role),
+      allowedRoleChanges,
+      canRevoke:
+        canActorRevokePortalRole({
+          actorRole,
+          targetRole: row.role,
+          isRequiredAdmin,
+        }) &&
+        !wouldRemoveLastOwner({
+          currentRole: row.role,
+          nextRole: "",
+          activeOwnerCount: activeOwnerCountForOrg,
+        }) &&
+        (row.accessScope || "org") === "org",
+    };
+  });
+}
+
+async function loadPortalAccess(context) {
+  const allowedOrgIds = manageableOrgIds(context);
+  let orgQuery = context.service
     .from("orgs")
     .select("id,name")
     .is("deleted_at", null)
     .order("name", { ascending: true });
+  if (allowedOrgIds) {
+    if (!allowedOrgIds.length) {
+      return {
+        adminEmails: [...adminEmailSet()].sort(),
+        adminAccessSync: { repairedCount: 0, missingAdminEmails: [] },
+        orgs: [],
+        access: [],
+        pendingInvites: [],
+      };
+    }
+    orgQuery = orgQuery.in("id", allowedOrgIds);
+  }
+
+  const { data: orgRows, error: orgsError } = await orgQuery;
 
   if (orgsError) {
     throw new Error("Unable to load portal access.");
   }
 
-  const adminAccessSync = await ensureRequiredAdminOrgAccess(service, orgRows || [], null);
+  const adminAccessSync = context.isPlatformAdmin
+    ? await ensureRequiredAdminOrgAccess(context.service, orgRows || [], null)
+    : { repairedCount: 0, missingAdminEmails: [] };
 
-  const { data: membershipRows, error: membershipsError } = await service
+  const orgIds = (orgRows || []).map((row) => row.id);
+  let membershipQuery = context.service
     .from("org_memberships")
     .select("id,org_id,user_id,role,access_scope,created_at,updated_at,deleted_at")
+    .in("org_id", orgIds)
     .is("deleted_at", null)
     .in("role", Array.from(PORTAL_ACCESS_ROLES))
     .or("access_scope.eq.org,access_scope.is.null")
     .order("created_at", { ascending: false });
 
+  const { data: membershipRows, error: membershipsError } = orgIds.length
+    ? await membershipQuery
+    : { data: [], error: null };
+
   if (membershipsError) throw new Error("Unable to load portal access.");
 
   const userIds = [...new Set((membershipRows || []).map((row) => row.user_id))];
   const { data: profileRows, error: profilesError } = userIds.length
-    ? await service
+    ? await context.service
         .from("users_profile")
         .select("id,email,full_name,deleted_at")
         .in("id", userIds)
@@ -224,7 +332,7 @@ async function loadPortalAccess(service) {
   let authStatusAvailable = true;
   try {
     authById = userIds.length
-      ? await loadAuthUsersById(service, userIds)
+      ? await loadAuthUsersById(context.service, userIds)
       : new Map();
   } catch {
     authStatusAvailable = false;
@@ -232,10 +340,10 @@ async function loadPortalAccess(service) {
 
   const orgById = new Map((orgRows || []).map((row) => [row.id, row]));
   const profileById = new Map((profileRows || []).map((row) => [row.id, row]));
-  const accessRows = (membershipRows || []).map((row) =>
+  const accessRows = decorateAccessRowsForActor((membershipRows || []).map((row) =>
     membershipSummary(row, profileById, orgById, authById, authStatusAvailable)
-  );
-  const pendingInvites = await loadPendingInvites(service, orgById);
+  ), context);
+  const pendingInvites = await loadPendingInvites(context.service, orgById);
 
   return {
     adminEmails: [...adminEmailSet()].sort(),
@@ -251,7 +359,7 @@ async function loadPortalAccess(service) {
 
 async function handleGet(req, res, context) {
   try {
-    return sendJson(res, 200, await loadPortalAccess(context.service));
+    return sendJson(res, 200, await loadPortalAccess(context));
   } catch {
     return sendJson(res, 500, { error: "Unable to load portal access." });
   }
@@ -308,6 +416,16 @@ export function membershipResponse(membership) {
   };
 }
 
+async function requireActorManagementRole(context, orgId) {
+  const actorRole = actorRoleForOrg(context, orgId);
+  if (!actorRole) {
+    throw Object.assign(new Error("Owner or Manager access is required for this organization."), {
+      status: 403,
+    });
+  }
+  return actorRole;
+}
+
 async function findActiveOrgMembership(service, { orgId, userId }) {
   const { data, error } = await service
     .from("org_memberships")
@@ -319,6 +437,28 @@ async function findActiveOrgMembership(service, { orgId, userId }) {
 
   if (error) throw error;
   return data || null;
+}
+
+async function findActiveMembershipWithProfile(service, { orgId, userId }) {
+  const { data: membership, error: membershipError } = await service
+    .from("org_memberships")
+    .select("id,org_id,user_id,role,access_scope,created_at,updated_at,deleted_at")
+    .eq("org_id", orgId)
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (membershipError) throw membershipError;
+  if (!membership) return { membership: null, profile: null };
+
+  const { data: profile, error: profileError } = await service
+    .from("users_profile")
+    .select("id,email")
+    .eq("id", userId)
+    .maybeSingle();
+  if (profileError) throw profileError;
+
+  return { membership, profile };
 }
 
 async function createPendingPortalInvite(
@@ -417,18 +557,19 @@ export async function grantOrgAccess(req, res, context) {
   if (!orgId) return sendJson(res, 400, { error: "Valid org ID is required." });
   if (!requestedRole) {
     return sendJson(res, 400, {
-      error: "Access type must be Client Viewer or Field User.",
+      error: "Access type must be Viewer or Field.",
     });
   }
   if (isApprovedAdminEmail(email)) {
     return sendJson(res, 400, {
-      error: "Invite User is for Client Viewer and Field User access. Approved admin emails already receive owner access.",
+      error: "Invite User is for Viewer and Field access. Approved admin emails already receive owner access.",
     });
   }
 
   try {
     const org = await loadOrg(context.service, orgId);
     if (!org) return sendJson(res, 404, { error: "Organization not found." });
+    await requireActorManagementRole(context, orgId);
     await ensureUserProfile(context.service, context.user, context.user.id);
 
     const user = await findAuthUserByEmail(context.service, email);
@@ -505,7 +646,7 @@ export async function grantOrgAccess(req, res, context) {
       ? error.status
       : error.message === ORDINARY_ACCESS_ONLY_ERROR
         ? 400
-        : 500;
+        : error.status || 500;
     return sendJson(res, status, {
       error: error.message || "Unable to grant portal access.",
       code: error.code || undefined,
@@ -528,13 +669,14 @@ export async function grantExistingOrgAccess(req, res, context) {
   if (!orgId) return sendJson(res, 400, { error: "Valid org ID is required." });
   if (!requestedRole) {
     return sendJson(res, 400, {
-      error: "Access type must be Client Viewer or Field User.",
+      error: "Access type must be Viewer or Field.",
     });
   }
 
   try {
     const org = await loadOrg(context.service, orgId);
     if (!org) return sendJson(res, 404, { error: "Organization not found." });
+    await requireActorManagementRole(context, orgId);
 
     const user = await findAuthUserByEmail(context.service, email);
     if (!user) {
@@ -562,7 +704,7 @@ export async function grantExistingOrgAccess(req, res, context) {
   } catch (error) {
     const status = error.message === ORDINARY_ACCESS_ONLY_ERROR
       ? 400
-      : 500;
+      : error.status || 500;
     return sendJson(res, status, {
       error: error.message || "Unable to grant portal access.",
     });
@@ -584,7 +726,7 @@ async function createSetupLink(req, res, context) {
   if (!orgId) return sendJson(res, 400, { error: "Valid org ID is required." });
   if (!requestedRole) {
     return sendJson(res, 400, {
-      error: "Access type must be Client Viewer or Field User.",
+      error: "Access type must be Viewer or Field.",
     });
   }
   if (isApprovedAdminEmail(email)) {
@@ -596,6 +738,7 @@ async function createSetupLink(req, res, context) {
   try {
     const org = await loadOrg(context.service, orgId);
     if (!org) return sendJson(res, 404, { error: "Organization not found." });
+    await requireActorManagementRole(context, orgId);
 
     await ensureUserProfile(context.service, context.user, context.user.id);
     const { invite, setupUrl } = await createPendingPortalInvite(context.service, {
@@ -620,7 +763,7 @@ async function createSetupLink(req, res, context) {
       ? error.status
       : error.message === ORDINARY_ACCESS_ONLY_ERROR
         ? 400
-        : 500;
+        : error.status || 500;
     return sendJson(res, status, {
       error: error.message || "Unable to create setup link.",
       code: error.code || undefined,
@@ -649,6 +792,10 @@ async function createOrganization(req, res, context) {
   }
 
   try {
+    if (!context.isPlatformAdmin) {
+      return sendJson(res, 403, { error: "Platform admin access is required to create organizations." });
+    }
+
     const { data: existingOrgs, error: existingError } = await context.service
       .from("orgs")
       .select("id,name,slug")
@@ -701,6 +848,102 @@ async function createOrganization(req, res, context) {
   }
 }
 
+async function changeOrgAccessRole(req, res, context) {
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body." });
+  }
+
+  const orgId = validateUuid(body.orgId);
+  const userId = validateUuid(body.userId);
+  const requestedRole = validateRoleChangeValue(body.accessRole);
+  if (!orgId) return sendJson(res, 400, { error: "Valid org ID is required." });
+  if (!userId) return sendJson(res, 400, { error: "Valid user ID is required." });
+  if (!requestedRole) return sendJson(res, 400, { error: "Valid role is required." });
+
+  try {
+    const actorRole = await requireActorManagementRole(context, orgId);
+    const { membership, profile } = await findActiveMembershipWithProfile(context.service, {
+      orgId,
+      userId,
+    });
+    if (!membership) {
+      return sendJson(res, 404, { error: "Active org access not found." });
+    }
+    if (isApprovedAdminEmail(profile?.email)) {
+      return sendJson(res, 400, { error: "Required admin owner access cannot be changed here." });
+    }
+
+    const currentRole = normalizePortalAccessRole(membership.role, "");
+    const currentScope = membership.access_scope || "org";
+    if (!currentRole || currentScope !== "org") {
+      return sendJson(res, 400, {
+        error: "Only org-wide portal access can be changed here.",
+      });
+    }
+
+    const ownerCount = currentRole === "owner"
+      ? await activeOwnerCount(context.service, orgId)
+      : 0;
+    if (
+      wouldRemoveLastOwner({
+        currentRole,
+        nextRole: requestedRole,
+        activeOwnerCount: ownerCount,
+      })
+    ) {
+      return sendJson(res, 400, {
+        error: "At least one active Owner must remain for this organization.",
+      });
+    }
+
+    if (
+      !canActorChangePortalRole({
+        actorRole,
+        currentRole,
+        nextRole: requestedRole,
+      })
+    ) {
+      return sendJson(res, 403, {
+        error: "You do not have permission to change this role.",
+      });
+    }
+
+    if (requestedRole === currentRole) {
+      return sendJson(res, 200, {
+        changed: false,
+        membership: membershipResponse(membership),
+      });
+    }
+
+    const { data: updatedMembership, error: updateError } = await context.service
+      .from("org_memberships")
+      .update({
+        role: requestedRole,
+        access_scope: "org",
+        updated_by: context.user.id,
+        deleted_at: null,
+      })
+      .eq("id", membership.id)
+      .is("deleted_at", null)
+      .select("id,org_id,user_id,role,access_scope,created_at,updated_at,deleted_at")
+      .single();
+
+    if (updateError) throw updateError;
+
+    return sendJson(res, 200, {
+      changed: true,
+      membership: membershipResponse(updatedMembership),
+    });
+  } catch (error) {
+    return sendJson(res, error.status || 500, {
+      error: error.message || "Unable to change portal role.",
+    });
+  }
+}
+
 async function revokeOrgAccess(req, res, context) {
   let body = {};
   try {
@@ -715,34 +958,49 @@ async function revokeOrgAccess(req, res, context) {
   if (!userId) return sendJson(res, 400, { error: "Valid user ID is required." });
 
   try {
-    const { data: profile, error: profileError } = await context.service
-      .from("users_profile")
-      .select("id,email")
-      .eq("id", userId)
-      .maybeSingle();
-    if (profileError) throw profileError;
+    const actorRole = await requireActorManagementRole(context, orgId);
+    const { membership, profile } = await findActiveMembershipWithProfile(context.service, {
+      orgId,
+      userId,
+    });
     if (isApprovedAdminEmail(profile?.email)) {
-      return sendJson(res, 400, { error: "Approved admin access cannot be revoked here." });
+      return sendJson(res, 400, { error: "Required admin owner access cannot be revoked here." });
     }
 
-    const { data: membership, error: membershipError } = await context.service
-      .from("org_memberships")
-      .select("id,role,access_scope,deleted_at")
-      .eq("org_id", orgId)
-      .eq("user_id", userId)
-      .is("deleted_at", null)
-      .maybeSingle();
-
-    if (membershipError) throw membershipError;
     if (!membership) {
       return sendJson(res, 404, { error: "Active org access not found." });
     }
+
+    const currentRole = normalizePortalAccessRole(membership.role, "");
+    if (!currentRole || (membership.access_scope || "org") !== "org") {
+      return sendJson(res, 400, {
+        error: "Only org-wide portal access can be revoked here.",
+      });
+    }
+
+    const ownerCount = currentRole === "owner"
+      ? await activeOwnerCount(context.service, orgId)
+      : 0;
     if (
-      !ORDINARY_ACCESS_ROLES.has(membership.role) ||
-      (membership.access_scope || "org") !== "org"
+      wouldRemoveLastOwner({
+        currentRole,
+        nextRole: "",
+        activeOwnerCount: ownerCount,
+      })
     ) {
       return sendJson(res, 400, {
-        error: "Only ordinary org-level portal access can be revoked here.",
+        error: "At least one active Owner must remain for this organization.",
+      });
+    }
+
+    if (
+      !canActorRevokePortalRole({
+        actorRole,
+        targetRole: currentRole,
+      })
+    ) {
+      return sendJson(res, 403, {
+        error: "You do not have permission to revoke this access.",
       });
     }
 
@@ -758,7 +1016,7 @@ async function revokeOrgAccess(req, res, context) {
     if (revokeError) throw revokeError;
     return sendJson(res, 200, { revoked: true });
   } catch (error) {
-    return sendJson(res, 500, {
+    return sendJson(res, error.status || 500, {
       error: error.message || "Unable to revoke portal access.",
     });
   }
@@ -869,6 +1127,7 @@ export default async function handler(req, res) {
     if (body.action === "createOrg") return createOrganization(req, res, context);
     if (body.action === "setupLink") return createSetupLink(req, res, context);
     if (body.action === "grantExisting") return grantExistingOrgAccess(req, res, context);
+    if (body.action === "changeRole") return changeOrgAccessRole(req, res, context);
     return grantOrgAccess(req, res, context);
   }
   if (req.method === "DELETE") return revokeOrgAccess(req, res, context);

@@ -6,6 +6,7 @@ import {
 } from "./_reportPortalShared.js";
 import {
   DEFAULT_ADMIN_EMAILS,
+  MANAGEMENT_ACCESS_ROLES,
   PRIMARY_ADMIN_EMAIL,
   adminEmailSet,
   isApprovedAdminEmail,
@@ -50,7 +51,13 @@ export async function requirePortalAdmin(req, res, methods) {
   }
 
   const email = normalizeEmail(auth.user?.email);
-  if (!isApprovedAdminEmail(email)) {
+  const service = createServiceClient();
+  const isPlatformAdmin = isApprovedAdminEmail(email);
+  const managementMemberships = isPlatformAdmin
+    ? []
+    : await loadManagementMemberships(service, auth.user?.id);
+
+  if (!isPlatformAdmin && managementMemberships.length === 0) {
     sendJson(res, 403, { error: "Admin access required." });
     return null;
   }
@@ -58,8 +65,25 @@ export async function requirePortalAdmin(req, res, methods) {
   return {
     ...auth,
     adminEmail: email,
-    service: createServiceClient(),
+    isPlatformAdmin,
+    managementMemberships,
+    service,
   };
+}
+
+export async function loadManagementMemberships(service, userId) {
+  if (!userId) return [];
+
+  const { data, error } = await service
+    .from("org_memberships")
+    .select("id,org_id,user_id,role,access_scope,deleted_at")
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .in("role", Array.from(MANAGEMENT_ACCESS_ROLES))
+    .or("access_scope.eq.org,access_scope.is.null");
+
+  if (error) throw error;
+  return data || [];
 }
 
 export async function readJsonBody(req) {

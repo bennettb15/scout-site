@@ -1474,7 +1474,7 @@ async function resolveNoteObservation(auth, service, { observationId, shotId, pa
       throw error;
     }
     if (!(await canWritePunchListNotes(auth, observation.org_id))) {
-      const error = new Error("Client Viewer or Field User access is required to add notes.");
+      const error = new Error("Viewer or Field access is required to add notes.");
       error.statusCode = 403;
       throw error;
     }
@@ -1494,7 +1494,7 @@ async function resolveNoteObservation(auth, service, { observationId, shotId, pa
     throw error;
   }
   if (!(await canWritePunchListNotes(auth, shot.org_id))) {
-    const error = new Error("Client Viewer or Field User access is required to add notes.");
+    const error = new Error("Viewer or Field access is required to add notes.");
     error.statusCode = 403;
     throw error;
   }
@@ -1523,7 +1523,7 @@ async function resolveWorkflowObservation(auth, service, { observationId, shotId
       throw error;
     }
     if (!(await canEditPunchListWorkflow(auth, observation.org_id))) {
-      const error = new Error("Client Viewer or Field User access is required to edit workflow fields.");
+      const error = new Error("Viewer or Field access is required to edit workflow fields.");
       error.statusCode = 403;
       throw error;
     }
@@ -1543,7 +1543,7 @@ async function resolveWorkflowObservation(auth, service, { observationId, shotId
     throw error;
   }
   if (!(await canEditPunchListWorkflow(auth, shot.org_id))) {
-    const error = new Error("Client Viewer or Field User access is required to edit workflow fields.");
+    const error = new Error("Viewer or Field access is required to edit workflow fields.");
     error.statusCode = 403;
     throw error;
   }
@@ -1743,7 +1743,7 @@ async function handleAddTradeOption(req, res) {
     const auth = await authenticateRequest(req);
     if (auth.error) return sendJson(res, 401, { error: auth.error });
     if (!(await canAddTradeOption(auth))) {
-      return sendJson(res, 403, { error: "Field User access is required to add trades." });
+      return sendJson(res, 403, { error: "Field access is required to add trades." });
     }
 
     const service = createServiceClient();

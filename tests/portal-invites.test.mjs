@@ -155,7 +155,7 @@ test("existing-user access email points to reports without password setup copy",
 
   assert.equal(payload.to, "client@example.com");
   assert.equal(payload.subject, "SCOUT access added for Client Org");
-  assert.match(payload.text, /You've been given Client Viewer access to Client Org\./);
+  assert.match(payload.text, /You've been given Viewer access to Client Org\./);
   assert.match(payload.text, /Open Reports Portal: https:\/\/www\.scoutclear\.com\/reports/);
   assert.match(payload.html, new RegExp(`src="${PORTAL_EMAIL_LOGO_URL}"`));
   assert.match(payload.html, /alt="ScoutClear"/);
@@ -178,7 +178,7 @@ test("new-user invite email uses logo branding and preserves invite CTA", () => 
   });
 
   assert.equal(payload.to, "new@example.com");
-  assert.equal(payload.subject, "Your SCOUT Field User invite");
+  assert.equal(payload.subject, "Your SCOUT Field invite");
   assert.match(payload.text, /Open your invite: https:\/\/www\.scoutclear\.com\/accept-invite\?token=test-token/);
   assert.match(payload.text, /This invite expires in 7 days\./);
   assert.match(payload.html, new RegExp(`src="${PORTAL_EMAIL_LOGO_URL}"`));

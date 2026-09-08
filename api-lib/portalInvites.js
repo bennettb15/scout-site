@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { portalAccessRoleLabel } from "./portalAdminAccess.js";
 
 export const INVITE_TOKEN_BYTES = 32;
 export const INVITE_EXPIRES_DAYS = 7;
@@ -71,5 +72,5 @@ export function validateInvitePassword(password) {
 }
 
 export function inviteRoleLabel(role) {
-  return role === "field" ? "Field User" : "Client Viewer";
+  return portalAccessRoleLabel(role);
 }

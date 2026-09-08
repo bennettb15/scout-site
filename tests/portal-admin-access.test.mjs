@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  canActorChangePortalRole,
+  canActorRevokePortalRole,
   membershipNeedsRequiredAdminRepair,
   membershipSummary,
+  portalAccessRoleLabel,
+  wouldRemoveLastOwner,
 } from "../api-lib/portalAdminAccess.js";
 
 const orgId = "11111111-1111-4111-8111-111111111111";
@@ -61,6 +65,115 @@ test("ordinary org-level viewer access remains revocable", () => {
   );
 
   assert.equal(row.canRevoke, true);
+});
+
+test("portal role labels use the simplified names", () => {
+  assert.equal(portalAccessRoleLabel("viewer"), "Viewer");
+  assert.equal(portalAccessRoleLabel("field"), "Field");
+  assert.equal(portalAccessRoleLabel("manager"), "Manager");
+  assert.equal(portalAccessRoleLabel("owner"), "Owner");
+});
+
+test("owner can change viewer to field", () => {
+  assert.equal(
+    canActorChangePortalRole({
+      actorRole: "owner",
+      currentRole: "viewer",
+      nextRole: "field",
+    }),
+    true
+  );
+});
+
+test("owner can change field to manager", () => {
+  assert.equal(
+    canActorChangePortalRole({
+      actorRole: "owner",
+      currentRole: "field",
+      nextRole: "manager",
+    }),
+    true
+  );
+});
+
+test("manager can change viewer, field, and manager roles except to owner", () => {
+  assert.equal(
+    canActorChangePortalRole({
+      actorRole: "manager",
+      currentRole: "viewer",
+      nextRole: "field",
+    }),
+    true
+  );
+  assert.equal(
+    canActorChangePortalRole({
+      actorRole: "manager",
+      currentRole: "field",
+      nextRole: "manager",
+    }),
+    true
+  );
+  assert.equal(
+    canActorChangePortalRole({
+      actorRole: "manager",
+      currentRole: "manager",
+      nextRole: "viewer",
+    }),
+    true
+  );
+  assert.equal(
+    canActorChangePortalRole({
+      actorRole: "manager",
+      currentRole: "viewer",
+      nextRole: "owner",
+    }),
+    false
+  );
+});
+
+test("manager cannot change or revoke owner access", () => {
+  assert.equal(
+    canActorChangePortalRole({
+      actorRole: "manager",
+      currentRole: "owner",
+      nextRole: "manager",
+    }),
+    false
+  );
+  assert.equal(
+    canActorRevokePortalRole({
+      actorRole: "manager",
+      targetRole: "owner",
+    }),
+    false
+  );
+});
+
+test("last active owner cannot be downgraded or removed", () => {
+  assert.equal(
+    wouldRemoveLastOwner({
+      currentRole: "owner",
+      nextRole: "manager",
+      activeOwnerCount: 1,
+    }),
+    true
+  );
+  assert.equal(
+    wouldRemoveLastOwner({
+      currentRole: "owner",
+      nextRole: "",
+      activeOwnerCount: 1,
+    }),
+    true
+  );
+  assert.equal(
+    wouldRemoveLastOwner({
+      currentRole: "owner",
+      nextRole: "manager",
+      activeOwnerCount: 2,
+    }),
+    false
+  );
 });
 
 test("required admin repair upgrades missing, deleted, property-scoped, or non-owner rows", () => {

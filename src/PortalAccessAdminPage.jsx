@@ -21,15 +21,22 @@ const BRAND = {
 };
 
 const ACCESS_TYPE_OPTIONS = [
-  { value: "viewer", label: "Client Viewer" },
-  { value: "field", label: "Field User" },
+  { value: "viewer", label: "Viewer" },
+  { value: "field", label: "Field" },
+];
+
+const ROLE_CHANGE_OPTIONS = [
+  { value: "viewer", label: "Viewer" },
+  { value: "field", label: "Field" },
+  { value: "manager", label: "Manager" },
+  { value: "owner", label: "Owner" },
 ];
 
 const ACCESS_ROLE_LABELS = {
-  field: "Field User",
+  field: "Field",
   manager: "Manager",
   owner: "Owner",
-  viewer: "Client Viewer",
+  viewer: "Viewer",
 };
 
 function formatDate(value) {
@@ -63,7 +70,7 @@ function accessLabel(row) {
 }
 
 function selectedAccessTypeLabel(role) {
-  return ACCESS_ROLE_LABELS[role] || "Client Viewer";
+  return ACCESS_ROLE_LABELS[role] || "Viewer";
 }
 
 function accessRowKey(row) {
@@ -153,6 +160,45 @@ function InviteStatus({ row }) {
   );
 }
 
+function RoleSelect({ row, disabled, onChange }) {
+  const allowedRoles = new Set(row.allowedRoleChanges || []);
+  const canChange = row.canChangeRole && allowedRoles.size > 0;
+
+  if (!canChange) {
+    return (
+      <div className="grid gap-1">
+        <span className="font-medium text-foreground/75">{accessLabel(row)}</span>
+        <span className="text-xs text-foreground/45">
+          Role changes unavailable
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <label className="grid max-w-[220px] gap-1">
+      <span className="sr-only">Role for {row.email || row.userId}</span>
+      <select
+        value={row.role || "viewer"}
+        disabled={disabled}
+        onChange={(event) => onChange(row, event.target.value)}
+        className="h-10 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
+      >
+        {ROLE_CHANGE_OPTIONS.filter((option) => allowedRoles.has(option.value)).map(
+          (option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          )
+        )}
+      </select>
+      <span className="text-xs text-foreground/45">
+        {row.accessScope || "org"} access
+      </span>
+    </label>
+  );
+}
+
 export default function PortalAccessAdminPage() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -165,6 +211,7 @@ export default function PortalAccessAdminPage() {
   const [adminStatus, setAdminStatus] = useState("signed-out");
   const [submitting, setSubmitting] = useState(false);
   const [setupSubmitting, setSetupSubmitting] = useState(false);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [adminEmails, setAdminEmails] = useState([]);
   const [orgs, setOrgs] = useState([]);
   const [accessRows, setAccessRows] = useState([]);
@@ -177,6 +224,7 @@ export default function PortalAccessAdminPage() {
   const [setupLinkDetails, setSetupLinkDetails] = useState(null);
   const [copyMessage, setCopyMessage] = useState("");
   const [revokeId, setRevokeId] = useState("");
+  const [roleChangeId, setRoleChangeId] = useState("");
 
   useEffect(() => {
     document.title = BRAND.siteTitle;
@@ -248,6 +296,7 @@ export default function PortalAccessAdminPage() {
         setAccessRows([]);
         setPendingInvites([]);
         setSelectedOrgId("");
+        setIsPlatformAdmin(false);
         return;
       }
 
@@ -263,9 +312,13 @@ export default function PortalAccessAdminPage() {
         const body = await response.json().catch(() => ({}));
         if (active) {
           setAdminStatus(response.ok && body.isAdmin === true ? "authorized" : "denied");
+          setIsPlatformAdmin(response.ok && body.isPlatformAdmin === true);
         }
       } catch {
-        if (active) setAdminStatus("denied");
+        if (active) {
+          setAdminStatus("denied");
+          setIsPlatformAdmin(false);
+        }
       }
     }
 
@@ -497,6 +550,44 @@ export default function PortalAccessAdminPage() {
     }
   }
 
+  async function handleRoleChange(row, nextRole) {
+    if (!session?.access_token || !row?.canChangeRole || row.role === nextRole) return;
+    setRoleChangeId(row.id);
+    setActionMessage("");
+    setLoadError("");
+
+    try {
+      const response = await fetch("/api/admin/portal-access", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "changeRole",
+          orgId: row.orgId,
+          userId: row.userId,
+          accessRole: nextRole,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body.error || "Unable to change portal role.");
+      }
+      setActionMessage(
+        `Changed ${row.email || row.userId} to ${selectedAccessTypeLabel(
+          body.membership?.role || nextRole
+        )} for ${row.orgName}.`
+      );
+      await loadAccess(session);
+    } catch (error) {
+      setLoadError(error.message || "Unable to change portal role.");
+      await loadAccess(session);
+    } finally {
+      setRoleChangeId("");
+    }
+  }
+
   const selectedOrg = useMemo(
     () => orgs.find((org) => org.id === selectedOrgId) || null,
     [orgs, selectedOrgId]
@@ -701,41 +792,43 @@ export default function PortalAccessAdminPage() {
               </div>
             )}
 
-            <section className="rounded-lg border border-border bg-background p-5 shadow-sm">
-              <div className="grid max-w-3xl gap-4">
-                <div>
-                  <h2 className="text-base font-semibold text-foreground">
-                    Create Organization
-                  </h2>
-                  <p className="mt-1 text-sm leading-relaxed text-foreground/60">
-                    Create the organization here. Add properties in ScoutCapture.
-                  </p>
-                </div>
-                <form
-                  onSubmit={handleCreateOrganization}
-                  className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
-                >
-                  <label className="grid gap-1.5 text-sm font-medium text-foreground">
-                    Organization Name
-                    <input
-                      type="text"
-                      value={newOrgName}
-                      onChange={(event) => setNewOrgName(event.target.value)}
-                      maxLength={120}
-                      className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
-                    />
-                  </label>
-                  <button
-                    type="submit"
-                    disabled={creatingOrg || !newOrgName.trim()}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+            {isPlatformAdmin && (
+              <section className="rounded-lg border border-border bg-background p-5 shadow-sm">
+                <div className="grid max-w-3xl gap-4">
+                  <div>
+                    <h2 className="text-base font-semibold text-foreground">
+                      Create Organization
+                    </h2>
+                    <p className="mt-1 text-sm leading-relaxed text-foreground/60">
+                      Create the organization here. Add properties in ScoutCapture.
+                    </p>
+                  </div>
+                  <form
+                    onSubmit={handleCreateOrganization}
+                    className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
                   >
-                    <Plus className="h-4 w-4" />
-                    {creatingOrg ? "Creating..." : "Create Organization"}
-                  </button>
-                </form>
-              </div>
-            </section>
+                    <label className="grid gap-1.5 text-sm font-medium text-foreground">
+                      Organization Name
+                      <input
+                        type="text"
+                        value={newOrgName}
+                        onChange={(event) => setNewOrgName(event.target.value)}
+                        maxLength={120}
+                        className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      disabled={creatingOrg || !newOrgName.trim()}
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+                    >
+                      <Plus className="h-4 w-4" />
+                      {creatingOrg ? "Creating..." : "Create Organization"}
+                    </button>
+                  </form>
+                </div>
+              </section>
+            )}
 
             <section className="rounded-lg border border-border bg-background p-5 shadow-sm">
               <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px_auto] lg:items-end">
@@ -923,9 +1016,15 @@ export default function PortalAccessAdminPage() {
                           )}
                         </td>
                         <td className="px-5 py-3 text-foreground/70">
-                          {row.rowType === "invite"
-                            ? `${selectedAccessTypeLabel(row.role)} / ${row.accessScope || "org"}`
-                            : accessLabel(row)}
+                          {row.rowType === "invite" ? (
+                            `${selectedAccessTypeLabel(row.role)} / ${row.accessScope || "org"}`
+                          ) : (
+                            <RoleSelect
+                              row={row}
+                              disabled={roleChangeId === row.id}
+                              onChange={handleRoleChange}
+                            />
+                          )}
                         </td>
                         <td className="px-5 py-3 text-foreground/70">
                           {formatDate(row.createdAt)}
