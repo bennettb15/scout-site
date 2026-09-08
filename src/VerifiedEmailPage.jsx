@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 import {
-  exchangeRecoveryCode,
+  configuredSupabaseUrl,
   hasSupabaseConfig,
   setRecoverySession,
   supabase,
 } from "./lib/supabaseClient";
+import {
+  EMAIL_VERIFICATION_TYPES,
+  hasVerificationCallback,
+  safeSupabaseConfirmationUrl,
+  verificationLinkValuesFromUrl,
+} from "./lib/verificationCallback";
 
 const BRAND = {
   siteTitle: "Email Verified | SCOUT",
@@ -14,33 +20,8 @@ const BRAND = {
   },
 };
 
-const EMAIL_VERIFICATION_TYPES = new Set(["email", "signup"]);
-
 function getVerificationLinkValues() {
-  const query = new URLSearchParams(window.location.search);
-  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-
-  return {
-    code: query.get("code"),
-    tokenHash: query.get("token_hash") || hash.get("token_hash"),
-    type: query.get("type") || hash.get("type"),
-    accessToken: hash.get("access_token"),
-    refreshToken: hash.get("refresh_token"),
-    error:
-      query.get("error_description") ||
-      query.get("error") ||
-      hash.get("error_description") ||
-      hash.get("error"),
-  };
-}
-
-function hasVerificationCallback({
-  code,
-  tokenHash,
-  accessToken,
-  refreshToken,
-}) {
-  return Boolean(code || tokenHash || (accessToken && refreshToken));
+  return verificationLinkValuesFromUrl(window.location.href);
 }
 
 export default function VerifiedEmailPage() {
@@ -56,10 +37,19 @@ export default function VerifiedEmailPage() {
     let isActive = true;
     const linkValues = getVerificationLinkValues();
     const hasCallback = hasVerificationCallback(linkValues);
+    const confirmationUrl = safeSupabaseConfirmationUrl(
+      linkValues.confirmationUrl,
+      configuredSupabaseUrl
+    );
 
     async function verifyEmailLink() {
       if (linkValues.error) {
         setStatus("invalid");
+        return;
+      }
+
+      if (linkValues.confirmationUrl) {
+        setStatus(confirmationUrl ? "confirm-action" : "invalid");
         return;
       }
 
@@ -97,10 +87,10 @@ export default function VerifiedEmailPage() {
             throw new Error("Verification did not return a session.");
           }
         } else if (linkValues.code) {
-          const session = await exchangeRecoveryCode(linkValues.code);
-          if (!session?.access_token) {
-            throw new Error("Verification did not return a session.");
-          }
+          // ScoutCapture starts signup in the native Swift client, whose PKCE
+          // verifier is not available to this browser callback. Reaching
+          // /verified with a code means Supabase already accepted the email
+          // confirmation link, so show success and let the user sign in there.
         }
 
         window.history.replaceState(null, "", "/verified");
@@ -169,6 +159,17 @@ export default function VerifiedEmailPage() {
               </>
             )}
 
+            {status === "confirm-action" && (
+              <MessageState
+                icon="→"
+                title="Verify your email"
+                body="Confirm this email address to finish creating your ScoutCapture account."
+                secondaryBody="After verification, return to ScoutCapture and sign in with your email and password."
+                actionHref={confirmationUrl}
+                actionLabel="Verify Email"
+              />
+            )}
+
             {status === "success" && (
               <MessageState
                 icon="✓"
@@ -208,7 +209,7 @@ export default function VerifiedEmailPage() {
   );
 }
 
-function MessageState({ icon, title, body, secondaryBody }) {
+function MessageState({ icon, title, body, secondaryBody, actionHref, actionLabel }) {
   return (
     <>
       <div className="mx-auto mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand)] text-2xl font-semibold text-white">
@@ -227,6 +228,15 @@ function MessageState({ icon, title, body, secondaryBody }) {
         <p className="mt-3 text-base leading-relaxed text-foreground/75 md:text-lg">
           {secondaryBody}
         </p>
+      )}
+
+      {actionHref && (
+        <a
+          href={actionHref}
+          className="mt-6 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--brand)]/90"
+        >
+          {actionLabel}
+        </a>
       )}
     </>
   );
