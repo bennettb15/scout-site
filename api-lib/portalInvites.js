@@ -35,10 +35,15 @@ export function portalInviteStatus(invite, now = new Date()) {
   if (!invite) return "invalid";
   if (invite.accepted_at) return "accepted";
   if (invite.revoked_at) {
+    if (invite.revoked_reason === "canceled") return "canceled";
     return invite.revoked_reason === "replaced" ? "replaced" : "revoked";
   }
   if (new Date(invite.expires_at).getTime() <= now.getTime()) return "expired";
   return "ready";
+}
+
+export function isNormalPendingInvite(invite) {
+  return Boolean(invite && !invite.accepted_at && !invite.revoked_at);
 }
 
 export function invitePublicState(invite, org, authUser, now = new Date()) {

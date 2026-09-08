@@ -37,6 +37,10 @@ export function canActorInvitePortalRole({ actorRole, targetRole }) {
   return inviteRolesForActor(actorRole).includes(targetRole);
 }
 
+export function canActorCancelPendingInvite({ actorRole, inviteRole }) {
+  return canActorInvitePortalRole({ actorRole, targetRole: inviteRole });
+}
+
 export function canActorChangePortalRole({ actorRole, currentRole, nextRole, isRequiredAdmin = false }) {
   if (isRequiredAdmin) return false;
   if (!PORTAL_ACCESS_ROLES.has(currentRole) || !PORTAL_ACCESS_ROLES.has(nextRole)) return false;

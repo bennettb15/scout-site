@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  canActorCancelPendingInvite,
   canActorChangePortalRole,
   canActorInvitePortalRole,
   canActorRevokePortalRole,
@@ -164,6 +165,23 @@ test("manager invite dropdown allows viewer, field, and manager", () => {
 
 test("manager cannot invite or grant owner", () => {
   assert.equal(canActorInvitePortalRole({ actorRole: "manager", targetRole: "owner" }), false);
+});
+
+test("owner can cancel pending invites for any role", () => {
+  assert.equal(canActorCancelPendingInvite({ actorRole: "owner", inviteRole: "viewer" }), true);
+  assert.equal(canActorCancelPendingInvite({ actorRole: "owner", inviteRole: "field" }), true);
+  assert.equal(canActorCancelPendingInvite({ actorRole: "owner", inviteRole: "manager" }), true);
+  assert.equal(canActorCancelPendingInvite({ actorRole: "owner", inviteRole: "owner" }), true);
+});
+
+test("manager can cancel viewer, field, and manager pending invites", () => {
+  assert.equal(canActorCancelPendingInvite({ actorRole: "manager", inviteRole: "viewer" }), true);
+  assert.equal(canActorCancelPendingInvite({ actorRole: "manager", inviteRole: "field" }), true);
+  assert.equal(canActorCancelPendingInvite({ actorRole: "manager", inviteRole: "manager" }), true);
+});
+
+test("manager cannot cancel owner pending invite", () => {
+  assert.equal(canActorCancelPendingInvite({ actorRole: "manager", inviteRole: "owner" }), false);
 });
 
 test("last active owner cannot be downgraded or removed", () => {

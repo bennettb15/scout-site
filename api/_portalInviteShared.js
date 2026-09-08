@@ -20,6 +20,7 @@ import {
   inviteAdminActionForUser,
   invitePublicState,
   inviteRoleLabel,
+  isNormalPendingInvite,
   portalInviteStatus,
   validateInvitePassword,
 } from "../api-lib/portalInvites.js";
@@ -36,6 +37,7 @@ export {
   inviteAdminActionForUser,
   invitePublicState,
   inviteRoleLabel,
+  isNormalPendingInvite,
   portalInviteStatus,
   validateInvitePassword,
 };
@@ -112,7 +114,7 @@ export function portalInviteEmailPayload({ email, org, role, setupUrl, from, rep
   return {
     from,
     to: email,
-    subject: `Your SCOUT ${safeRole} invite`,
+    subject: "You're invited to SCOUT",
     html: `
       <div style="margin:0;background:#f7f7f4;padding:32px 16px;font-family:Arial,sans-serif;color:#1c2742">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e4e2dc;border-radius:8px">
@@ -367,6 +369,13 @@ export async function activateInvite({
     throw new PortalInviteError(
       "replaced",
       "This invite was replaced by a newer invite. Use the newest SCOUT invite email.",
+      410
+    );
+  }
+  if (state === "canceled") {
+    throw new PortalInviteError(
+      "canceled",
+      "This invite was canceled. Ask your SCOUT contact for a new Client Portal invite.",
       410
     );
   }

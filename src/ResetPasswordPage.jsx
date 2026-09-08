@@ -71,6 +71,10 @@ export default function ResetPasswordPage() {
         title: "This invite was replaced.",
         body: "Use the newest SCOUT invite email or ask your SCOUT contact to send a fresh link.",
       },
+      canceled: {
+        title: "This invite was canceled.",
+        body: "Ask your SCOUT contact for a new Client Portal invite.",
+      },
       revoked: {
         title: "This invite is no longer active.",
         body: "Ask your SCOUT contact for a new Client Portal invite.",
@@ -174,6 +178,7 @@ export default function ResetPasswordPage() {
       expired: "expired",
       invalid: "invalid",
       missing_org: "missing_org",
+      canceled: "canceled",
       replaced: "replaced",
       revoked: "revoked",
       sign_in_required: "sign-in",
@@ -460,7 +465,7 @@ export default function ResetPasswordPage() {
             )}
 
             {isPortalInvite &&
-              ["invalid", "expired", "accepted", "replaced", "revoked", "missing_org", "wrong-email"].includes(
+              ["invalid", "expired", "accepted", "replaced", "canceled", "revoked", "missing_org", "wrong-email"].includes(
                 linkStatus
               ) && (
                 <MessageState

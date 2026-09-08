@@ -122,6 +122,13 @@ function inviteStatusMeta(row) {
       detail: "A newer invite replaced this one.",
     };
   }
+  if (row.state === "canceled") {
+    return {
+      label: "Canceled",
+      badgeClass: "border-slate-200 bg-slate-50 text-foreground/65",
+      detail: "Invite was canceled.",
+    };
+  }
   if (row.state === "revoked") {
     return {
       label: "Canceled",
@@ -219,6 +226,7 @@ export default function PortalAccessAdminPage() {
   const [setupLinkDetails, setSetupLinkDetails] = useState(null);
   const [copyMessage, setCopyMessage] = useState("");
   const [revokeId, setRevokeId] = useState("");
+  const [cancelInviteId, setCancelInviteId] = useState("");
   const [roleChangeId, setRoleChangeId] = useState("");
 
   useEffect(() => {
@@ -580,6 +588,39 @@ export default function PortalAccessAdminPage() {
       await loadAccess(session);
     } finally {
       setRoleChangeId("");
+    }
+  }
+
+  async function handleCancelInvite(row) {
+    if (!session?.access_token || !row?.id || !row?.canCancel) return;
+    setCancelInviteId(row.id);
+    setActionMessage("");
+    setLoadError("");
+
+    try {
+      const response = await fetch("/api/admin/portal-access", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "cancelInvite",
+          inviteId: row.id,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body.error || "Unable to cancel invite.");
+      }
+      setPendingInvites((current) => current.filter((invite) => invite.id !== row.id));
+      setActionMessage(`Canceled invite for ${row.email} to ${row.orgName}.`);
+      await loadAccess(session);
+    } catch (error) {
+      setLoadError(error.message || "Unable to cancel invite.");
+      await loadAccess(session);
+    } finally {
+      setCancelInviteId("");
     }
   }
 
@@ -1044,9 +1085,20 @@ export default function PortalAccessAdminPage() {
                         </td>
                         <td className="px-5 py-3 text-right">
                           {row.rowType === "invite" ? (
-                            <span className="text-sm font-medium text-foreground/45">
-                              Pending
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelInvite(row)}
+                              disabled={!row.canCancel || cancelInviteId === row.id}
+                              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-red-700 disabled:opacity-45"
+                              title={
+                                row.canCancel
+                                  ? "Cancel pending invite"
+                                  : "This invite cannot be canceled here"
+                              }
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              {cancelInviteId === row.id ? "Canceling..." : "Cancel"}
+                            </button>
                           ) : (
                             <button
                               type="button"

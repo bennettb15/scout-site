@@ -9,11 +9,13 @@ import {
   inviteAdminActionForUser,
   inviteExpiresAt,
   invitePublicState,
+  isNormalPendingInvite,
   portalInviteStatus,
   validateInvitePassword,
 } from "../api-lib/portalInvites.js";
 import {
   PORTAL_EMAIL_LOGO_URL,
+  activateInvite,
   portalAccessAddedEmailPayload,
   portalInviteEmailPayload,
 } from "../api/_portalInviteShared.js";
@@ -81,6 +83,57 @@ test("replaced invite reports replaced for old links", () => {
       now
     ),
     "replaced"
+  );
+});
+
+test("canceled invite reports canceled for old links", () => {
+  assert.equal(
+    portalInviteStatus(
+      invite({
+        revoked_at: "2026-09-07T11:00:00.000Z",
+        revoked_reason: "canceled",
+      }),
+      now
+    ),
+    "canceled"
+  );
+});
+
+test("canceled invite is removed from the normal pending list", () => {
+  assert.equal(isNormalPendingInvite(invite()), true);
+  assert.equal(
+    isNormalPendingInvite(invite({ revoked_at: "2026-09-07T11:00:00.000Z", revoked_reason: "canceled" })),
+    false
+  );
+  assert.equal(
+    isNormalPendingInvite(invite({ accepted_at: "2026-09-07T11:00:00.000Z" })),
+    false
+  );
+});
+
+test("canceled invite cannot be accepted", async () => {
+  await assert.rejects(
+    () =>
+      activateInvite({
+        service: {},
+        req: {},
+        invite: invite({
+          email: "new@example.com",
+          org_id: "org-1",
+          role: "field",
+          revoked_at: "2026-09-07T11:00:00.000Z",
+          revoked_reason: "canceled",
+        }),
+        org: { id: "org-1", name: "Client Org" },
+        password: "password1",
+        actorId: "actor-1",
+        upsertOrgMembership: async () => {
+          throw new Error("should not upsert canceled invite");
+        },
+      }),
+    (error) =>
+      error instanceof PortalInviteError &&
+      error.code === "canceled"
   );
 });
 
@@ -178,7 +231,7 @@ test("new-user invite email uses logo branding and preserves invite CTA", () => 
   });
 
   assert.equal(payload.to, "new@example.com");
-  assert.equal(payload.subject, "Your SCOUT Field invite");
+  assert.equal(payload.subject, "You're invited to SCOUT");
   assert.match(payload.text, /Open your invite: https:\/\/www\.scoutclear\.com\/accept-invite\?token=test-token/);
   assert.match(payload.text, /This invite expires in 7 days\./);
   assert.match(payload.html, new RegExp(`src="${PORTAL_EMAIL_LOGO_URL}"`));
@@ -206,7 +259,7 @@ test("portal access emails render manager and owner role labels", () => {
     replyTo: "hello@scoutclear.com",
   });
 
-  assert.equal(managerInvite.subject, "Your SCOUT Manager invite");
+  assert.equal(managerInvite.subject, "You're invited to SCOUT");
   assert.match(managerInvite.text, /Access: Manager/);
   assert.match(managerInvite.html, /invited as a Manager for Client Org/);
   assert.equal(ownerAccess.subject, "SCOUT access added for Client Org");

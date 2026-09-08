@@ -26,6 +26,7 @@ import {
   inviteExpiresAt,
   inviteAdminActionForUser,
   inviteRoleLabel,
+  isNormalPendingInvite,
   inviteUrl,
   loadInvitePublicDetails,
   portalInviteErrorResponse,
@@ -37,6 +38,7 @@ import {
 import {
   ORDINARY_ACCESS_ROLES,
   PORTAL_ACCESS_ROLES,
+  canActorCancelPendingInvite,
   canActorInvitePortalRole,
   canActorChangePortalRole,
   canActorRevokePortalRole,
@@ -125,6 +127,19 @@ function pendingInviteSummary(row, orgById) {
   };
 }
 
+function decoratePendingInvitesForActor(rows, context) {
+  return rows.map((row) => {
+    const actorRole = actorRoleForOrg(context, row.orgId);
+    return {
+      ...row,
+      canCancel: canActorCancelPendingInvite({
+        actorRole,
+        inviteRole: normalizePortalAccessRole(row.role, ""),
+      }),
+    };
+  });
+}
+
 async function loadPendingInvites(service, orgById) {
   const orgIds = [...orgById.keys()];
   if (!orgIds.length) return [];
@@ -144,7 +159,9 @@ async function loadPendingInvites(service, orgById) {
     throw error;
   }
 
-  return (data || []).map((row) => pendingInviteSummary(row, orgById));
+  return (data || [])
+    .filter(isNormalPendingInvite)
+    .map((row) => pendingInviteSummary(row, orgById));
 }
 
 async function ensureRequiredAdminOrgAccess(service, orgRows, actorId) {
@@ -344,7 +361,10 @@ async function loadPortalAccess(context) {
   const accessRows = decorateAccessRowsForActor((membershipRows || []).map((row) =>
     membershipSummary(row, profileById, orgById, authById, authStatusAvailable)
   ), context);
-  const pendingInvites = await loadPendingInvites(context.service, orgById);
+  const pendingInvites = decoratePendingInvitesForActor(
+    await loadPendingInvites(context.service, orgById),
+    context
+  );
 
   return {
     adminEmails: [...adminEmailSet()].sort(),
@@ -841,6 +861,84 @@ async function createSetupLink(req, res, context) {
   }
 }
 
+async function cancelPendingInvite(req, res, context) {
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body." });
+  }
+
+  const inviteId = validateUuid(body.inviteId);
+  if (!inviteId) return sendJson(res, 400, { error: "Valid invite ID is required." });
+
+  try {
+    const { data: invite, error: inviteError } = await context.service
+      .from("portal_invites")
+      .select("id,org_id,email,role,access_scope,created_at,expires_at,accepted_at,revoked_at,revoked_reason")
+      .eq("id", inviteId)
+      .maybeSingle();
+
+    if (inviteError) {
+      if (inviteError.code === "42P01") {
+        return sendJson(res, 404, { error: "Pending invite not found." });
+      }
+      throw inviteError;
+    }
+    if (!invite) return sendJson(res, 404, { error: "Pending invite not found." });
+    if (invite.accepted_at) {
+      return sendJson(res, 409, { error: "This invite has already been accepted." });
+    }
+    if (invite.revoked_at) {
+      return sendJson(res, 200, {
+        canceled: false,
+        alreadyCanceled: true,
+        invite: pendingInviteSummary(invite, new Map()),
+      });
+    }
+
+    const actorRole = await requireActorManagementRole(context, invite.org_id);
+    if (
+      !canActorCancelPendingInvite({
+        actorRole,
+        inviteRole: normalizePortalAccessRole(invite.role, ""),
+      })
+    ) {
+      return sendJson(res, 403, {
+        error: "You do not have permission to cancel this invite.",
+      });
+    }
+
+    const canceledAt = new Date().toISOString();
+    const { data: canceledInvite, error: cancelError } = await context.service
+      .from("portal_invites")
+      .update({
+        revoked_at: canceledAt,
+        revoked_reason: "canceled",
+        updated_by: context.user.id,
+      })
+      .eq("id", invite.id)
+      .is("accepted_at", null)
+      .is("revoked_at", null)
+      .select("id,org_id,email,role,access_scope,created_at,expires_at,accepted_at,revoked_at,revoked_reason")
+      .maybeSingle();
+
+    if (cancelError) throw cancelError;
+    if (!canceledInvite) {
+      return sendJson(res, 409, { error: "This invite is no longer pending." });
+    }
+
+    return sendJson(res, 200, {
+      canceled: true,
+      invite: pendingInviteSummary(canceledInvite, new Map()),
+    });
+  } catch (error) {
+    return sendJson(res, error.status || 500, {
+      error: error.message || "Unable to cancel invite.",
+    });
+  }
+}
+
 async function createOrganization(req, res, context) {
   let body = {};
   try {
@@ -1198,6 +1296,7 @@ export default async function handler(req, res) {
     if (body.action === "setupLink") return createSetupLink(req, res, context);
     if (body.action === "grantExisting") return grantExistingOrgAccess(req, res, context);
     if (body.action === "changeRole") return changeOrgAccessRole(req, res, context);
+    if (body.action === "cancelInvite") return cancelPendingInvite(req, res, context);
     return grantOrgAccess(req, res, context);
   }
   if (req.method === "DELETE") return revokeOrgAccess(req, res, context);
