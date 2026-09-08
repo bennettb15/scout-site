@@ -41,6 +41,7 @@ import {
 import {
   buildPunchListSummary,
   filterPunchListRowsForOverdue,
+  nextPunchListOverdueFilter,
   nextPunchListTradeFilter,
   tradeKey,
 } from "../src/lib/punchListSummary.js";
@@ -791,6 +792,16 @@ test("punch list trade chip filter works inside overdue filter", () => {
     }).tradeCounts,
     [{ id: "hvac", label: "HVAC", count: 1 }]
   );
+});
+
+test("punch list overdue chip toggles filter on and off", () => {
+  assert.equal(nextPunchListOverdueFilter(false, 2), true);
+  assert.equal(nextPunchListOverdueFilter(true, 2), false);
+});
+
+test("punch list overdue chip stays off when there are no overdue items", () => {
+  assert.equal(nextPunchListOverdueFilter(false, 0), false);
+  assert.equal(nextPunchListOverdueFilter(true, 0), false);
 });
 
 test("punch list overdue filter limits visible rows to overdue open items", () => {

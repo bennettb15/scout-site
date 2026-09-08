@@ -23,6 +23,7 @@ import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
   buildPunchListSummary,
   filterPunchListRowsForOverdue,
+  nextPunchListOverdueFilter,
   nextPunchListTradeFilter,
 } from "./lib/punchListSummary";
 
@@ -1106,63 +1107,54 @@ const PUNCH_LIST_STYLES = `
     background: rgb(220 38 38);
   }
 
-  .punch-summary-overdue-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    margin-top: 9px;
-  }
-
-  .punch-summary-overdue-button {
+  .punch-summary-overdue-chip {
     display: inline-flex;
-    height: 32px;
+    min-width: 0;
+    max-width: 100%;
+    height: 28px;
     align-items: center;
+    gap: 7px;
     justify-content: center;
-    border-radius: 8px;
+    border-radius: 999px;
     border: 1px solid rgb(254 202 202);
     background: rgb(254 242 242);
-    padding: 0 10px;
+    padding: 0 8px 0 10px;
     color: rgb(185 28 28);
+    font-family: inherit;
     font-size: 12px;
     font-weight: 850;
     line-height: 1;
+    cursor: pointer;
     transition:
       background 120ms ease,
       border-color 120ms ease,
       color 120ms ease;
   }
 
-  .punch-summary-overdue-button:hover {
+  .punch-summary-overdue-chip:hover {
     border-color: rgb(248 113 113);
     background: rgb(254 226 226);
     color: rgb(127 29 29);
   }
 
-  .punch-summary-overdue-button.is-secondary {
-    border-color: rgb(226 232 240);
+  .punch-summary-overdue-chip.is-active {
+    border-color: rgb(220 38 38);
+    background: rgb(220 38 38);
+    color: white;
+    box-shadow: 0 1px 2px rgba(220, 38, 38, 0.18);
+  }
+
+  .punch-summary-overdue-chip.is-active .punch-summary-overdue-count {
     background: white;
-    color: rgb(71 85 105);
+    color: rgb(220 38 38);
   }
 
-  .punch-summary-overdue-button.is-secondary:hover {
-    border-color: rgb(203 213 225);
+  .punch-summary-overdue-chip:disabled {
+    border-color: rgb(226 232 240);
     background: rgb(248 250 252);
-    color: rgb(15 23 42);
-  }
-
-  .punch-summary-active {
-    display: inline-flex;
-    min-height: 28px;
-    align-items: center;
-    border-radius: 999px;
-    border: 1px solid rgb(254 202 202);
-    background: rgb(254 242 242);
-    padding: 0 9px;
-    color: rgb(153 27 27);
-    font-size: 12px;
-    font-weight: 850;
-    line-height: 1;
+    color: rgb(100 116 139);
+    cursor: default;
+    opacity: 1;
   }
 
   .punch-summary-empty {
@@ -4020,8 +4012,7 @@ function PunchListSummaryBand({
   selectedTrade,
   overdueOnly,
   onTradeFilter,
-  onFilterOverdue,
-  onClearOverdue,
+  onToggleOverdue,
 }) {
   if (!summary) return null;
   const tradeItems = summary.tradeCounts.slice(0, 8);
@@ -4062,33 +4053,19 @@ function PunchListSummaryBand({
         )}
       </section>
       <section className="punch-summary-section punch-summary-overdue">
-        <div className="punch-summary-heading-row">
-          <div className="punch-summary-heading">Overdue</div>
-          <span className="punch-summary-overdue-count">
-            {summary.overdueCount}
-          </span>
-        </div>
-        {overdueOnly ? (
-          <div className="punch-summary-overdue-actions">
-            <span className="punch-summary-active">Showing overdue items</span>
-            <button
-              type="button"
-              className="punch-summary-overdue-button is-secondary"
-              onClick={onClearOverdue}
-            >
-              Clear overdue filter
-            </button>
-          </div>
-        ) : summary.overdueCount > 0 ? (
-          <div className="punch-summary-overdue-actions">
-            <button
-              type="button"
-              className="punch-summary-overdue-button"
-              onClick={onFilterOverdue}
-            >
-              Filter overdue
-            </button>
-          </div>
+        {summary.overdueCount > 0 || overdueOnly ? (
+          <button
+            type="button"
+            className={`punch-summary-overdue-chip ${overdueOnly ? "is-active" : ""}`}
+            onClick={onToggleOverdue}
+            aria-pressed={overdueOnly}
+            title={overdueOnly ? "Clear overdue filter" : "Filter overdue"}
+          >
+            <span className="punch-summary-trade-label">Filter Overdue</span>
+            <span className="punch-summary-overdue-count">
+              {summary.overdueCount}
+            </span>
+          </button>
         ) : (
           <div className="punch-summary-empty">No overdue open items.</div>
         )}
@@ -6363,8 +6340,14 @@ export default function ScoutPunchListPage() {
                     nextPunchListTradeFilter(currentTradeId, tradeId, ALL)
                   )
                 }
-                onFilterOverdue={() => setOverdueOnly(true)}
-                onClearOverdue={() => setOverdueOnly(false)}
+                onToggleOverdue={() =>
+                  setOverdueOnly((currentOverdueOnly) =>
+                    nextPunchListOverdueFilter(
+                      currentOverdueOnly,
+                      punchListSummary?.overdueCount || 0
+                    )
+                  )
+                }
               />
             )}
 
