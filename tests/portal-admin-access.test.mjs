@@ -40,6 +40,7 @@ import {
 } from "../src/lib/reportPortalFilters.js";
 import {
   buildPunchListSummary,
+  filterPunchListRowsForOverdue,
   tradeKey,
 } from "../src/lib/punchListSummary.js";
 
@@ -746,6 +747,53 @@ test("punch list summary respects already-applied trade filters", () => {
   });
 
   assert.deepEqual(summary.tradeCounts, [{ id: "hvac", label: "HVAC", count: 1 }]);
+});
+
+test("punch list overdue filter limits visible rows to overdue open items", () => {
+  const rows = [
+    { id: "overdue-active", status: "active", dueDate: "2026-09-07" },
+    { id: "overdue-pending", status: "pending_review", dueDate: "2026-09-01" },
+    { id: "due-today", status: "active", dueDate: "2026-09-08" },
+    { id: "resolved-overdue", status: "resolved", dueDate: "2026-09-01" },
+    { id: "no-due-date", status: "active", dueDate: "" },
+  ];
+
+  assert.deepEqual(
+    filterPunchListRowsForOverdue(rows, "2026-09-08").map((row) => row.id),
+    ["overdue-active", "overdue-pending"]
+  );
+});
+
+test("clearing punch list overdue filter restores normal filtered open rows", () => {
+  const baseFilteredRows = [
+    { id: "overdue", status: "active", dueDate: "2026-09-07" },
+    { id: "not-overdue", status: "active", dueDate: "2026-09-09" },
+  ];
+  const overdueRows = filterPunchListRowsForOverdue(baseFilteredRows, "2026-09-08");
+
+  assert.deepEqual(overdueRows.map((row) => row.id), ["overdue"]);
+  assert.deepEqual(baseFilteredRows.map((row) => row.id), ["overdue", "not-overdue"]);
+});
+
+test("punch list summary trade counts reflect overdue-filtered visible rows", () => {
+  const rows = [
+    { id: "overdue-hvac", status: "active", trade: "HVAC", dueDate: "2026-09-07" },
+    { id: "future-hvac", status: "active", trade: "HVAC", dueDate: "2026-09-09" },
+    { id: "overdue-plumbing", status: "pending_review", trade: "plumbing", dueDate: "2026-09-01" },
+  ];
+  const overdueRows = filterPunchListRowsForOverdue(rows, "2026-09-08");
+  const summary = buildPunchListSummary(overdueRows, {
+    tradeOptions: [
+      { id: "hvac", label: "HVAC" },
+      { id: "plumbing", label: "Plumbing" },
+    ],
+    todayDate: "2026-09-08",
+  });
+
+  assert.deepEqual(summary.tradeCounts, [
+    { id: "hvac", label: "HVAC", count: 1 },
+    { id: "plumbing", label: "Plumbing", count: 1 },
+  ]);
 });
 
 test("Owner sees all current properties but not deleted property packages", () => {

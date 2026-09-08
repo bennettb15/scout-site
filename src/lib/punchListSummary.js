@@ -93,6 +93,12 @@ export function isOverduePunchListRow(row = {}, todayDate = todayDateOnlyFromDat
   return Boolean(dueDate && todayDate && dueDate < todayDate);
 }
 
+export function filterPunchListRowsForOverdue(rows = [], todayDate = todayDateOnlyFromDate()) {
+  return (Array.isArray(rows) ? rows : []).filter((row) =>
+    isOverduePunchListRow(row, todayDate)
+  );
+}
+
 export function buildPunchListSummary(rows = [], { tradeOptions = [], todayDate = todayDateOnlyFromDate() } = {}) {
   const visibleOpenRows = (Array.isArray(rows) ? rows : []).filter(isOpenPunchListRow);
   const tradeCountsByKey = new Map();

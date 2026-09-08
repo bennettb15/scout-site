@@ -20,7 +20,10 @@ import {
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
-import { buildPunchListSummary } from "./lib/punchListSummary";
+import {
+  buildPunchListSummary,
+  filterPunchListRowsForOverdue,
+} from "./lib/punchListSummary";
 
 const BRAND = {
   siteTitle: "Punch List | SCOUT",
@@ -1077,52 +1080,71 @@ const PUNCH_LIST_STYLES = `
     background: rgb(220 38 38);
   }
 
-  .punch-summary-overdue-list {
-    display: grid;
-    gap: 6px;
+  .punch-summary-overdue-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
     margin-top: 9px;
   }
 
-  .punch-summary-overdue-item {
-    min-width: 0;
+  .punch-summary-overdue-button {
+    display: inline-flex;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
     border-radius: 8px;
     border: 1px solid rgb(254 202 202);
     background: rgb(254 242 242);
-    padding: 7px 9px;
-  }
-
-  .punch-summary-overdue-title {
-    overflow: hidden;
-    color: rgb(127 29 29);
+    padding: 0 10px;
+    color: rgb(185 28 28);
     font-size: 12px;
-    font-weight: 900;
-    line-height: 1.25;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-weight: 850;
+    line-height: 1;
+    transition:
+      background 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease;
   }
 
-  .punch-summary-overdue-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px 8px;
-    margin-top: 4px;
-    color: rgb(100 116 139);
-    font-size: 11px;
-    font-weight: 750;
-    line-height: 1.25;
+  .punch-summary-overdue-button:hover {
+    border-color: rgb(248 113 113);
+    background: rgb(254 226 226);
+    color: rgb(127 29 29);
   }
 
-  .punch-summary-more,
+  .punch-summary-overdue-button.is-secondary {
+    border-color: rgb(226 232 240);
+    background: white;
+    color: rgb(71 85 105);
+  }
+
+  .punch-summary-overdue-button.is-secondary:hover {
+    border-color: rgb(203 213 225);
+    background: rgb(248 250 252);
+    color: rgb(15 23 42);
+  }
+
+  .punch-summary-active {
+    display: inline-flex;
+    min-height: 28px;
+    align-items: center;
+    border-radius: 999px;
+    border: 1px solid rgb(254 202 202);
+    background: rgb(254 242 242);
+    padding: 0 9px;
+    color: rgb(153 27 27);
+    font-size: 12px;
+    font-weight: 850;
+    line-height: 1;
+  }
+
   .punch-summary-empty {
     margin-top: 9px;
     color: rgb(100 116 139);
     font-size: 12px;
     font-weight: 750;
     line-height: 1.3;
-  }
-
-  .punch-summary-more {
-    margin-top: 0;
   }
 
   .punch-row {
@@ -2755,10 +2777,6 @@ const PUNCH_LIST_STYLES = `
       max-width: 100%;
     }
 
-    .punch-summary-overdue-title {
-      white-space: normal;
-    }
-
     .punch-row-body {
       grid-template-columns: 96px minmax(0, 1fr);
       gap: 10px;
@@ -3971,11 +3989,15 @@ function RowDetail({
   );
 }
 
-function PunchListSummaryBand({ summary }) {
+function PunchListSummaryBand({
+  summary,
+  overdueOnly,
+  onFilterOverdue,
+  onClearOverdue,
+}) {
   if (!summary) return null;
   const tradeItems = summary.tradeCounts.slice(0, 8);
   const hiddenTradeCount = Math.max(0, summary.tradeCounts.length - tradeItems.length);
-  const overduePreview = summary.overdueItems.slice(0, 3);
 
   return (
     <div className="punch-summary-band" aria-label="Punch list operational summary">
@@ -4008,23 +4030,26 @@ function PunchListSummaryBand({ summary }) {
             {summary.overdueCount}
           </span>
         </div>
-        {overduePreview.length > 0 ? (
-          <div className="punch-summary-overdue-list">
-            {overduePreview.map((item) => (
-              <div key={item.id} className="punch-summary-overdue-item">
-                <div className="punch-summary-overdue-title">{item.title}</div>
-                <div className="punch-summary-overdue-meta">
-                  <span>{item.trade}</span>
-                  <span>{item.priority}</span>
-                  <span>{formatDueDate(item.dueDate)}</span>
-                </div>
-              </div>
-            ))}
-            {summary.overdueCount > overduePreview.length && (
-              <div className="punch-summary-more">
-                +{summary.overdueCount - overduePreview.length} more overdue
-              </div>
-            )}
+        {overdueOnly ? (
+          <div className="punch-summary-overdue-actions">
+            <span className="punch-summary-active">Showing overdue items</span>
+            <button
+              type="button"
+              className="punch-summary-overdue-button is-secondary"
+              onClick={onClearOverdue}
+            >
+              Clear overdue filter
+            </button>
+          </div>
+        ) : summary.overdueCount > 0 ? (
+          <div className="punch-summary-overdue-actions">
+            <button
+              type="button"
+              className="punch-summary-overdue-button"
+              onClick={onFilterOverdue}
+            >
+              Filter overdue
+            </button>
           </div>
         ) : (
           <div className="punch-summary-empty">No overdue open items.</div>
@@ -4642,6 +4667,7 @@ export default function ScoutPunchListPage() {
   const [selectedTrade, setSelectedTrade] = useState(ALL);
   const [selectedElevation, setSelectedElevation] = useState(ALL);
   const [selectedDetail, setSelectedDetail] = useState(ALL);
+  const [overdueOnly, setOverdueOnly] = useState(false);
   const [selectedRowId, setSelectedRowId] = useState("");
   const [downloadId, setDownloadId] = useState("");
   const [previewRow, setPreviewRow] = useState(null);
@@ -5828,7 +5854,13 @@ export default function ScoutPunchListPage() {
     );
   }, [orgFilteredRows, selectedTab]);
 
-  const filteredRows = useMemo(() => {
+  useEffect(() => {
+    if (selectedTab === TAB_RESOLVED && overdueOnly) {
+      setOverdueOnly(false);
+    }
+  }, [overdueOnly, selectedTab]);
+
+  const baseFilteredRows = useMemo(() => {
     return tabRows.filter((row) => {
       if (displayedPropertyId !== ALL && row.property?.id !== displayedPropertyId) return false;
       if (selectedPriority !== ALL && row.priority !== selectedPriority) return false;
@@ -5838,6 +5870,11 @@ export default function ScoutPunchListPage() {
       return true;
     });
   }, [displayedPropertyId, selectedDetail, selectedElevation, selectedPriority, selectedTrade, tabRows]);
+
+  const filteredRows = useMemo(() => {
+    if (!overdueOnly) return baseFilteredRows;
+    return filterPunchListRowsForOverdue(baseFilteredRows, todayDateOnly());
+  }, [baseFilteredRows, overdueOnly]);
 
   useEffect(() => {
     if (filteredRows.length === 0) {
@@ -5935,7 +5972,7 @@ export default function ScoutPunchListPage() {
     !punchListLoading &&
     !noPunchListSources &&
     !noPunchListProperties &&
-    filteredRows.length > 0;
+    baseFilteredRows.length > 0;
 
   return (
     <div
@@ -6279,7 +6316,12 @@ export default function ScoutPunchListPage() {
             </div>
 
             {showPunchListSummary && (
-              <PunchListSummaryBand summary={punchListSummary} />
+              <PunchListSummaryBand
+                summary={punchListSummary}
+                overdueOnly={overdueOnly}
+                onFilterOverdue={() => setOverdueOnly(true)}
+                onClearOverdue={() => setOverdueOnly(false)}
+              />
             )}
 
             {punchListError && (
@@ -6312,7 +6354,9 @@ export default function ScoutPunchListPage() {
               !noPunchListProperties &&
               filteredRows.length === 0 && (
                 <div className="rounded-lg border border-border bg-background p-6 text-sm text-foreground/70 shadow-sm">
-                  No punch list items match the selected filters.
+                  {overdueOnly
+                    ? "No overdue punch list items match the selected filters."
+                    : "No punch list items match the selected filters."}
                 </div>
               )}
 
