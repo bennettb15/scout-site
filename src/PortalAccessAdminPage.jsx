@@ -439,6 +439,16 @@ export default function PortalAccessAdminPage() {
     return pendingInvites.filter((row) => row.orgId === selectedOrgId);
   }, [pendingInvites, selectedOrgId]);
 
+  const activeAdminRows = useMemo(() => {
+    const approvedAdmins = new Set(adminEmails);
+    return visibleRows.filter(
+      (row) =>
+        approvedAdmins.has(row.email) &&
+        row.role === "owner" &&
+        (row.accessScope || "org") === "org"
+    );
+  }, [adminEmails, visibleRows]);
+
   return (
     <div
       style={{ "--brand": BRAND.brandNavy, "--brand-ink": "#23243A" }}
@@ -827,13 +837,13 @@ export default function PortalAccessAdminPage() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {adminEmails.map((adminEmail) => (
+                  {activeAdminRows.map((adminRow) => (
                     <span
-                      key={adminEmail}
+                      key={adminRow.id}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-slate-50 px-2.5 py-1 text-xs font-semibold text-foreground/70"
                     >
                       <ShieldCheck className="h-3.5 w-3.5 text-[var(--brand)]" />
-                      {adminEmail}
+                      {adminRow.email}
                     </span>
                   ))}
                 </div>
