@@ -16,7 +16,10 @@ import {
   formatPortalPropertyLabel,
   nextPortalPropertyScopeSelection,
   nextPortalPropertyToggleSelection,
+  normalizePortalPropertyScopeDraft,
   normalizePropertyIds as normalizeDisplayPropertyIds,
+  portalPropertyScopeDraftCanSave,
+  portalPropertyScopeDraftChanged,
 } from "./lib/portalAccessDisplay";
 
 const BRAND = {
@@ -222,6 +225,7 @@ function RoleSelect({ row, disabled, onChange }) {
 }
 
 function PropertyScopeEditor({
+  row,
   role,
   accessScope,
   propertyIds,
@@ -229,10 +233,14 @@ function PropertyScopeEditor({
   allowedScopes,
   disabled,
   onChange,
+  onSave,
 }) {
   const scope = role === "owner" ? "org" : accessScope === "property" ? "property" : "org";
   const ids = Array.isArray(propertyIds) ? propertyIds : [];
-  const selectedIds = new Set(ids);
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(() =>
+    normalizePortalPropertyScopeDraft({ role, accessScope: scope, propertyIds: ids, properties })
+  );
   const allowed = new Set(
     Array.isArray(allowedScopes) && allowedScopes.length ? allowedScopes : ["org", "property"]
   );
@@ -241,29 +249,67 @@ function PropertyScopeEditor({
   }
   const canChangeScope = role !== "owner" && allowed.size > 0 && !disabled;
   const visibleScopes = canChangeScope ? allowed : new Set([scope]);
+  const batchMode = typeof onSave === "function";
+  const activeSelection = batchMode && isEditing ? draft : { accessScope: scope, propertyIds: ids };
+  const activeScope = activeSelection.accessScope === "property" ? "property" : "org";
+  const activeIds = normalizeDisplayPropertyIds(activeSelection.propertyIds, properties);
+  const selectedIds = new Set(activeIds);
   const summary = propertyScopeLabel({
     role,
-    accessScope: scope,
-    propertySummary: selectedPropertySummary(ids, properties),
+    accessScope: activeScope,
+    propertySummary: selectedPropertySummary(activeIds, properties),
   });
+  const currentRow = row || { role, accessScope: scope, propertyIds: ids, canChangeScope };
+  const draftCanSave = portalPropertyScopeDraftCanSave(currentRow, activeSelection, properties);
+  const draftHasChanges = portalPropertyScopeDraftChanged(currentRow, activeSelection, properties);
+  const propertyIdsKey = ids.join("|");
+  const propertiesKey = (properties || []).map((property) => property.id).join("|");
+
+  useEffect(() => {
+    if (isEditing) return;
+    setDraft(
+      normalizePortalPropertyScopeDraft({ role, accessScope: scope, propertyIds: ids, properties })
+    );
+  }, [isEditing, role, scope, propertyIdsKey, propertiesKey]);
 
   function handleScopeChange(nextScope) {
     const selection = nextPortalPropertyScopeSelection({
-      currentPropertyIds: ids,
+      currentPropertyIds: activeIds,
       nextScope,
       properties,
     });
-    onChange?.(selection.accessScope, selection.propertyIds);
+    if (batchMode) {
+      setDraft(selection);
+    } else {
+      onChange?.(selection.accessScope, selection.propertyIds);
+    }
   }
 
   function handlePropertyToggle(propertyId, checked) {
     const selection = nextPortalPropertyToggleSelection({
-      currentPropertyIds: ids,
+      currentPropertyIds: activeIds,
       propertyId,
       checked,
       properties,
     });
-    onChange?.(selection.accessScope, selection.propertyIds);
+    if (batchMode) {
+      setDraft(selection);
+    } else {
+      onChange?.(selection.accessScope, selection.propertyIds);
+    }
+  }
+
+  async function handleSave() {
+    if (!draftCanSave) return;
+    await onSave(activeSelection.accessScope, activeSelection.propertyIds);
+    setIsEditing(false);
+  }
+
+  function handleCancel() {
+    setDraft(
+      normalizePortalPropertyScopeDraft({ role, accessScope: scope, propertyIds: ids, properties })
+    );
+    setIsEditing(false);
   }
 
   if (role === "owner") {
@@ -275,12 +321,36 @@ function PropertyScopeEditor({
     );
   }
 
+  if (batchMode && !isEditing) {
+    return (
+      <div className="flex max-w-[320px] items-center justify-between gap-3">
+        <div className="min-w-0">
+          <span className="block truncate text-sm font-medium text-foreground/75" title={summary}>
+            {summary}
+          </span>
+          <span className="text-xs text-foreground/45">
+            {scope === "property" ? "Selected property scope" : "Org-wide scope"}
+          </span>
+        </div>
+        {canChangeScope && (
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background px-2.5 text-xs font-semibold text-foreground/75 shadow-sm hover:text-[var(--brand)]"
+          >
+            Edit
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="grid max-w-[280px] gap-2">
+    <div className="grid max-w-[340px] gap-2">
       <label className="grid gap-1">
         <span className="sr-only">Property scope</span>
         <select
-          value={scope}
+          value={activeScope}
           disabled={!canChangeScope}
           onChange={(event) => handleScopeChange(event.target.value)}
           className="h-10 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
@@ -289,8 +359,8 @@ function PropertyScopeEditor({
           {visibleScopes.has("property") && <option value="property">Selected properties</option>}
         </select>
       </label>
-      {scope === "property" && (
-        <div className="max-h-36 overflow-auto rounded-lg border border-border bg-slate-50 p-2">
+      {activeScope === "property" && (
+        <div className="max-h-40 overflow-auto rounded-lg border border-border bg-slate-50 p-2">
           {(properties || []).length ? (
             <div className="grid gap-1">
               {properties.map((property) => (
@@ -302,7 +372,7 @@ function PropertyScopeEditor({
                   <input
                     type="checkbox"
                     checked={selectedIds.has(property.id)}
-                    disabled={!canChangeScope || (selectedIds.has(property.id) && ids.length === 1)}
+                    disabled={!canChangeScope || (selectedIds.has(property.id) && activeIds.length === 1)}
                     onChange={(event) => handlePropertyToggle(property.id, event.target.checked)}
                     className="mt-0.5 h-4 w-4 rounded border-border text-[var(--brand)]"
                   />
@@ -321,7 +391,36 @@ function PropertyScopeEditor({
           )}
         </div>
       )}
-      <span className="text-xs text-foreground/45">{summary}</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-xs text-foreground/45" title={summary}>
+          {summary}
+        </span>
+        {batchMode && (
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={disabled}
+              className="inline-flex h-8 items-center justify-center rounded-lg border border-border bg-background px-2.5 text-xs font-semibold text-foreground/60 shadow-sm disabled:opacity-45"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={disabled || !draftCanSave}
+              className="inline-flex h-8 items-center justify-center rounded-lg bg-[var(--brand)] px-2.5 text-xs font-semibold text-white shadow-sm disabled:opacity-45"
+              title={
+                draftHasChanges
+                  ? "Save property scope changes"
+                  : "No property scope changes to save"
+              }
+            >
+              Save
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1322,13 +1421,14 @@ export default function PortalAccessAdminPage() {
                             </div>
                           ) : (
                             <PropertyScopeEditor
+                              row={row}
                               role={row.role}
                               accessScope={row.accessScope}
                               propertyIds={row.propertyIds || []}
                               properties={selectedOrgProperties}
                               allowedScopes={row.allowedAccessScopes}
                               disabled={scopeChangeId === row.id || !canEditPortalPropertyScope(row)}
-                              onChange={(nextScope, nextPropertyIds) =>
+                              onSave={(nextScope, nextPropertyIds) =>
                                 handleScopeChange(row, nextScope, nextPropertyIds)
                               }
                             />

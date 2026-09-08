@@ -69,3 +69,53 @@ export function nextPortalPropertyToggleSelection({
 export function canEditPortalPropertyScope(row = {}) {
   return row.role !== "owner" && row.canChangeScope === true;
 }
+
+export function normalizePortalPropertyScopeDraft({
+  accessScope = "org",
+  propertyIds = [],
+  role = "",
+  properties = [],
+} = {}) {
+  if (role === "owner") {
+    return { accessScope: "org", propertyIds: [] };
+  }
+  return nextPortalPropertyScopeSelection({
+    currentPropertyIds: propertyIds,
+    nextScope: accessScope,
+    properties,
+  });
+}
+
+export function portalPropertyScopeDraftChanged(current = {}, draft = {}, properties = []) {
+  const currentSelection = normalizePortalPropertyScopeDraft({
+    role: current.role,
+    accessScope: current.accessScope,
+    propertyIds: current.propertyIds,
+    properties,
+  });
+  const draftSelection = normalizePortalPropertyScopeDraft({
+    role: current.role,
+    accessScope: draft.accessScope,
+    propertyIds: draft.propertyIds,
+    properties,
+  });
+  return (
+    currentSelection.accessScope !== draftSelection.accessScope ||
+    JSON.stringify([...currentSelection.propertyIds].sort()) !==
+      JSON.stringify([...draftSelection.propertyIds].sort())
+  );
+}
+
+export function portalPropertyScopeDraftCanSave(current = {}, draft = {}, properties = []) {
+  if (!canEditPortalPropertyScope(current)) return false;
+  const selection = normalizePortalPropertyScopeDraft({
+    role: current.role,
+    accessScope: draft.accessScope,
+    propertyIds: draft.propertyIds,
+    properties,
+  });
+  if (selection.accessScope === "property" && selection.propertyIds.length === 0) {
+    return false;
+  }
+  return portalPropertyScopeDraftChanged(current, selection, properties);
+}

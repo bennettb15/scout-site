@@ -124,9 +124,26 @@ export default async function handler(req, res) {
     if (packagesError) {
       return sendJson(res, 500, { error: "Unable to load report packages." });
     }
-    const packageRows = (rawPackageRows || []).filter((row) =>
+    const accessiblePackageRows = (rawPackageRows || []).filter((row) =>
       portalAccess.canAccessProperty(row.org_id, row.property_id)
-    ).slice(0, 50);
+    );
+    const accessiblePropertyIds = unique(accessiblePackageRows.map((row) => row.property_id));
+    const { data: propertyRows, error: propertiesError } = accessiblePropertyIds.length
+      ? await service
+          .from("properties")
+          .select("id,org_id,name,address_line1,city,state,postal_code")
+          .in("id", accessiblePropertyIds)
+          .is("deleted_at", null)
+      : { data: [], error: null };
+
+    if (propertiesError) {
+      return sendJson(res, 500, { error: "Unable to load report context." });
+    }
+
+    const currentPropertyIds = new Set((propertyRows || []).map((row) => row.id));
+    const packageRows = accessiblePackageRows
+      .filter((row) => currentPropertyIds.has(row.property_id))
+      .slice(0, 50);
 
     const packageIds = packageRows.map((row) => row.id);
     if (packageIds.length === 0) {
@@ -148,13 +165,11 @@ export default async function handler(req, res) {
       return sendJson(res, 500, { error: "Unable to load report files." });
     }
 
-    const propertyIds = unique(packageRows.map((row) => row.property_id));
     const sessionIds = unique(packageRows.map((row) => row.session_id));
     const orgIds = unique(packageRows.map((row) => row.org_id));
 
     const [
       { data: orgRows, error: orgsError },
-      { data: propertyRows, error: propertiesError },
       { data: sessionRows, error: sessionsError },
       { data: exportRows, error: exportsError },
       { data: shotRows, error: shotsError },
@@ -164,11 +179,6 @@ export default async function handler(req, res) {
           .from("orgs")
           .select("id,name")
           .in("id", orgIds)
-          .is("deleted_at", null),
-        service
-          .from("properties")
-          .select("id,org_id,name,address_line1,city,state,postal_code")
-          .in("id", propertyIds)
           .is("deleted_at", null),
         service
           .from("sessions")
@@ -193,7 +203,7 @@ export default async function handler(req, res) {
           .not("storage_path", "is", null),
       ]);
 
-    if (orgsError || propertiesError || sessionsError || exportsError || shotsError) {
+    if (orgsError || sessionsError || exportsError || shotsError) {
       return sendJson(res, 500, { error: "Unable to load report context." });
     }
 

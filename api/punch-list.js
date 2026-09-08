@@ -2343,12 +2343,30 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       .order("updated_at", { ascending: false })
       .limit(MAX_ROWS)
   );
-  const visiblePackageRows = portalAccess
+  let visiblePackageRows = portalAccess
     ? packageRows.filter((row) => portalAccess.canAccessProperty(row.org_id, row.property_id))
     : packageRows;
-  const visibleObservations = portalAccess
+  let visibleObservations = portalAccess
     ? observations.filter((row) => portalAccess.canAccessProperty(row.org_id, row.property_id))
     : observations;
+  const scopedPropertyIds = unique([
+    ...visiblePackageRows.map((row) => row.property_id),
+    ...visibleObservations.map((row) => row.property_id),
+  ]);
+  const propertyRows = scopedPropertyIds.length
+    ? await safeRows(
+        queryClient
+          .from("properties")
+          .select("id,org_id,name,address_line1,city,state,postal_code")
+          .in("id", scopedPropertyIds)
+          .is("deleted_at", null)
+      )
+    : [];
+  const currentPropertyIds = new Set(propertyRows.map((row) => row.id));
+  visiblePackageRows = visiblePackageRows.filter((row) => currentPropertyIds.has(row.property_id));
+  visibleObservations = visibleObservations.filter((row) =>
+    currentPropertyIds.has(row.property_id)
+  );
 
   const observationIds = visibleObservations.map((row) => row.id);
   const observationUpdates = observationIds.length
@@ -2432,6 +2450,8 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     if (!row.property_id && reportPackage?.property_id) {
       row.property_id = reportPackage.property_id;
     }
+    if (!currentPropertyIds.has(row.property_id)) continue;
+    if (portalAccess && !portalAccess.canAccessProperty(row.org_id, row.property_id)) continue;
     if (!originalPathIsExpected(row)) continue;
     shotsById.set(row.id, row);
     const rows = shotsBySession.get(row.session_id) || [];
@@ -2444,23 +2464,10 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     ...visibleObservations.map((row) => row.org_id),
     ...Array.from(shotsById.values()).map((row) => row.org_id),
   ]);
-  const propertyIds = unique([
-    ...visiblePackageRows.map((row) => row.property_id),
-    ...visibleObservations.map((row) => row.property_id),
-    ...Array.from(shotsById.values()).map((row) => row.property_id),
-  ]);
-
-  const [{ data: orgRows }, { data: propertyRows }, { data: sessionRows }] =
+  const [{ data: orgRows }, { data: sessionRows }] =
     await Promise.all([
       orgIds.length
         ? queryClient.from("orgs").select("id,name").in("id", orgIds).is("deleted_at", null)
-        : { data: [] },
-      propertyIds.length
-        ? queryClient
-            .from("properties")
-            .select("id,org_id,name,address_line1,city,state,postal_code")
-            .in("id", propertyIds)
-            .is("deleted_at", null)
         : { data: [] },
       sessionIds.length
         ? queryClient

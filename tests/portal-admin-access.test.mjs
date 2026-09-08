@@ -13,6 +13,7 @@ import {
 } from "../api-lib/portalAdminAccess.js";
 import {
   actorCanManagePropertyScope,
+  filterRowsByCurrentPortalPropertyAccess,
   filterRowsByPortalPropertyAccess,
   portalAccessAllowsProperty,
   propertyScopeSummary,
@@ -21,8 +22,11 @@ import {
 import {
   canEditPortalPropertyScope,
   formatPortalPropertyLabel,
+  normalizePortalPropertyScopeDraft,
   nextPortalPropertyScopeSelection,
   nextPortalPropertyToggleSelection,
+  portalPropertyScopeDraftCanSave,
+  portalPropertyScopeDraftChanged,
 } from "../src/lib/portalAccessDisplay.js";
 
 const orgId = "11111111-1111-4111-8111-111111111111";
@@ -405,6 +409,133 @@ test("report rows filter by portal property access", () => {
   );
 });
 
+test("scoped Viewer with one property sees only that property's report packages", () => {
+  assert.deepEqual(
+    filterRowsByCurrentPortalPropertyAccess(
+      [
+        { id: "package-a", org_id: orgId, property_id: "property-a" },
+        { id: "package-b", org_id: orgId, property_id: "property-b" },
+      ],
+      [
+        {
+          org_id: orgId,
+          role: "viewer",
+          access_scope: "property",
+          propertyIds: ["property-a"],
+        },
+      ],
+      ["property-a", "property-b"]
+    ).map((row) => row.id),
+    ["package-a"]
+  );
+});
+
+test("scoped Viewer does not see unscoped packages when All Properties is selected", () => {
+  assert.deepEqual(
+    filterRowsByCurrentPortalPropertyAccess(
+      [
+        { id: "package-a", org_id: orgId, property_id: "property-a" },
+        { id: "package-b", org_id: orgId, property_id: "property-b" },
+      ],
+      [
+        {
+          org_id: orgId,
+          role: "viewer",
+          access_scope: "property",
+          propertyIds: ["property-a"],
+        },
+      ],
+      ["property-a", "property-b"]
+    ).map((row) => row.id),
+    ["package-a"]
+  );
+});
+
+test("deleted or non-visible property packages are excluded", () => {
+  assert.deepEqual(
+    filterRowsByCurrentPortalPropertyAccess(
+      [
+        { id: "package-a", org_id: orgId, property_id: "property-a" },
+        { id: "package-deleted", org_id: orgId, property_id: "property-deleted" },
+      ],
+      [
+        {
+          org_id: orgId,
+          role: "manager",
+          access_scope: "org",
+          propertyIds: [],
+        },
+      ],
+      ["property-a"]
+    ).map((row) => row.id),
+    ["package-a"]
+  );
+});
+
+test("scoped Viewer sees only scoped Punch List items", () => {
+  assert.deepEqual(
+    filterRowsByCurrentPortalPropertyAccess(
+      [
+        { id: "punch-a", org_id: orgId, property_id: "property-a" },
+        { id: "punch-b", org_id: orgId, property_id: "property-b" },
+      ],
+      [
+        {
+          org_id: orgId,
+          role: "viewer",
+          access_scope: "property",
+          propertyIds: ["property-a"],
+        },
+      ],
+      ["property-a", "property-b"]
+    ).map((row) => row.id),
+    ["punch-a"]
+  );
+});
+
+test("deleted or non-visible property Punch List items are excluded", () => {
+  assert.deepEqual(
+    filterRowsByCurrentPortalPropertyAccess(
+      [
+        { id: "punch-a", org_id: orgId, property_id: "property-a" },
+        { id: "punch-deleted", org_id: orgId, property_id: "property-deleted" },
+      ],
+      [
+        {
+          org_id: orgId,
+          role: "owner",
+          access_scope: "org",
+          propertyIds: [],
+        },
+      ],
+      ["property-a"]
+    ).map((row) => row.id),
+    ["punch-a"]
+  );
+});
+
+test("Owner sees all current properties but not deleted property packages", () => {
+  assert.deepEqual(
+    filterRowsByCurrentPortalPropertyAccess(
+      [
+        { id: "package-a", org_id: orgId, property_id: "property-a" },
+        { id: "package-b", org_id: orgId, property_id: "property-b" },
+        { id: "package-deleted", org_id: orgId, property_id: "property-deleted" },
+      ],
+      [
+        {
+          org_id: orgId,
+          role: "owner",
+          access_scope: "org",
+          propertyIds: [],
+        },
+      ],
+      ["property-a", "property-b"]
+    ).map((row) => row.id),
+    ["package-a", "package-b"]
+  );
+});
+
 test("property scope summaries are readable", () => {
   const propertyById = new Map([["property-a", { name: "Warehouse" }]]);
   assert.equal(propertyScopeSummary({ accessScope: "org", propertyIds: [] }), "All properties");
@@ -481,4 +612,30 @@ test("active selected property checklist keeps at least one property selected", 
     }),
     { accessScope: "property", propertyIds: ["property-a"] }
   );
+});
+
+test("active row property-scope editing batches changes and saves on confirm", () => {
+  const properties = [
+    { id: "property-a", name: "Rental Unit 1" },
+    { id: "property-b", name: "Rental Unit 2" },
+  ];
+  const row = {
+    role: "viewer",
+    accessScope: "org",
+    propertyIds: [],
+    canChangeScope: true,
+  };
+  const draft = normalizePortalPropertyScopeDraft({
+    role: row.role,
+    accessScope: "property",
+    propertyIds: ["property-a", "property-b"],
+    properties,
+  });
+
+  assert.deepEqual(draft, {
+    accessScope: "property",
+    propertyIds: ["property-a", "property-b"],
+  });
+  assert.equal(portalPropertyScopeDraftChanged(row, draft, properties), true);
+  assert.equal(portalPropertyScopeDraftCanSave(row, draft, properties), true);
 });

@@ -81,3 +81,12 @@ export function filterRowsByPortalPropertyAccess(rows, accessRows) {
     )
   );
 }
+
+export function filterRowsByCurrentPortalPropertyAccess(rows, accessRows, currentPropertyIds) {
+  const currentIds = currentPropertyIds instanceof Set
+    ? currentPropertyIds
+    : new Set(normalizePropertyIds(currentPropertyIds));
+  return filterRowsByPortalPropertyAccess(rows, accessRows).filter((row) =>
+    currentIds.has(String(row.property_id || ""))
+  );
+}
