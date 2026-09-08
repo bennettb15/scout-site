@@ -66,6 +66,10 @@ function selectedAccessTypeLabel(role) {
   return ACCESS_ROLE_LABELS[role] || "Client Viewer";
 }
 
+function accessRowKey(row) {
+  return `${row.orgId || ""}:${String(row.email || "").trim().toLowerCase()}`;
+}
+
 function AccountStatus({ status }) {
   const accountStatus = status || {};
   const state = accountStatus.state || "unknown";
@@ -96,6 +100,54 @@ function AccountStatus({ status }) {
         {accountStatus.lastSignInAt
           ? `Last sign-in ${formatDateTime(accountStatus.lastSignInAt)}`
           : accountStatus.detail || "Last sign-in unavailable."}
+      </span>
+    </div>
+  );
+}
+
+function inviteStatusMeta(row) {
+  if (row.state === "expired") {
+    return {
+      label: "Expired",
+      badgeClass: "border-red-200 bg-red-50 text-red-700",
+      detail: "Invite expired before acceptance.",
+    };
+  }
+  if (row.state === "replaced") {
+    return {
+      label: "Replaced",
+      badgeClass: "border-slate-200 bg-slate-50 text-foreground/65",
+      detail: "A newer invite replaced this one.",
+    };
+  }
+  if (row.state === "revoked") {
+    return {
+      label: "Canceled",
+      badgeClass: "border-slate-200 bg-slate-50 text-foreground/65",
+      detail: "Invite was canceled.",
+    };
+  }
+  return {
+    label: "Invited",
+    badgeClass: "border-amber-200 bg-amber-50 text-amber-900",
+    detail: row.hasActiveAccess
+      ? "Access is assigned; account setup is pending."
+      : "Invite sent; access activates after acceptance.",
+  };
+}
+
+function InviteStatus({ row }) {
+  const meta = inviteStatusMeta(row);
+
+  return (
+    <div className="grid gap-1">
+      <span
+        className={`inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-xs font-semibold leading-none ${meta.badgeClass}`}
+      >
+        {meta.label}
+      </span>
+      <span className="text-xs leading-relaxed text-foreground/55">
+        {meta.detail}
       </span>
     </div>
   );
@@ -247,6 +299,21 @@ export default function PortalAccessAdminPage() {
     await supabase?.auth.signOut();
   }
 
+  function mergePendingInvite(invite) {
+    if (!invite?.id) return;
+    setPendingInvites((current) => [
+      invite,
+      ...current.filter(
+        (row) =>
+          row.id !== invite.id &&
+          !(
+            row.orgId === invite.orgId &&
+            String(row.email || "").toLowerCase() === String(invite.email || "").toLowerCase()
+          )
+      ),
+    ]);
+  }
+
   async function handleAccessSubmit(action) {
     if (!session?.access_token) return;
     setSubmitting(true);
@@ -289,7 +356,8 @@ export default function PortalAccessAdminPage() {
               body.membership?.role
             )} org-level access to ${body.org.name}.`
       );
-      await loadAccess();
+      mergePendingInvite(body.invite);
+      await loadAccess(session);
     } catch (error) {
       setLoadError(error.message || "Unable to grant portal access.");
     } finally {
@@ -335,7 +403,8 @@ export default function PortalAccessAdminPage() {
           body.invite?.role
         )} access will activate after they accept it.`
       );
-      await loadAccess();
+      mergePendingInvite(body.invite);
+      await loadAccess(session);
     } catch (error) {
       setLoadError(error.message || "Unable to create setup link.");
     } finally {
@@ -371,7 +440,7 @@ export default function PortalAccessAdminPage() {
       }
 
       setNewOrgName("");
-      await loadAccess();
+      await loadAccess(session);
       if (body.org?.id) setSelectedOrgId(body.org.id);
       setActionMessage("Created organization. Add properties in ScoutCapture, then invite the client.");
     } catch (error) {
@@ -416,7 +485,7 @@ export default function PortalAccessAdminPage() {
         throw new Error(body.error || "Unable to revoke portal access.");
       }
       setActionMessage(`Revoked ${row.email} access to ${row.orgName}.`);
-      await loadAccess();
+      await loadAccess(session);
     } catch (error) {
       setLoadError(error.message || "Unable to revoke portal access.");
     } finally {
@@ -448,6 +517,35 @@ export default function PortalAccessAdminPage() {
         (row.accessScope || "org") === "org"
     );
   }, [adminEmails, visibleRows]);
+
+  const unifiedAccessRows = useMemo(() => {
+    const pendingKeys = new Set(visiblePendingInvites.map(accessRowKey));
+    const activeRows = visibleRows
+      .filter((row) => {
+        const isOrdinaryPendingAccess =
+          row.accountStatus?.state !== "confirmed" &&
+          ["viewer", "field"].includes(row.role);
+        return !(isOrdinaryPendingAccess && pendingKeys.has(accessRowKey(row)));
+      })
+      .map((row) => ({
+        ...row,
+        rowType: "active",
+        sortAt: row.createdAt || row.updatedAt,
+      }));
+
+    const inviteRows = visiblePendingInvites.map((invite) => ({
+      ...invite,
+      rowType: "invite",
+      hasActiveAccess: visibleRows.some((row) => accessRowKey(row) === accessRowKey(invite)),
+      sortAt: invite.createdAt,
+    }));
+
+    return [...inviteRows, ...activeRows].sort((left, right) => {
+      const leftTime = new Date(left.sortAt || 0).getTime();
+      const rightTime = new Date(right.sortAt || 0).getTime();
+      return rightTime - leftTime;
+    });
+  }, [visiblePendingInvites, visibleRows]);
 
   return (
     <div
@@ -506,7 +604,7 @@ export default function PortalAccessAdminPage() {
           {session && adminStatus === "authorized" && (
             <button
               type="button"
-              onClick={() => loadAccess()}
+              onClick={() => loadAccess(session)}
               disabled={loading}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
             >
@@ -767,73 +865,16 @@ export default function PortalAccessAdminPage() {
             </section>
 
             <section className="rounded-lg border border-border bg-background shadow-sm">
-              <div className="border-b border-border px-5 py-4">
-                <h2 className="text-base font-semibold text-foreground">
-                  Pending Invites
-                </h2>
-                <p className="mt-1 text-sm text-foreground/60">
-                  {visiblePendingInvites.length} invite
-                  {visiblePendingInvites.length === 1 ? "" : "s"} awaiting acceptance
-                </p>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left text-sm">
-                  <thead className="border-b border-border bg-slate-50 text-xs uppercase text-foreground/55">
-                    <tr>
-                      <th className="px-5 py-3 font-semibold">Email</th>
-                      <th className="px-5 py-3 font-semibold">Access</th>
-                      <th className="px-5 py-3 font-semibold">Created</th>
-                      <th className="px-5 py-3 font-semibold">Expires</th>
-                      <th className="px-5 py-3 font-semibold">State</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visiblePendingInvites.map((row) => (
-                      <tr key={row.id} className="border-b border-border last:border-b-0">
-                        <td className="px-5 py-3 font-medium text-foreground">
-                          {row.email}
-                        </td>
-                        <td className="px-5 py-3 text-foreground/70">
-                          {selectedAccessTypeLabel(row.role)} / {row.accessScope || "org"}
-                        </td>
-                        <td className="px-5 py-3 text-foreground/70">
-                          {formatDate(row.createdAt)}
-                        </td>
-                        <td className="px-5 py-3 text-foreground/70">
-                          {formatDate(row.expiresAt)}
-                        </td>
-                        <td className="px-5 py-3">
-                          <span className="inline-flex w-fit items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold leading-none text-amber-900">
-                            {row.state === "expired" ? "Expired" : "Pending"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                    {visiblePendingInvites.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={5}
-                          className="px-5 py-8 text-center text-sm text-foreground/60"
-                        >
-                          No pending invites.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section className="rounded-lg border border-border bg-background shadow-sm">
               <div className="flex flex-col justify-between gap-3 border-b border-border px-5 py-4 md:flex-row md:items-center">
                 <div>
                   <h2 className="text-base font-semibold text-foreground">
                     {selectedOrg?.name || "Organization"} Access
                   </h2>
                   <p className="mt-1 text-sm text-foreground/60">
-                    {visibleRows.length} active user
-                    {visibleRows.length === 1 ? "" : "s"}
+                    {visibleRows.length} active access row
+                    {visibleRows.length === 1 ? "" : "s"};{" "}
+                    {visiblePendingInvites.length} pending invite
+                    {visiblePendingInvites.length === 1 ? "" : "s"}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -861,45 +902,60 @@ export default function PortalAccessAdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleRows.map((row) => (
-                      <tr key={row.id} className="border-b border-border last:border-b-0">
+                    {unifiedAccessRows.map((row) => (
+                      <tr
+                        key={`${row.rowType}:${row.id}`}
+                        className="border-b border-border last:border-b-0"
+                      >
                         <td className="px-5 py-3 font-medium text-foreground">
                           {row.email || row.userId}
                         </td>
                         <td className="px-5 py-3">
-                          <AccountStatus status={row.accountStatus} />
+                          {row.rowType === "invite" ? (
+                            <InviteStatus row={row} />
+                          ) : (
+                            <AccountStatus status={row.accountStatus} />
+                          )}
                         </td>
                         <td className="px-5 py-3 text-foreground/70">
-                          {accessLabel(row)}
+                          {row.rowType === "invite"
+                            ? `${selectedAccessTypeLabel(row.role)} / ${row.accessScope || "org"}`
+                            : accessLabel(row)}
                         </td>
                         <td className="px-5 py-3 text-foreground/70">
                           {formatDate(row.createdAt)}
                         </td>
                         <td className="px-5 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleRevoke(row)}
-                            disabled={!row.canRevoke || revokeId === row.id}
-                            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-red-700 disabled:opacity-45"
-                            title={
-                              row.canRevoke
-                                ? "Revoke access"
-                                : "This access cannot be revoked here"
-                            }
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            Revoke
-                          </button>
+                          {row.rowType === "invite" ? (
+                            <span className="text-sm font-medium text-foreground/45">
+                              Pending
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleRevoke(row)}
+                              disabled={!row.canRevoke || revokeId === row.id}
+                              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-red-700 disabled:opacity-45"
+                              title={
+                                row.canRevoke
+                                  ? "Revoke access"
+                                  : "This access cannot be revoked here"
+                              }
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Revoke
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
-                    {visibleRows.length === 0 && (
+                    {unifiedAccessRows.length === 0 && (
                       <tr>
                         <td
                           colSpan={5}
                           className="px-5 py-8 text-center text-sm text-foreground/60"
                         >
-                          No active access rows.
+                          No access rows or pending invites.
                         </td>
                       </tr>
                     )}
