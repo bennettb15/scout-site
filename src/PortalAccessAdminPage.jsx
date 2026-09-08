@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   ClipboardList,
   FileText,
@@ -77,11 +77,6 @@ function accessLabel(row) {
 
 function selectedAccessTypeLabel(role) {
   return ACCESS_ROLE_LABELS[role] || "Viewer";
-}
-
-function propertyScopeLabel({ accessScope, propertySummary, role }) {
-  if (role === "owner" || accessScope !== "property") return "All properties";
-  return propertySummary || "Selected properties";
 }
 
 function selectedPropertySummary(propertyIds, properties) {
@@ -225,6 +220,55 @@ function RoleSelect({ row, disabled, onChange }) {
   );
 }
 
+function PropertyScopeSummary({
+  role,
+  accessScope,
+  propertyIds,
+  properties,
+  allowedScopes,
+  disabled,
+  onEdit,
+}) {
+  const scope = role === "owner" ? "org" : accessScope === "property" ? "property" : "org";
+  const ids = Array.isArray(propertyIds) ? propertyIds : [];
+  const allowed = new Set(
+    Array.isArray(allowedScopes) && allowedScopes.length ? allowedScopes : ["org", "property"]
+  );
+  if (!(properties || []).length && scope !== "property") {
+    allowed.delete("property");
+  }
+  const canChangeScope = role !== "owner" && allowed.size > 0 && !disabled;
+  const display = portalPropertyScopeDisplay({
+    role,
+    accessScope: scope,
+    propertyIds: ids,
+    properties,
+    propertySummary: selectedPropertySummary(ids, properties),
+  });
+
+  return (
+    <div className="flex max-w-[300px] items-start justify-between gap-3">
+      <div className="grid min-w-0 gap-1">
+        <span className="block text-sm font-medium leading-snug text-foreground/75">
+          {display.mainText}
+        </span>
+        <span className="block text-xs leading-snug text-foreground/45">
+          {display.subText}
+        </span>
+      </div>
+      {canChangeScope && onEdit && (
+        <button
+          type="button"
+          onClick={onEdit}
+          className="inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background px-2.5 text-xs font-semibold text-foreground/75 shadow-sm hover:text-[var(--brand)]"
+        >
+          Edit
+        </button>
+      )}
+    </div>
+  );
+}
+
 function PropertyScopeEditor({
   row,
   role,
@@ -235,10 +279,11 @@ function PropertyScopeEditor({
   disabled,
   onChange,
   onSave,
+  onCancel,
+  expanded = false,
 }) {
   const scope = role === "owner" ? "org" : accessScope === "property" ? "property" : "org";
   const ids = Array.isArray(propertyIds) ? propertyIds : [];
-  const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(() =>
     normalizePortalPropertyScopeDraft({ role, accessScope: scope, propertyIds: ids, properties })
   );
@@ -250,7 +295,7 @@ function PropertyScopeEditor({
   }
   const canChangeScope = role !== "owner" && allowed.size > 0 && !disabled;
   const batchMode = typeof onSave === "function";
-  const activeSelection = batchMode && isEditing ? draft : { accessScope: scope, propertyIds: ids };
+  const activeSelection = batchMode ? draft : { accessScope: scope, propertyIds: ids };
   const activeScope = activeSelection.accessScope === "property" ? "property" : "org";
   const allPropertyIds = normalizeDisplayPropertyIds(
     (properties || []).map((property) => property.id),
@@ -273,19 +318,18 @@ function PropertyScopeEditor({
     properties,
     propertySummary: selectedPropertySummary(activeSelection.propertyIds, properties),
   });
-  const summary = [display.mainText, display.subText].filter(Boolean).join(" - ");
   const currentRow = row || { role, accessScope: scope, propertyIds: ids, canChangeScope };
   const draftCanSave = portalPropertyScopeDraftCanSave(currentRow, activeSelection, properties);
   const draftHasChanges = portalPropertyScopeDraftChanged(currentRow, activeSelection, properties);
+  const zeroSelected = activeScope === "property" && checkedIds.length === 0;
   const propertyIdsKey = ids.join("|");
   const propertiesKey = (properties || []).map((property) => property.id).join("|");
 
   useEffect(() => {
-    if (isEditing) return;
     setDraft(
       normalizePortalPropertyScopeDraft({ role, accessScope: scope, propertyIds: ids, properties })
     );
-  }, [isEditing, role, scope, propertyIdsKey, propertiesKey]);
+  }, [role, scope, propertyIdsKey, propertiesKey]);
 
   function updateSelectionFromCheckedIds(nextCheckedIds) {
     const selection = portalPropertyScopeSelectionFromCheckedIds({
@@ -301,9 +345,6 @@ function PropertyScopeEditor({
     const nextIds = checked
       ? normalizeDisplayPropertyIds([...checkedIds, propertyId], properties)
       : checkedIds.filter((id) => id !== propertyId);
-    if (nextIds.length === 0) {
-      return;
-    }
     updateSelectionFromCheckedIds(nextIds);
   }
 
@@ -318,69 +359,32 @@ function PropertyScopeEditor({
   async function handleSave() {
     if (!draftCanSave) return;
     await onSave(activeSelection.accessScope, activeSelection.propertyIds);
-    setIsEditing(false);
   }
 
   function handleCancel() {
     setDraft(
       normalizePortalPropertyScopeDraft({ role, accessScope: scope, propertyIds: ids, properties })
     );
-    setIsEditing(false);
-  }
-
-  if (role === "owner") {
-    return (
-      <div className="grid gap-1">
-        <span className="text-sm font-medium leading-snug text-foreground/75">
-          {display.mainText}
-        </span>
-        <span className="text-xs leading-snug text-foreground/45">
-          {display.subText}
-        </span>
-      </div>
-    );
-  }
-
-  if (batchMode && !isEditing) {
-    return (
-      <div className="flex max-w-[360px] items-start justify-between gap-3">
-        <div className="min-w-0">
-          <span className="block text-sm font-medium leading-snug text-foreground/75">
-            {display.mainText}
-          </span>
-          <span
-            className="mt-0.5 block max-w-[280px] truncate text-xs leading-snug text-foreground/45"
-            title={display.subText}
-          >
-            {display.subText}
-          </span>
-        </div>
-        {canChangeScope && (
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            className="inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background px-2.5 text-xs font-semibold text-foreground/75 shadow-sm hover:text-[var(--brand)]"
-          >
-            Edit
-          </button>
-        )}
-      </div>
-    );
+    onCancel?.();
   }
 
   return (
-    <div className="grid max-w-[380px] gap-2">
-      <div className="rounded-lg border border-border bg-slate-50 p-2">
-        <div className="mb-2 flex items-center justify-between gap-3 px-2 pt-1">
-          <span className="text-xs font-semibold text-foreground/65">
+    <div className={`grid gap-3 ${expanded ? "w-full" : "max-w-[380px]"}`}>
+      <div className={`rounded-lg border border-border bg-slate-50 ${expanded ? "p-4" : "p-2"}`}>
+        <div className={`mb-3 flex flex-col gap-1 ${expanded ? "" : "px-2 pt-1"}`}>
+          <span className="text-sm font-semibold text-foreground/75">
             Selected properties
           </span>
-          <span className="text-xs text-foreground/45">{display.subText}</span>
+          <span className="text-xs text-foreground/45">
+            {checkedIds.length
+              ? `${checkedIds.length} selected`
+              : "No properties selected"}
+          </span>
         </div>
         {(properties || []).length ? (
           <div className="grid gap-1">
             {canUseOrgScope && (
-              <label className="flex items-start gap-2 rounded-md bg-background px-2 py-2 text-xs font-semibold leading-snug text-foreground/80">
+              <label className="flex items-start gap-2 rounded-md bg-background px-3 py-2.5 text-sm font-semibold leading-snug text-foreground/80">
                 <input
                   type="checkbox"
                   checked={allPropertiesChecked}
@@ -391,20 +395,17 @@ function PropertyScopeEditor({
                 <span>All properties</span>
               </label>
             )}
-            <div className="max-h-40 overflow-auto">
+            <div className={`${expanded ? "max-h-72" : "max-h-40"} overflow-auto`}>
               {properties.map((property) => (
                 <label
                   key={property.id}
-                  className="flex items-start gap-2 rounded-md px-2 py-2 text-xs font-medium leading-snug text-foreground/75 hover:bg-background"
+                  className="flex items-start gap-2 rounded-md px-3 py-2.5 text-sm font-medium leading-snug text-foreground/75 hover:bg-background"
                   title={formatPortalPropertyLabel(property)}
                 >
                   <input
                     type="checkbox"
                     checked={checkedIdSet.has(property.id)}
-                    disabled={
-                      !canChangeScope ||
-                      (checkedIdSet.has(property.id) && checkedIds.length === 1)
-                    }
+                    disabled={!canChangeScope}
                     onChange={(event) => handlePropertyToggle(property.id, event.target.checked)}
                     className="mt-0.5 h-4 w-4 rounded border-border text-[var(--brand)]"
                   />
@@ -422,18 +423,31 @@ function PropertyScopeEditor({
             No properties available.
           </div>
         )}
+        {zeroSelected && (
+          <p className="mt-3 text-xs font-medium text-amber-800">
+            At least one property is required.
+          </p>
+        )}
       </div>
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <span className="block text-xs font-semibold text-foreground/55">
-            {display.mainText}
-          </span>
-          <span className="block max-w-[240px] truncate text-xs text-foreground/45" title={display.subText}>
-            {display.subText}
-          </span>
-        </div>
+      <div
+        className={
+          batchMode
+            ? "flex justify-end gap-2"
+            : "grid min-w-0 gap-1"
+        }
+      >
+        {!batchMode && (
+          <>
+            <span className="block text-xs font-semibold text-foreground/55">
+              {display.mainText}
+            </span>
+            <span className="block text-xs text-foreground/45">
+              {display.subText}
+            </span>
+          </>
+        )}
         {batchMode && (
-          <div className="flex shrink-0 gap-2">
+          <div className="flex shrink-0 justify-end gap-2">
             <button
               type="button"
               onClick={handleCancel}
@@ -448,7 +462,9 @@ function PropertyScopeEditor({
               disabled={disabled || !draftCanSave}
               className="inline-flex h-8 items-center justify-center rounded-lg bg-[var(--brand)] px-2.5 text-xs font-semibold text-white shadow-sm disabled:opacity-45"
               title={
-                draftHasChanges
+                zeroSelected
+                  ? "At least one property is required"
+                  : draftHasChanges
                   ? "Save property scope changes"
                   : "No property scope changes to save"
               }
@@ -492,6 +508,7 @@ export default function PortalAccessAdminPage() {
   const [cancelInviteId, setCancelInviteId] = useState("");
   const [roleChangeId, setRoleChangeId] = useState("");
   const [scopeChangeId, setScopeChangeId] = useState("");
+  const [scopeEditRowId, setScopeEditRowId] = useState("");
 
   useEffect(() => {
     document.title = BRAND.siteTitle;
@@ -866,7 +883,7 @@ export default function PortalAccessAdminPage() {
   }
 
   async function handleScopeChange(row, nextScope, nextPropertyIds) {
-    if (!session?.access_token || !row?.canChangeScope || row.role === "owner") return;
+    if (!session?.access_token || !row?.canChangeScope || row.role === "owner") return false;
     const normalizedScope = nextScope === "property" ? "property" : "org";
     const normalizedPropertyIds = normalizedScope === "property" ? nextPropertyIds : [];
     if (
@@ -874,7 +891,7 @@ export default function PortalAccessAdminPage() {
       JSON.stringify([...(row.propertyIds || [])].sort()) ===
         JSON.stringify([...normalizedPropertyIds].sort())
     ) {
-      return;
+      return true;
     }
 
     setScopeChangeId(row.id);
@@ -904,12 +921,19 @@ export default function PortalAccessAdminPage() {
         `Changed ${row.email || row.userId} property scope for ${row.orgName}.`
       );
       await loadAccess(session);
+      return true;
     } catch (error) {
       setLoadError(error.message || "Unable to change property scope.");
       await loadAccess(session);
+      return false;
     } finally {
       setScopeChangeId("");
     }
+  }
+
+  async function handleExpandedScopeSave(row, nextScope, nextPropertyIds) {
+    const changed = await handleScopeChange(row, nextScope, nextPropertyIds);
+    if (changed) setScopeEditRowId("");
   }
 
   async function handleCancelInvite(row) {
@@ -983,6 +1007,10 @@ export default function PortalAccessAdminPage() {
       return next.length === current.length ? current : next;
     });
   }, [selectedAccessRole, selectedAccessScope, selectedOrgProperties]);
+
+  useEffect(() => {
+    setScopeEditRowId("");
+  }, [selectedOrgId]);
 
   const inviteScopeIncomplete =
     selectedAccessRole !== "owner" &&
@@ -1418,97 +1446,112 @@ export default function PortalAccessAdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {unifiedAccessRows.map((row) => (
-                      <tr
-                        key={`${row.rowType}:${row.id}`}
-                        className="border-b border-border last:border-b-0"
-                      >
-                        <td className="px-5 py-3 font-medium text-foreground">
-                          {row.email || row.userId}
-                        </td>
-                        <td className="px-5 py-3">
-                          {row.rowType === "invite" ? (
-                            <InviteStatus row={row} />
-                          ) : (
-                            <AccountStatus status={row.accountStatus} />
+                    {unifiedAccessRows.map((row) => {
+                      const canEditScope =
+                        row.rowType === "active" && canEditPortalPropertyScope(row);
+                      const isScopeEditing = canEditScope && scopeEditRowId === row.id;
+
+                      return (
+                        <Fragment key={`${row.rowType}:${row.id}`}>
+                          <tr className="border-b border-border last:border-b-0">
+                            <td className="px-5 py-3 font-medium text-foreground">
+                              {row.email || row.userId}
+                            </td>
+                            <td className="px-5 py-3">
+                              {row.rowType === "invite" ? (
+                                <InviteStatus row={row} />
+                              ) : (
+                                <AccountStatus status={row.accountStatus} />
+                              )}
+                            </td>
+                            <td className="px-5 py-3 text-foreground/70">
+                              {row.rowType === "invite" ? (
+                                <span className="font-medium text-foreground/75">
+                                  {selectedAccessTypeLabel(row.role)}
+                                </span>
+                              ) : (
+                                <RoleSelect
+                                  row={row}
+                                  disabled={roleChangeId === row.id}
+                                  onChange={handleRoleChange}
+                                />
+                              )}
+                            </td>
+                            <td className="px-5 py-3 text-foreground/70">
+                              <PropertyScopeSummary
+                                role={row.role}
+                                accessScope={row.accessScope}
+                                propertyIds={row.propertyIds || []}
+                                properties={selectedOrgProperties}
+                                allowedScopes={row.allowedAccessScopes}
+                                disabled={
+                                  row.rowType === "invite" ||
+                                  scopeChangeId === row.id ||
+                                  !canEditScope
+                                }
+                                onEdit={() => setScopeEditRowId(row.id)}
+                              />
+                            </td>
+                            <td className="px-5 py-3 text-foreground/70">
+                              {formatDate(row.createdAt)}
+                            </td>
+                            <td className="px-5 py-3 text-right">
+                              {row.rowType === "invite" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCancelInvite(row)}
+                                  disabled={!row.canCancel || cancelInviteId === row.id}
+                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-red-700 disabled:opacity-45"
+                                  title={
+                                    row.canCancel
+                                      ? "Cancel pending invite"
+                                      : "This invite cannot be canceled here"
+                                  }
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  {cancelInviteId === row.id ? "Canceling..." : "Cancel"}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRevoke(row)}
+                                  disabled={!row.canRevoke || revokeId === row.id}
+                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-red-700 disabled:opacity-45"
+                                  title={
+                                    row.canRevoke
+                                      ? "Revoke access"
+                                      : "This access cannot be revoked here"
+                                  }
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Revoke
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                          {isScopeEditing && (
+                            <tr className="border-b border-border bg-slate-50/70">
+                              <td colSpan={6} className="px-5 py-4">
+                                <PropertyScopeEditor
+                                  row={row}
+                                  role={row.role}
+                                  accessScope={row.accessScope}
+                                  propertyIds={row.propertyIds || []}
+                                  properties={selectedOrgProperties}
+                                  allowedScopes={row.allowedAccessScopes}
+                                  disabled={scopeChangeId === row.id}
+                                  expanded
+                                  onSave={(nextScope, nextPropertyIds) =>
+                                    handleExpandedScopeSave(row, nextScope, nextPropertyIds)
+                                  }
+                                  onCancel={() => setScopeEditRowId("")}
+                                />
+                              </td>
+                            </tr>
                           )}
-                        </td>
-                        <td className="px-5 py-3 text-foreground/70">
-                          {row.rowType === "invite" ? (
-                            <span className="font-medium text-foreground/75">
-                              {selectedAccessTypeLabel(row.role)}
-                            </span>
-                          ) : (
-                            <RoleSelect
-                              row={row}
-                              disabled={roleChangeId === row.id}
-                              onChange={handleRoleChange}
-                            />
-                          )}
-                        </td>
-                        <td className="px-5 py-3 text-foreground/70">
-                          {row.rowType === "invite" ? (
-                            <div className="grid gap-1">
-                              <span className="font-medium text-foreground/75">
-                                {propertyScopeLabel(row)}
-                              </span>
-                              <span className="text-xs text-foreground/45">
-                                Pending invite scope
-                              </span>
-                            </div>
-                          ) : (
-                            <PropertyScopeEditor
-                              row={row}
-                              role={row.role}
-                              accessScope={row.accessScope}
-                              propertyIds={row.propertyIds || []}
-                              properties={selectedOrgProperties}
-                              allowedScopes={row.allowedAccessScopes}
-                              disabled={scopeChangeId === row.id || !canEditPortalPropertyScope(row)}
-                              onSave={(nextScope, nextPropertyIds) =>
-                                handleScopeChange(row, nextScope, nextPropertyIds)
-                              }
-                            />
-                          )}
-                        </td>
-                        <td className="px-5 py-3 text-foreground/70">
-                          {formatDate(row.createdAt)}
-                        </td>
-                        <td className="px-5 py-3 text-right">
-                          {row.rowType === "invite" ? (
-                            <button
-                              type="button"
-                              onClick={() => handleCancelInvite(row)}
-                              disabled={!row.canCancel || cancelInviteId === row.id}
-                              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-red-700 disabled:opacity-45"
-                              title={
-                                row.canCancel
-                                  ? "Cancel pending invite"
-                                  : "This invite cannot be canceled here"
-                              }
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              {cancelInviteId === row.id ? "Canceling..." : "Cancel"}
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleRevoke(row)}
-                              disabled={!row.canRevoke || revokeId === row.id}
-                              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-red-700 disabled:opacity-45"
-                              title={
-                                row.canRevoke
-                                  ? "Revoke access"
-                                  : "This access cannot be revoked here"
-                              }
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Revoke
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                        </Fragment>
+                      );
+                    })}
                     {unifiedAccessRows.length === 0 && (
                       <tr>
                         <td

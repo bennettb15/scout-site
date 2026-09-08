@@ -802,6 +802,25 @@ test("active row property-scope editing batches changes and saves on confirm", (
   assert.equal(portalPropertyScopeDraftCanSave(row, draft, properties), true);
 });
 
+test("active row property-scope editing blocks saving zero selected properties", () => {
+  const properties = [
+    { id: "property-a", name: "Rental Unit 1" },
+    { id: "property-b", name: "Rental Unit 2" },
+  ];
+  const row = {
+    role: "viewer",
+    accessScope: "property",
+    propertyIds: ["property-a"],
+    canChangeScope: true,
+  };
+  const draft = {
+    accessScope: "property",
+    propertyIds: [],
+  };
+
+  assert.equal(portalPropertyScopeDraftCanSave(row, draft, properties), false);
+});
+
 test("checkbox picker saves all checked properties as org-wide when permitted", () => {
   assert.deepEqual(
     portalPropertyScopeSelectionFromCheckedIds({

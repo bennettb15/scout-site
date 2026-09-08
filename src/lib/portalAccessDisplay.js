@@ -172,6 +172,12 @@ export function portalPropertyScopeDraftChanged(current = {}, draft = {}, proper
 
 export function portalPropertyScopeDraftCanSave(current = {}, draft = {}, properties = []) {
   if (!canEditPortalPropertyScope(current)) return false;
+  if (
+    draft?.accessScope === "property" &&
+    normalizePropertyIds(draft.propertyIds, properties).length === 0
+  ) {
+    return false;
+  }
   const selection = normalizePortalPropertyScopeDraft({
     role: current.role,
     accessScope: draft.accessScope,
