@@ -18,6 +18,7 @@ import {
   nextPortalPropertyToggleSelection,
   normalizePortalPropertyScopeDraft,
   normalizePropertyIds as normalizeDisplayPropertyIds,
+  portalPropertyScopeDisplay,
   portalPropertyScopeDraftCanSave,
   portalPropertyScopeDraftChanged,
 } from "./lib/portalAccessDisplay";
@@ -254,11 +255,14 @@ function PropertyScopeEditor({
   const activeScope = activeSelection.accessScope === "property" ? "property" : "org";
   const activeIds = normalizeDisplayPropertyIds(activeSelection.propertyIds, properties);
   const selectedIds = new Set(activeIds);
-  const summary = propertyScopeLabel({
+  const display = portalPropertyScopeDisplay({
     role,
     accessScope: activeScope,
+    propertyIds: activeIds,
+    properties,
     propertySummary: selectedPropertySummary(activeIds, properties),
   });
+  const summary = [display.mainText, display.subText].filter(Boolean).join(" - ");
   const currentRow = row || { role, accessScope: scope, propertyIds: ids, canChangeScope };
   const draftCanSave = portalPropertyScopeDraftCanSave(currentRow, activeSelection, properties);
   const draftHasChanges = portalPropertyScopeDraftChanged(currentRow, activeSelection, properties);
@@ -315,21 +319,28 @@ function PropertyScopeEditor({
   if (role === "owner") {
     return (
       <div className="grid gap-1">
-        <span className="text-sm font-medium text-foreground/75">All properties</span>
-        <span className="text-xs text-foreground/45">Owner access is org-wide</span>
+        <span className="text-sm font-medium leading-snug text-foreground/75">
+          {display.mainText}
+        </span>
+        <span className="text-xs leading-snug text-foreground/45">
+          {display.subText}
+        </span>
       </div>
     );
   }
 
   if (batchMode && !isEditing) {
     return (
-      <div className="flex max-w-[320px] items-center justify-between gap-3">
+      <div className="flex max-w-[360px] items-start justify-between gap-3">
         <div className="min-w-0">
-          <span className="block truncate text-sm font-medium text-foreground/75" title={summary}>
-            {summary}
+          <span className="block text-sm font-medium leading-snug text-foreground/75">
+            {display.mainText}
           </span>
-          <span className="text-xs text-foreground/45">
-            {scope === "property" ? "Selected property scope" : "Org-wide scope"}
+          <span
+            className="mt-0.5 block max-w-[280px] truncate text-xs leading-snug text-foreground/45"
+            title={display.subText}
+          >
+            {display.subText}
           </span>
         </div>
         {canChangeScope && (
@@ -346,9 +357,9 @@ function PropertyScopeEditor({
   }
 
   return (
-    <div className="grid max-w-[340px] gap-2">
+    <div className="grid max-w-[380px] gap-2">
       <label className="grid gap-1">
-        <span className="sr-only">Property scope</span>
+        <span className="text-xs font-semibold text-foreground/55">Property scope</span>
         <select
           value={activeScope}
           disabled={!canChangeScope}
@@ -366,7 +377,7 @@ function PropertyScopeEditor({
               {properties.map((property) => (
                 <label
                   key={property.id}
-                  className="flex items-start gap-2 rounded-md px-2 py-1.5 text-xs font-medium text-foreground/75 hover:bg-background"
+                  className="flex items-start gap-2 rounded-md px-2 py-2 text-xs font-medium leading-snug text-foreground/75 hover:bg-background"
                   title={formatPortalPropertyLabel(property)}
                 >
                   <input
@@ -376,8 +387,8 @@ function PropertyScopeEditor({
                     onChange={(event) => handlePropertyToggle(property.id, event.target.checked)}
                     className="mt-0.5 h-4 w-4 rounded border-border text-[var(--brand)]"
                   />
-                  <span className="min-w-0">
-                    <span className="block whitespace-normal break-words leading-snug">
+                  <span className="min-w-0 flex-1">
+                    <span className="block whitespace-normal break-words">
                       {formatPortalPropertyLabel(property)}
                     </span>
                   </span>
@@ -392,9 +403,14 @@ function PropertyScopeEditor({
         </div>
       )}
       <div className="flex items-center justify-between gap-2">
-        <span className="min-w-0 truncate text-xs text-foreground/45" title={summary}>
-          {summary}
-        </span>
+        <div className="min-w-0">
+          <span className="block text-xs font-semibold text-foreground/55">
+            {display.mainText}
+          </span>
+          <span className="block max-w-[240px] truncate text-xs text-foreground/45" title={display.subText}>
+            {display.subText}
+          </span>
+        </div>
         {batchMode && (
           <div className="flex shrink-0 gap-2">
             <button

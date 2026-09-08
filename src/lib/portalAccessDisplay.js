@@ -21,6 +21,41 @@ export function formatPortalPropertyLabel(property = {}) {
   return name || location || "Unnamed property";
 }
 
+export function portalPropertyScopeDisplay({
+  accessScope = "org",
+  propertyIds = [],
+  role = "",
+  properties = [],
+  propertySummary = "",
+} = {}) {
+  const scope = role === "owner" || accessScope !== "property" ? "org" : "property";
+  if (scope === "org") {
+    return {
+      mainText: "All properties",
+      subText: role === "owner" ? "Owner access is org-wide" : "Org-wide scope",
+    };
+  }
+
+  const ids = normalizePropertyIds(propertyIds, properties);
+  const propertyById = new Map((properties || []).map((property) => [property.id, property]));
+  if (ids.length === 1) {
+    return {
+      mainText: "Selected properties",
+      subText: `1 selected: ${formatPortalPropertyLabel(propertyById.get(ids[0]) || {})}`,
+    };
+  }
+  if (ids.length > 1) {
+    return {
+      mainText: "Selected properties",
+      subText: `${ids.length} selected`,
+    };
+  }
+  return {
+    mainText: "Selected properties",
+    subText: normalizeDisplayText(propertySummary) || "No properties selected",
+  };
+}
+
 export function normalizePropertyIds(values, properties = []) {
   const allowedIds = new Set((properties || []).map((property) => property.id).filter(Boolean));
   const ids = Array.isArray(values) ? values : [];

@@ -25,9 +25,15 @@ import {
   normalizePortalPropertyScopeDraft,
   nextPortalPropertyScopeSelection,
   nextPortalPropertyToggleSelection,
+  portalPropertyScopeDisplay,
   portalPropertyScopeDraftCanSave,
   portalPropertyScopeDraftChanged,
 } from "../src/lib/portalAccessDisplay.js";
+import {
+  allowedPropertyIdsFromOptions,
+  filterReportPackagesByAllowedProperties,
+  filterReportPackagesBySelectedProperty,
+} from "../src/lib/reportPortalFilters.js";
 
 const orgId = "11111111-1111-4111-8111-111111111111";
 const userId = "22222222-2222-4222-8222-222222222222";
@@ -430,25 +436,72 @@ test("scoped Viewer with one property sees only that property's report packages"
   );
 });
 
+test("scoped Field with selected property sees only that property's report packages under All Properties", () => {
+  assert.deepEqual(
+    filterReportPackagesByAllowedProperties(
+      [
+        { id: "package-a", property: { id: "property-a" } },
+        { id: "package-b", property: { id: "property-b" } },
+      ],
+      [{ id: "property-b", name: "QA Test 9.17" }],
+      true
+    ).map((row) => row.id),
+    ["package-b"]
+  );
+});
+
 test("scoped Viewer does not see unscoped packages when All Properties is selected", () => {
   assert.deepEqual(
-    filterRowsByCurrentPortalPropertyAccess(
+    filterReportPackagesByAllowedProperties(
       [
-        { id: "package-a", org_id: orgId, property_id: "property-a" },
-        { id: "package-b", org_id: orgId, property_id: "property-b" },
+        { id: "package-a", property: { id: "property-a" } },
+        { id: "package-b", property: { id: "property-b" } },
       ],
-      [
-        {
-          org_id: orgId,
-          role: "viewer",
-          access_scope: "property",
-          propertyIds: ["property-a"],
-        },
-      ],
-      ["property-a", "property-b"]
+      [{ id: "property-a", name: "QA Test 9.16" }],
+      true
     ).map((row) => row.id),
     ["package-a"]
   );
+});
+
+test("property dropdown and package list use the same allowed property IDs", () => {
+  const propertyOptions = [
+    { id: "property-a", name: "QA Test 9.16" },
+    { id: "property-c", name: "QA Test 9.18" },
+  ];
+  const visiblePackages = filterReportPackagesByAllowedProperties(
+    [
+      { id: "package-a", property: { id: "property-a" } },
+      { id: "package-b", property: { id: "property-b" } },
+      { id: "package-c", property: { id: "property-c" } },
+    ],
+    propertyOptions,
+    true
+  );
+  const allowedIds = allowedPropertyIdsFromOptions(propertyOptions);
+
+  assert.deepEqual(visiblePackages.map((row) => row.id), ["package-a", "package-c"]);
+  assert.equal(
+    visiblePackages.every((row) => allowedIds.has(row.property.id)),
+    true
+  );
+});
+
+test("All Properties keeps scoped report package list inside allowed property IDs", () => {
+  const visiblePackages = filterReportPackagesBySelectedProperty(
+    filterReportPackagesByAllowedProperties(
+      [
+        { id: "package-a", property: { id: "property-a" } },
+        { id: "package-b", property: { id: "property-b" } },
+      ],
+      [{ id: "property-a", name: "QA Test 9.16" }],
+      true
+    ),
+    "all",
+    "all"
+  );
+
+  assert.deepEqual(visiblePackages.map((row) => row.id), ["package-a"]);
 });
 
 test("deleted or non-visible property packages are excluded", () => {
@@ -567,6 +620,41 @@ test("property label formatter separates name from full address", () => {
       state: "OH",
     }),
     "Rental Unit 2 - Lancaster, OH"
+  );
+});
+
+test("property scope display separates main text and subtext", () => {
+  assert.deepEqual(
+    portalPropertyScopeDisplay({ accessScope: "org", role: "viewer" }),
+    { mainText: "All properties", subText: "Org-wide scope" }
+  );
+  assert.deepEqual(
+    portalPropertyScopeDisplay({ accessScope: "org", role: "owner" }),
+    { mainText: "All properties", subText: "Owner access is org-wide" }
+  );
+});
+
+test("selected property scope summary is readable and not concatenated", () => {
+  assert.deepEqual(
+    portalPropertyScopeDisplay({
+      accessScope: "property",
+      role: "field",
+      propertyIds: ["property-a"],
+      properties: [
+        {
+          id: "property-a",
+          name: "QA Test 9.17",
+          addressLine1: "917 W Coshocton St",
+          city: "Johnstown",
+          state: "OH",
+          postalCode: "43031",
+        },
+      ],
+    }),
+    {
+      mainText: "Selected properties",
+      subText: "1 selected: QA Test 9.17 - 917 W Coshocton St, Johnstown, OH 43031",
+    }
   );
 });
 

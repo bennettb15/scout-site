@@ -16,6 +16,10 @@ import {
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
+import {
+  filterReportPackagesByAllowedProperties,
+  filterReportPackagesBySelectedProperty,
+} from "./lib/reportPortalFilters";
 
 const BRAND = {
   siteTitle: "Reports | SCOUT",
@@ -955,6 +959,11 @@ export default function ScoutReportsPortalPage() {
   }, [packages, selectedOrgId]);
 
   const propertyOptions = useMemo(() => {
+    if (Array.isArray(selectedOrg?.properties)) {
+      return [...selectedOrg.properties].sort((a, b) =>
+        propertyOptionLabel(a).localeCompare(propertyOptionLabel(b))
+      );
+    }
     const optionsById = new Map();
     for (const reportPackage of orgFilteredPackages) {
       const property = reportPackage.property;
@@ -966,7 +975,18 @@ export default function ScoutReportsPortalPage() {
     return Array.from(optionsById.values()).sort((a, b) =>
       propertyOptionLabel(a).localeCompare(propertyOptionLabel(b))
     );
-  }, [orgFilteredPackages]);
+  }, [orgFilteredPackages, selectedOrg]);
+
+  const hasExplicitPropertyOptions = Array.isArray(selectedOrg?.properties);
+
+  const visibleOrgPackages = useMemo(() => {
+    if (!selectedOrgId) return orgFilteredPackages;
+    return filterReportPackagesByAllowedProperties(
+      orgFilteredPackages,
+      propertyOptions,
+      hasExplicitPropertyOptions
+    );
+  }, [hasExplicitPropertyOptions, orgFilteredPackages, propertyOptions, selectedOrgId]);
 
   useEffect(() => {
     if (!session?.access_token || !reportsPropertyContextReady) return;
@@ -1019,11 +1039,12 @@ export default function ScoutReportsPortalPage() {
   );
 
   const propertyFilteredPackages = useMemo(() => {
-    if (selectedPropertyId === ALL_PROPERTIES) return orgFilteredPackages;
-    return orgFilteredPackages.filter(
-      (reportPackage) => reportPackage.property?.id === selectedPropertyId
+    return filterReportPackagesBySelectedProperty(
+      visibleOrgPackages,
+      selectedPropertyId,
+      ALL_PROPERTIES
     );
-  }, [orgFilteredPackages, selectedPropertyId]);
+  }, [selectedPropertyId, visibleOrgPackages]);
 
   const latestPackageIdsForPropertyFilter = useMemo(() => {
     const newestByProperty = new Map();
@@ -1075,7 +1096,7 @@ export default function ScoutReportsPortalPage() {
 
   const newestPackageIds = useMemo(() => {
     const newestByProperty = new Map();
-    for (const reportPackage of orgFilteredPackages) {
+    for (const reportPackage of visibleOrgPackages) {
       const propertyId = packagePropertyKey(reportPackage);
       const timestampMs = packageTimestampMs(reportPackage);
       const current = newestByProperty.get(propertyId);
@@ -1089,7 +1110,7 @@ export default function ScoutReportsPortalPage() {
     return new Set(
       Array.from(newestByProperty.values()).map((entry) => entry.id)
     );
-  }, [orgFilteredPackages]);
+  }, [visibleOrgPackages]);
 
   const propertyGroups = useMemo(() => {
     const groups = new Map();
@@ -1118,7 +1139,7 @@ export default function ScoutReportsPortalPage() {
   }, [filteredPackages]);
 
   const emptyPackagesMessage = useMemo(() => {
-    if (orgFilteredPackages.length === 0) {
+    if (visibleOrgPackages.length === 0) {
       return selectedOrg?.name
         ? `No ready PDF packages are available for ${selectedOrg.name}.`
         : "No ready PDF packages are available for this account.";
@@ -1132,10 +1153,10 @@ export default function ScoutReportsPortalPage() {
     return "No packages match the selected filters.";
   }, [
     dateFilter,
-    orgFilteredPackages.length,
     propertyFilteredPackages.length,
     selectedOrg,
     selectedProperty,
+    visibleOrgPackages.length,
   ]);
 
   return (

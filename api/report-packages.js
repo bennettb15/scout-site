@@ -72,13 +72,20 @@ async function handleReportOrgs(req, res) {
 
     const service = createServiceClient();
     const portalAccess = await loadUserPortalPropertyAccess(service, auth.user);
-    const { data, error } = await service
-      .from("orgs")
-      .select("id,name")
-      .is("deleted_at", null)
-      .order("name", { ascending: true });
+    const [{ data, error }, { data: propertyRows, error: propertiesError }] = await Promise.all([
+      service
+        .from("orgs")
+        .select("id,name")
+        .is("deleted_at", null)
+        .order("name", { ascending: true }),
+      service
+        .from("properties")
+        .select("id,org_id,name,address_line1,city,state,postal_code")
+        .is("deleted_at", null)
+        .order("name", { ascending: true }),
+    ]);
 
-    if (error) {
+    if (error || propertiesError) {
       return sendJson(res, 500, { error: "Unable to load organizations." });
     }
 
@@ -89,11 +96,19 @@ async function handleReportOrgs(req, res) {
             portalAccess.orgWideOrgIds.has(row.id) ||
             portalAccess.rows.some((access) => access.org_id === row.id)
         );
+    const propertiesByOrgId = new Map();
+    for (const property of propertyRows || []) {
+      if (!portalAccess.canAccessProperty(property.org_id, property.id)) continue;
+      const rows = propertiesByOrgId.get(property.org_id) || [];
+      rows.push(toProperty(property));
+      propertiesByOrgId.set(property.org_id, rows);
+    }
 
     return sendJson(res, 200, {
       orgs: orgRows.map((row) => ({
         id: row.id,
         name: row.name,
+        properties: propertiesByOrgId.get(row.id) || [],
       })),
     });
   } catch {
