@@ -18,6 +18,12 @@ import {
   propertyScopeSummary,
   visiblePropertyIdsForAccess,
 } from "../api-lib/portalPropertyAccess.js";
+import {
+  canEditPortalPropertyScope,
+  formatPortalPropertyLabel,
+  nextPortalPropertyScopeSelection,
+  nextPortalPropertyToggleSelection,
+} from "../src/lib/portalAccessDisplay.js";
 
 const orgId = "11111111-1111-4111-8111-111111111111";
 const userId = "22222222-2222-4222-8222-222222222222";
@@ -409,5 +415,70 @@ test("property scope summaries are readable", () => {
   assert.equal(
     propertyScopeSummary({ accessScope: "property", propertyIds: ["property-a", "property-b"], propertyById }),
     "2 properties"
+  );
+});
+
+test("property label formatter separates name from full address", () => {
+  assert.equal(
+    formatPortalPropertyLabel({
+      name: "Rental Unit 1",
+      addressLine1: "123 Main St",
+      city: "Lancaster",
+      state: "OH",
+      postalCode: "43130",
+    }),
+    "Rental Unit 1 - 123 Main St, Lancaster, OH 43130"
+  );
+  assert.equal(
+    formatPortalPropertyLabel({
+      name: "Rental Unit 2",
+      city: "Lancaster",
+      state: "OH",
+    }),
+    "Rental Unit 2 - Lancaster, OH"
+  );
+});
+
+test("owner active row is locked to all properties", () => {
+  assert.equal(
+    canEditPortalPropertyScope({
+      role: "owner",
+      canChangeScope: true,
+    }),
+    false
+  );
+});
+
+test("active row can switch from all properties to selected property scope", () => {
+  assert.deepEqual(
+    nextPortalPropertyScopeSelection({
+      currentPropertyIds: [],
+      nextScope: "property",
+      properties: [{ id: "property-a", name: "Rental Unit 1" }],
+    }),
+    { accessScope: "property", propertyIds: ["property-a"] }
+  );
+});
+
+test("active row can switch selected property scope back to all properties", () => {
+  assert.deepEqual(
+    nextPortalPropertyScopeSelection({
+      currentPropertyIds: ["property-a"],
+      nextScope: "org",
+      properties: [{ id: "property-a", name: "Rental Unit 1" }],
+    }),
+    { accessScope: "org", propertyIds: [] }
+  );
+});
+
+test("active selected property checklist keeps at least one property selected", () => {
+  assert.deepEqual(
+    nextPortalPropertyToggleSelection({
+      currentPropertyIds: ["property-a"],
+      propertyId: "property-a",
+      checked: false,
+      properties: [{ id: "property-a", name: "Rental Unit 1" }],
+    }),
+    { accessScope: "property", propertyIds: ["property-a"] }
   );
 });

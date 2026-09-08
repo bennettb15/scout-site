@@ -11,6 +11,13 @@ import {
   UserPlus,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
+import {
+  canEditPortalPropertyScope,
+  formatPortalPropertyLabel,
+  nextPortalPropertyScopeSelection,
+  nextPortalPropertyToggleSelection,
+  normalizePropertyIds as normalizeDisplayPropertyIds,
+} from "./lib/portalAccessDisplay";
 
 const BRAND = {
   siteTitle: "Portal Access Admin | SCOUT",
@@ -74,10 +81,10 @@ function propertyScopeLabel({ accessScope, propertySummary, role }) {
 }
 
 function selectedPropertySummary(propertyIds, properties) {
-  const ids = Array.isArray(propertyIds) ? propertyIds : [];
+  const ids = normalizeDisplayPropertyIds(propertyIds, properties);
   if (!ids.length) return "No properties selected";
   const propertyById = new Map((properties || []).map((property) => [property.id, property]));
-  if (ids.length === 1) return propertyById.get(ids[0])?.name || "1 property";
+  if (ids.length === 1) return formatPortalPropertyLabel(propertyById.get(ids[0]) || {});
   return `${ids.length} properties`;
 }
 
@@ -241,15 +248,22 @@ function PropertyScopeEditor({
   });
 
   function handleScopeChange(nextScope) {
-    const normalizedScope = nextScope === "property" ? "property" : "org";
-    onChange?.(normalizedScope, normalizedScope === "property" ? ids : []);
+    const selection = nextPortalPropertyScopeSelection({
+      currentPropertyIds: ids,
+      nextScope,
+      properties,
+    });
+    onChange?.(selection.accessScope, selection.propertyIds);
   }
 
   function handlePropertyToggle(propertyId, checked) {
-    const nextIds = checked
-      ? [...ids, propertyId]
-      : ids.filter((id) => id !== propertyId);
-    onChange?.("property", nextIds);
+    const selection = nextPortalPropertyToggleSelection({
+      currentPropertyIds: ids,
+      propertyId,
+      checked,
+      properties,
+    });
+    onChange?.(selection.accessScope, selection.propertyIds);
   }
 
   if (role === "owner") {
@@ -283,21 +297,19 @@ function PropertyScopeEditor({
                 <label
                   key={property.id}
                   className="flex items-start gap-2 rounded-md px-2 py-1.5 text-xs font-medium text-foreground/75 hover:bg-background"
+                  title={formatPortalPropertyLabel(property)}
                 >
                   <input
                     type="checkbox"
                     checked={selectedIds.has(property.id)}
-                    disabled={!canChangeScope}
+                    disabled={!canChangeScope || (selectedIds.has(property.id) && ids.length === 1)}
                     onChange={(event) => handlePropertyToggle(property.id, event.target.checked)}
                     className="mt-0.5 h-4 w-4 rounded border-border text-[var(--brand)]"
                   />
                   <span className="min-w-0">
-                    <span className="block truncate">{property.name || "Unnamed property"}</span>
-                    {(property.city || property.state) && (
-                      <span className="block truncate font-normal text-foreground/45">
-                        {[property.city, property.state].filter(Boolean).join(", ")}
-                      </span>
-                    )}
+                    <span className="block whitespace-normal break-words leading-snug">
+                      {formatPortalPropertyLabel(property)}
+                    </span>
                   </span>
                 </label>
               ))}
@@ -1258,12 +1270,13 @@ export default function PortalAccessAdminPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[920px] text-left text-sm">
+                <table className="w-full min-w-[1080px] text-left text-sm">
                   <thead className="border-b border-border bg-slate-50 text-xs uppercase text-foreground/55">
                     <tr>
                       <th className="px-5 py-3 font-semibold">Email</th>
                       <th className="px-5 py-3 font-semibold">Status</th>
-                      <th className="px-5 py-3 font-semibold">Access</th>
+                      <th className="px-5 py-3 font-semibold">Role</th>
+                      <th className="px-5 py-3 font-semibold">Properties</th>
                       <th className="px-5 py-3 font-semibold">Created</th>
                       <th className="px-5 py-3 text-right font-semibold">Action</th>
                     </tr>
@@ -1286,33 +1299,39 @@ export default function PortalAccessAdminPage() {
                         </td>
                         <td className="px-5 py-3 text-foreground/70">
                           {row.rowType === "invite" ? (
+                            <span className="font-medium text-foreground/75">
+                              {selectedAccessTypeLabel(row.role)}
+                            </span>
+                          ) : (
+                            <RoleSelect
+                              row={row}
+                              disabled={roleChangeId === row.id}
+                              onChange={handleRoleChange}
+                            />
+                          )}
+                        </td>
+                        <td className="px-5 py-3 text-foreground/70">
+                          {row.rowType === "invite" ? (
                             <div className="grid gap-1">
                               <span className="font-medium text-foreground/75">
-                                {selectedAccessTypeLabel(row.role)}
+                                {propertyScopeLabel(row)}
                               </span>
                               <span className="text-xs text-foreground/45">
-                                {propertyScopeLabel(row)}
+                                Pending invite scope
                               </span>
                             </div>
                           ) : (
-                            <div className="grid gap-3">
-                              <RoleSelect
-                                row={row}
-                                disabled={roleChangeId === row.id}
-                                onChange={handleRoleChange}
-                              />
-                              <PropertyScopeEditor
-                                role={row.role}
-                                accessScope={row.accessScope}
-                                propertyIds={row.propertyIds || []}
-                                properties={selectedOrgProperties}
-                                allowedScopes={row.allowedAccessScopes}
-                                disabled={scopeChangeId === row.id || !row.canChangeScope}
-                                onChange={(nextScope, nextPropertyIds) =>
-                                  handleScopeChange(row, nextScope, nextPropertyIds)
-                                }
-                              />
-                            </div>
+                            <PropertyScopeEditor
+                              role={row.role}
+                              accessScope={row.accessScope}
+                              propertyIds={row.propertyIds || []}
+                              properties={selectedOrgProperties}
+                              allowedScopes={row.allowedAccessScopes}
+                              disabled={scopeChangeId === row.id || !canEditPortalPropertyScope(row)}
+                              onChange={(nextScope, nextPropertyIds) =>
+                                handleScopeChange(row, nextScope, nextPropertyIds)
+                              }
+                            />
                           )}
                         </td>
                         <td className="px-5 py-3 text-foreground/70">
@@ -1356,7 +1375,7 @@ export default function PortalAccessAdminPage() {
                     {unifiedAccessRows.length === 0 && (
                       <tr>
                         <td
-                          colSpan={5}
+                          colSpan={6}
                           className="px-5 py-8 text-center text-sm text-foreground/60"
                         >
                           No access rows or pending invites.
