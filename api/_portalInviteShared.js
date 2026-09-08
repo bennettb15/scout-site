@@ -24,6 +24,8 @@ import {
   validateInvitePassword,
 } from "../api-lib/portalInvites.js";
 
+export const PORTAL_EMAIL_LOGO_URL = "https://scoutclear.com/scout-logo-email.png";
+
 export {
   INVITE_EXPIRES_DAYS,
   PortalInviteError,
@@ -98,17 +100,17 @@ export function assertInviteEmailConfigured() {
   }
 }
 
-export async function sendPortalInviteEmail({ email, org, role, setupUrl }) {
-  assertInviteEmailConfigured();
+function portalEmailLogoHtml() {
+  return `<img src="${escapeHtml(PORTAL_EMAIL_LOGO_URL)}" alt="ScoutClear" width="150" style="display:block;width:150px;max-width:100%;height:auto;margin:0" />`;
+}
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
+export function portalInviteEmailPayload({ email, org, role, setupUrl, from, replyTo }) {
   const safeOrg = escapeHtml(org.name || "your organization");
   const safeRole = escapeHtml(inviteRoleLabel(role));
   const safeUrl = escapeHtml(setupUrl);
-  const replyTo = inviteReplyToAddress();
 
-  const { error } = await resend.emails.send({
-    from: inviteFromAddress(),
+  return {
+    from,
     to: email,
     subject: `Your SCOUT ${safeRole} invite`,
     html: `
@@ -116,7 +118,7 @@ export async function sendPortalInviteEmail({ email, org, role, setupUrl }) {
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e4e2dc;border-radius:8px">
           <tr>
             <td style="padding:28px 28px 8px">
-              <div style="font-size:22px;font-weight:700;letter-spacing:0;color:#1c2742">SCOUT</div>
+              ${portalEmailLogoHtml()}
             </td>
           </tr>
           <tr>
@@ -154,7 +156,23 @@ export async function sendPortalInviteEmail({ email, org, role, setupUrl }) {
       `This invite expires in ${INVITE_EXPIRES_DAYS} days.`,
     ].join("\n"),
     ...(replyTo ? { replyTo } : {}),
-  });
+  };
+}
+
+export async function sendPortalInviteEmail({ email, org, role, setupUrl }) {
+  assertInviteEmailConfigured();
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const { error } = await resend.emails.send(
+    portalInviteEmailPayload({
+      email,
+      org,
+      role,
+      setupUrl,
+      from: inviteFromAddress(),
+      replyTo: inviteReplyToAddress(),
+    })
+  );
 
   if (error) {
     throw new PortalInviteError(
@@ -180,7 +198,7 @@ export function portalAccessAddedEmailPayload({ email, org, role, reportsUrl, fr
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e4e2dc;border-radius:8px">
           <tr>
             <td style="padding:28px 28px 8px">
-              <div style="font-size:22px;font-weight:700;letter-spacing:0;color:#1c2742">SCOUT</div>
+              ${portalEmailLogoHtml()}
             </td>
           </tr>
           <tr>

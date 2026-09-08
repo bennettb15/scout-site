@@ -1,16 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  INVITE_EXPIRES_DAYS,
   MIN_INVITE_PASSWORD_LENGTH,
   PortalInviteError,
   createInviteToken,
   hashInviteToken,
   inviteAdminActionForUser,
+  inviteExpiresAt,
   invitePublicState,
   portalInviteStatus,
   validateInvitePassword,
 } from "../api-lib/portalInvites.js";
-import { portalAccessAddedEmailPayload } from "../api/_portalInviteShared.js";
+import {
+  PORTAL_EMAIL_LOGO_URL,
+  portalAccessAddedEmailPayload,
+  portalInviteEmailPayload,
+} from "../api/_portalInviteShared.js";
 
 const now = new Date("2026-09-07T12:00:00.000Z");
 
@@ -35,6 +41,14 @@ test("invite tokens are opaque and hashed deterministically", () => {
 
 test("pending invite remains ready until it expires", () => {
   assert.equal(portalInviteStatus(invite(), now), "ready");
+});
+
+test("portal invites expire after seven days", () => {
+  assert.equal(INVITE_EXPIRES_DAYS, 7);
+  assert.equal(
+    inviteExpiresAt(now),
+    "2026-09-14T12:00:00.000Z"
+  );
 });
 
 test("expired invite reports expired", () => {
@@ -143,10 +157,35 @@ test("existing-user access email points to reports without password setup copy",
   assert.equal(payload.subject, "SCOUT access added for Client Org");
   assert.match(payload.text, /You've been given Client Viewer access to Client Org\./);
   assert.match(payload.text, /Open Reports Portal: https:\/\/www\.scoutclear\.com\/reports/);
+  assert.match(payload.html, new RegExp(`src="${PORTAL_EMAIL_LOGO_URL}"`));
+  assert.match(payload.html, /alt="ScoutClear"/);
   assert.match(payload.html, /Open Reports Portal<\/a>/);
   assert.match(payload.html, /href="https:\/\/www\.scoutclear\.com\/reports"/);
+  assert.doesNotMatch(payload.html, />SCOUT<\/div>/);
   assert.doesNotMatch(payload.text, /set up|set password|invite link/i);
   assert.doesNotMatch(payload.html, /set up|set password|invite link/i);
+});
+
+test("new-user invite email uses logo branding and preserves invite CTA", () => {
+  const setupUrl = "https://www.scoutclear.com/accept-invite?token=test-token";
+  const payload = portalInviteEmailPayload({
+    email: "new@example.com",
+    org: { name: "Client Org" },
+    role: "field",
+    setupUrl,
+    from: "Scout <hello@scoutclear.com>",
+    replyTo: "hello@scoutclear.com",
+  });
+
+  assert.equal(payload.to, "new@example.com");
+  assert.equal(payload.subject, "Your SCOUT Field User invite");
+  assert.match(payload.text, /Open your invite: https:\/\/www\.scoutclear\.com\/accept-invite\?token=test-token/);
+  assert.match(payload.text, /This invite expires in 7 days\./);
+  assert.match(payload.html, new RegExp(`src="${PORTAL_EMAIL_LOGO_URL}"`));
+  assert.match(payload.html, /alt="ScoutClear"/);
+  assert.match(payload.html, /Open SCOUT invite<\/a>/);
+  assert.match(payload.html, /href="https:\/\/www\.scoutclear\.com\/accept-invite\?token=test-token"/);
+  assert.doesNotMatch(payload.html, />SCOUT<\/div>/);
 });
 
 test("invite password validation rejects short passwords", () => {
