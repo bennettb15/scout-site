@@ -4,11 +4,11 @@ export function verificationLinkValuesFromUrl(url) {
   const parsedUrl = new URL(url, "https://www.scoutclear.com");
   const query = parsedUrl.searchParams;
   const hash = new URLSearchParams(parsedUrl.hash.replace(/^#/, ""));
+  const confirmationUrl = confirmationUrlFromParams(query) || hash.get("confirmation_url") || "";
 
   return {
     code: query.get("code"),
-    confirmationUrl:
-      query.get("confirmation_url") || hash.get("confirmation_url") || "",
+    confirmationUrl,
     tokenHash: query.get("token_hash") || hash.get("token_hash"),
     type: query.get("type") || hash.get("type"),
     accessToken: hash.get("access_token"),
@@ -19,6 +19,27 @@ export function verificationLinkValuesFromUrl(url) {
       hash.get("error_description") ||
       hash.get("error"),
   };
+}
+
+function confirmationUrlFromParams(params) {
+  const rawConfirmationUrl = params.get("confirmation_url");
+  if (!rawConfirmationUrl) return "";
+
+  let confirmationUrl;
+  try {
+    confirmationUrl = new URL(rawConfirmationUrl);
+  } catch {
+    return rawConfirmationUrl;
+  }
+
+  for (const key of ["type", "redirect_to"]) {
+    const value = params.get(key);
+    if (value && !confirmationUrl.searchParams.get(key)) {
+      confirmationUrl.searchParams.set(key, value);
+    }
+  }
+
+  return confirmationUrl.toString();
 }
 
 export function hasVerificationCallback({
@@ -54,4 +75,3 @@ export function safeSupabaseConfirmationUrl(rawUrl, supabaseUrl) {
 
   return parsedConfirmationUrl.toString();
 }
-

@@ -38,6 +38,17 @@ test("allows wrapped Supabase confirmation URLs for the configured project", () 
   );
 });
 
+test("reconstructs documented wrapped confirmation URLs with loose nested query params", () => {
+  const values = verificationLinkValuesFromUrl(
+    "https://www.scoutclear.com/verified?confirmation_url=https://project-ref.supabase.co/auth/v1/verify?token=token-value&type=email&redirect_to=https%3A%2F%2Fwww.scoutclear.com%2Fverified"
+  );
+
+  assert.equal(
+    values.confirmationUrl,
+    "https://project-ref.supabase.co/auth/v1/verify?token=token-value&type=email&redirect_to=https%3A%2F%2Fwww.scoutclear.com%2Fverified"
+  );
+});
+
 test("rejects wrapped confirmation URLs for other hosts", () => {
   const confirmationUrl =
     "https://attacker.example/auth/v1/verify?token=token-value&type=email";
@@ -62,4 +73,3 @@ test("rejects wrapped confirmation URLs without a verification token", () => {
     ""
   );
 });
-
