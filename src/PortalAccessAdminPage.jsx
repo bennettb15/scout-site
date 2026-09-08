@@ -20,11 +20,6 @@ const BRAND = {
   },
 };
 
-const ACCESS_TYPE_OPTIONS = [
-  { value: "viewer", label: "Viewer" },
-  { value: "field", label: "Field" },
-];
-
 const ROLE_CHANGE_OPTIONS = [
   { value: "viewer", label: "Viewer" },
   { value: "field", label: "Field" },
@@ -593,6 +588,20 @@ export default function PortalAccessAdminPage() {
     [orgs, selectedOrgId]
   );
 
+  const inviteRoleOptions = useMemo(() => {
+    const allowedRoles = Array.isArray(selectedOrg?.inviteRoles)
+      ? new Set(selectedOrg.inviteRoles)
+      : new Set();
+    return ROLE_CHANGE_OPTIONS.filter((option) => allowedRoles.has(option.value));
+  }, [selectedOrg]);
+
+  useEffect(() => {
+    if (!inviteRoleOptions.length) return;
+    if (!inviteRoleOptions.some((option) => option.value === selectedAccessRole)) {
+      setSelectedAccessRole(inviteRoleOptions[0].value);
+    }
+  }, [inviteRoleOptions, selectedAccessRole]);
+
   const visibleRows = useMemo(() => {
     if (!selectedOrgId) return accessRows;
     return accessRows.filter((row) => row.orgId === selectedOrgId);
@@ -619,7 +628,7 @@ export default function PortalAccessAdminPage() {
       .filter((row) => {
         const isOrdinaryPendingAccess =
           row.accountStatus?.state !== "confirmed" &&
-          ["viewer", "field"].includes(row.role);
+          Boolean(ACCESS_ROLE_LABELS[row.role]);
         return !(isOrdinaryPendingAccess && pendingKeys.has(accessRowKey(row)));
       })
       .map((row) => ({
@@ -865,9 +874,10 @@ export default function PortalAccessAdminPage() {
                   <select
                     value={selectedAccessRole}
                     onChange={(event) => setSelectedAccessRole(event.target.value)}
+                    disabled={!inviteRoleOptions.length}
                     className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
                   >
-                    {ACCESS_TYPE_OPTIONS.map((option) => (
+                    {inviteRoleOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -882,7 +892,8 @@ export default function PortalAccessAdminPage() {
                       submitting ||
                       setupSubmitting ||
                       !clientEmail ||
-                      !selectedOrgId
+                      !selectedOrgId ||
+                      !inviteRoleOptions.length
                     }
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-semibold text-foreground/75 shadow-sm hover:text-foreground disabled:opacity-60"
                   >
@@ -896,7 +907,8 @@ export default function PortalAccessAdminPage() {
                       submitting ||
                       setupSubmitting ||
                       !clientEmail ||
-                      !selectedOrgId
+                      !selectedOrgId ||
+                      !inviteRoleOptions.length
                     }
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
                   >
@@ -910,7 +922,8 @@ export default function PortalAccessAdminPage() {
                       submitting ||
                       setupSubmitting ||
                       !clientEmail ||
-                      !selectedOrgId
+                      !selectedOrgId ||
+                      !inviteRoleOptions.length
                     }
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-100 disabled:opacity-60"
                   >

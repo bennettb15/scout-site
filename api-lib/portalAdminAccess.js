@@ -15,6 +15,9 @@ export const PORTAL_ACCESS_ROLE_LABELS = {
   viewer: "Viewer",
 };
 
+export const OWNER_INVITE_ROLES = ["viewer", "field", "manager", "owner"];
+export const MANAGER_INVITE_ROLES = ["viewer", "field", "manager"];
+
 export function portalAccessRoleLabel(role) {
   return PORTAL_ACCESS_ROLE_LABELS[role] || "Viewer";
 }
@@ -22,6 +25,16 @@ export function portalAccessRoleLabel(role) {
 export function normalizePortalAccessRole(value, fallback = "") {
   const role = String(value || fallback).trim().toLowerCase();
   return PORTAL_ACCESS_ROLES.has(role) ? role : "";
+}
+
+export function inviteRolesForActor(actorRole) {
+  if (actorRole === "owner") return OWNER_INVITE_ROLES;
+  if (actorRole === "manager") return MANAGER_INVITE_ROLES;
+  return [];
+}
+
+export function canActorInvitePortalRole({ actorRole, targetRole }) {
+  return inviteRolesForActor(actorRole).includes(targetRole);
 }
 
 export function canActorChangePortalRole({ actorRole, currentRole, nextRole, isRequiredAdmin = false }) {

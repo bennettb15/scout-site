@@ -188,6 +188,32 @@ test("new-user invite email uses logo branding and preserves invite CTA", () => 
   assert.doesNotMatch(payload.html, />SCOUT<\/div>/);
 });
 
+test("portal access emails render manager and owner role labels", () => {
+  const managerInvite = portalInviteEmailPayload({
+    email: "manager@example.com",
+    org: { name: "Client Org" },
+    role: "manager",
+    setupUrl: "https://www.scoutclear.com/accept-invite?token=manager-token",
+    from: "Scout <hello@scoutclear.com>",
+    replyTo: "hello@scoutclear.com",
+  });
+  const ownerAccess = portalAccessAddedEmailPayload({
+    email: "owner@example.com",
+    org: { name: "Client Org" },
+    role: "owner",
+    reportsUrl: "https://www.scoutclear.com/reports",
+    from: "Scout <hello@scoutclear.com>",
+    replyTo: "hello@scoutclear.com",
+  });
+
+  assert.equal(managerInvite.subject, "Your SCOUT Manager invite");
+  assert.match(managerInvite.text, /Access: Manager/);
+  assert.match(managerInvite.html, /invited as a Manager for Client Org/);
+  assert.equal(ownerAccess.subject, "SCOUT access added for Client Org");
+  assert.match(ownerAccess.text, /You've been given Owner access to Client Org\./);
+  assert.match(ownerAccess.html, /Owner access/);
+});
+
 test("invite password validation rejects short passwords", () => {
   assert.throws(
     () => validateInvitePassword("x".repeat(MIN_INVITE_PASSWORD_LENGTH - 1)),

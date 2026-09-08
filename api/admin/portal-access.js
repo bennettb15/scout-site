@@ -37,8 +37,10 @@ import {
 import {
   ORDINARY_ACCESS_ROLES,
   PORTAL_ACCESS_ROLES,
+  canActorInvitePortalRole,
   canActorChangePortalRole,
   canActorRevokePortalRole,
+  inviteRolesForActor,
   membershipNeedsRequiredAdminRepair,
   membershipSummary,
   normalizePortalAccessRole,
@@ -50,8 +52,7 @@ const ORDINARY_ACCESS_ONLY_ERROR =
 const MAX_ORG_NAME_LENGTH = 120;
 
 function validateAccessRole(value) {
-  const role = normalizePortalAccessRole(value, "viewer");
-  return ORDINARY_ACCESS_ROLES.has(role) ? role : "";
+  return normalizePortalAccessRole(value, "viewer");
 }
 
 function validateRoleChangeValue(value) {
@@ -348,10 +349,15 @@ async function loadPortalAccess(context) {
   return {
     adminEmails: [...adminEmailSet()].sort(),
     adminAccessSync,
-    orgs: (orgRows || []).map((row) => ({
-      id: row.id,
-      name: row.name,
-    })),
+    orgs: (orgRows || []).map((row) => {
+      const actorRole = actorRoleForOrg(context, row.id);
+      return {
+        id: row.id,
+        name: row.name,
+        actorRole,
+        inviteRoles: inviteRolesForActor(actorRole),
+      };
+    }),
     access: accessRows,
     pendingInvites,
   };
@@ -461,6 +467,52 @@ async function findActiveMembershipWithProfile(service, { orgId, userId }) {
   return { membership, profile };
 }
 
+async function assertActorCanAssignRole(service, context, { orgId, targetRole, existingMembership, email }) {
+  const actorRole = await requireActorManagementRole(context, orgId);
+  const existingRole = normalizePortalAccessRole(existingMembership?.role, "");
+  const existingScope = existingMembership?.access_scope || "org";
+
+  if (isApprovedAdminEmail(email)) {
+    throw Object.assign(
+      new Error("Required admin owner access is managed automatically."),
+      { status: 400 }
+    );
+  }
+
+  if (!canActorInvitePortalRole({ actorRole, targetRole })) {
+    throw Object.assign(
+      new Error("You do not have permission to grant this role."),
+      { status: 403 }
+    );
+  }
+
+  if (!existingMembership) return;
+  if (!existingRole || existingScope !== "org") {
+    throw Object.assign(new Error("Only org-wide portal access can be changed here."), {
+      status: 400,
+    });
+  }
+  if (!canActorChangePortalRole({ actorRole, currentRole: existingRole, nextRole: targetRole })) {
+    throw Object.assign(
+      new Error("You do not have permission to change this role."),
+      { status: 403 }
+    );
+  }
+  if (existingRole === targetRole) return;
+  if (
+    wouldRemoveLastOwner({
+      currentRole: existingRole,
+      nextRole: targetRole,
+      activeOwnerCount: await activeOwnerCount(service, orgId),
+    })
+  ) {
+    throw Object.assign(
+      new Error("At least one active Owner must remain for this organization."),
+      { status: 400 }
+    );
+  }
+}
+
 async function createPendingPortalInvite(
   service,
   { req, org, email, role, actorId, sendEmail = false, emailSender = sendPortalInviteEmail }
@@ -557,25 +609,25 @@ export async function grantOrgAccess(req, res, context) {
   if (!orgId) return sendJson(res, 400, { error: "Valid org ID is required." });
   if (!requestedRole) {
     return sendJson(res, 400, {
-      error: "Access type must be Viewer or Field.",
-    });
-  }
-  if (isApprovedAdminEmail(email)) {
-    return sendJson(res, 400, {
-      error: "Invite User is for Viewer and Field access. Approved admin emails already receive owner access.",
+      error: "Valid role is required.",
     });
   }
 
   try {
     const org = await loadOrg(context.service, orgId);
     if (!org) return sendJson(res, 404, { error: "Organization not found." });
-    await requireActorManagementRole(context, orgId);
     await ensureUserProfile(context.service, context.user, context.user.id);
 
     const user = await findAuthUserByEmail(context.service, email);
     const activeMembership = user?.id
       ? await findActiveOrgMembership(context.service, { orgId, userId: user.id })
       : null;
+    await assertActorCanAssignRole(context.service, context, {
+      orgId,
+      targetRole: requestedRole,
+      existingMembership: activeMembership,
+      email,
+    });
     const inviteAction = inviteAdminActionForUser(user, activeMembership);
     if (inviteAction === "already_active") {
       return sendJson(res, 200, {
@@ -669,14 +721,13 @@ export async function grantExistingOrgAccess(req, res, context) {
   if (!orgId) return sendJson(res, 400, { error: "Valid org ID is required." });
   if (!requestedRole) {
     return sendJson(res, 400, {
-      error: "Access type must be Viewer or Field.",
+      error: "Valid role is required.",
     });
   }
 
   try {
     const org = await loadOrg(context.service, orgId);
     if (!org) return sendJson(res, 404, { error: "Organization not found." });
-    await requireActorManagementRole(context, orgId);
 
     const user = await findAuthUserByEmail(context.service, email);
     if (!user) {
@@ -687,7 +738,21 @@ export async function grantExistingOrgAccess(req, res, context) {
 
     await ensureUserProfile(context.service, user, context.user.id);
 
+    const actorRole = await requireActorManagementRole(context, orgId);
     const role = isApprovedAdminEmail(email) ? "owner" : requestedRole;
+    const activeMembership = await findActiveOrgMembership(context.service, { orgId, userId: user.id });
+    if (!isApprovedAdminEmail(email)) {
+      await assertActorCanAssignRole(context.service, context, {
+        orgId,
+        targetRole: role,
+        existingMembership: activeMembership,
+        email,
+      });
+    } else if (actorRole !== "owner") {
+      return sendJson(res, 403, {
+        error: "Only Owners can grant required admin owner access.",
+      });
+    }
     const membership = await upsertOrgMembership(context.service, {
       orgId,
       userId: user.id,
@@ -726,7 +791,7 @@ async function createSetupLink(req, res, context) {
   if (!orgId) return sendJson(res, 400, { error: "Valid org ID is required." });
   if (!requestedRole) {
     return sendJson(res, 400, {
-      error: "Access type must be Viewer or Field.",
+      error: "Valid role is required.",
     });
   }
   if (isApprovedAdminEmail(email)) {
@@ -738,7 +803,12 @@ async function createSetupLink(req, res, context) {
   try {
     const org = await loadOrg(context.service, orgId);
     if (!org) return sendJson(res, 404, { error: "Organization not found." });
-    await requireActorManagementRole(context, orgId);
+    await assertActorCanAssignRole(context.service, context, {
+      orgId,
+      targetRole: requestedRole,
+      existingMembership: null,
+      email,
+    });
 
     await ensureUserProfile(context.service, context.user, context.user.id);
     const { invite, setupUrl } = await createPendingPortalInvite(context.service, {

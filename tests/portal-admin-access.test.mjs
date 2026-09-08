@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   canActorChangePortalRole,
+  canActorInvitePortalRole,
   canActorRevokePortalRole,
+  inviteRolesForActor,
   membershipNeedsRequiredAdminRepair,
   membershipSummary,
   portalAccessRoleLabel,
@@ -147,6 +149,21 @@ test("manager cannot change or revoke owner access", () => {
     }),
     false
   );
+});
+
+test("owner invite dropdown allows viewer, field, manager, and owner", () => {
+  assert.deepEqual(inviteRolesForActor("owner"), ["viewer", "field", "manager", "owner"]);
+  assert.equal(canActorInvitePortalRole({ actorRole: "owner", targetRole: "manager" }), true);
+  assert.equal(canActorInvitePortalRole({ actorRole: "owner", targetRole: "owner" }), true);
+});
+
+test("manager invite dropdown allows viewer, field, and manager", () => {
+  assert.deepEqual(inviteRolesForActor("manager"), ["viewer", "field", "manager"]);
+  assert.equal(canActorInvitePortalRole({ actorRole: "manager", targetRole: "manager" }), true);
+});
+
+test("manager cannot invite or grant owner", () => {
+  assert.equal(canActorInvitePortalRole({ actorRole: "manager", targetRole: "owner" }), false);
 });
 
 test("last active owner cannot be downgraded or removed", () => {
