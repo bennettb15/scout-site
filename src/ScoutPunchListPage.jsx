@@ -1115,6 +1115,7 @@ const PUNCH_LIST_STYLES = `
     align-items: center;
     gap: 7px;
     justify-content: center;
+    margin-top: 9px;
     border-radius: 999px;
     border: 1px solid rgb(254 202 202);
     background: rgb(254 242 242);
@@ -4053,15 +4054,16 @@ function PunchListSummaryBand({
         )}
       </section>
       <section className="punch-summary-section punch-summary-overdue">
+        <div className="punch-summary-heading">Overdue</div>
         {summary.overdueCount > 0 || overdueOnly ? (
           <button
             type="button"
             className={`punch-summary-overdue-chip ${overdueOnly ? "is-active" : ""}`}
             onClick={onToggleOverdue}
             aria-pressed={overdueOnly}
-            title={overdueOnly ? "Clear overdue filter" : "Filter overdue"}
+            title={overdueOnly ? "Show all open items" : "Show overdue items"}
           >
-            <span className="punch-summary-trade-label">Filter Overdue</span>
+            <span className="punch-summary-trade-label">Items Overdue</span>
             <span className="punch-summary-overdue-count">
               {summary.overdueCount}
             </span>
