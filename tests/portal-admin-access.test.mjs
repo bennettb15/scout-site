@@ -38,6 +38,10 @@ import {
   filterReportPackagesByAllowedProperties,
   filterReportPackagesBySelectedProperty,
 } from "../src/lib/reportPortalFilters.js";
+import {
+  buildPunchListSummary,
+  tradeKey,
+} from "../src/lib/punchListSummary.js";
 
 const orgId = "11111111-1111-4111-8111-111111111111";
 const userId = "22222222-2222-4222-8222-222222222222";
@@ -629,6 +633,119 @@ test("deleted or non-visible property Punch List items are excluded", () => {
     ).map((row) => row.id),
     ["punch-a"]
   );
+});
+
+test("punch list summary trade counts include pending review and exclude resolved", () => {
+  const summary = buildPunchListSummary(
+    [
+      { id: "punch-a", status: "active", trade: "HVAC" },
+      { id: "punch-b", status: "pending_review", trade: "HVAC" },
+      { id: "punch-c", status: "resolved", trade: "HVAC" },
+      { id: "punch-d", status: "active", trade: "" },
+    ],
+    {
+      tradeOptions: [{ id: "hvac", label: "HVAC" }],
+      todayDate: "2026-09-08",
+    }
+  );
+
+  assert.equal(summary.openCount, 3);
+  assert.deepEqual(summary.tradeCounts, [
+    { id: "hvac", label: "HVAC", count: 2 },
+    { id: "unassigned", label: "Unassigned", count: 1 },
+  ]);
+});
+
+test("punch list summary overdue excludes resolved and uses dates before today", () => {
+  const summary = buildPunchListSummary(
+    [
+      {
+        id: "overdue-active",
+        title: "Loose flashing",
+        status: "active",
+        trade: "roofing",
+        priority: "high",
+        dueDate: "2026-09-07",
+      },
+      {
+        id: "overdue-pending",
+        reason: "Needs review",
+        status: "pending_review",
+        trade: "general",
+        priority: "medium",
+        dueDate: "2026-09-01",
+      },
+      {
+        id: "today",
+        status: "active",
+        trade: "hvac",
+        dueDate: "2026-09-08",
+      },
+      {
+        id: "resolved",
+        status: "resolved",
+        trade: "roofing",
+        dueDate: "2026-09-01",
+      },
+    ],
+    { todayDate: "2026-09-08" }
+  );
+
+  assert.equal(summary.overdueCount, 2);
+  assert.deepEqual(
+    summary.overdueItems.map((item) => item.id),
+    ["overdue-pending", "overdue-active"]
+  );
+  assert.deepEqual(summary.overdueItems[0], {
+    id: "overdue-pending",
+    title: "Needs review",
+    trade: "General",
+    priority: "Medium",
+    dueDate: "2026-09-01",
+  });
+});
+
+test("punch list summary counts only rows visible to property-scoped users", () => {
+  const allowedRows = filterRowsByCurrentPortalPropertyAccess(
+    [
+      { id: "punch-a", org_id: orgId, property_id: "property-a", status: "active", trade: "HVAC" },
+      { id: "punch-b", org_id: orgId, property_id: "property-b", status: "active", trade: "HVAC" },
+    ],
+    [
+      {
+        org_id: orgId,
+        role: "viewer",
+        access_scope: "property",
+        propertyIds: ["property-a"],
+      },
+    ],
+    ["property-a", "property-b"]
+  );
+
+  const summary = buildPunchListSummary(allowedRows, {
+    tradeOptions: [{ id: "hvac", label: "HVAC" }],
+    todayDate: "2026-09-08",
+  });
+
+  assert.equal(summary.openCount, 1);
+  assert.deepEqual(summary.tradeCounts, [{ id: "hvac", label: "HVAC", count: 1 }]);
+});
+
+test("punch list summary respects already-applied trade filters", () => {
+  const rows = [
+    { id: "punch-a", status: "active", trade: "HVAC" },
+    { id: "punch-b", status: "active", trade: "plumbing" },
+  ];
+  const visibleRows = rows.filter((row) => tradeKey(row.trade) === "hvac");
+  const summary = buildPunchListSummary(visibleRows, {
+    tradeOptions: [
+      { id: "hvac", label: "HVAC" },
+      { id: "plumbing", label: "Plumbing" },
+    ],
+    todayDate: "2026-09-08",
+  });
+
+  assert.deepEqual(summary.tradeCounts, [{ id: "hvac", label: "HVAC", count: 1 }]);
 });
 
 test("Owner sees all current properties but not deleted property packages", () => {
