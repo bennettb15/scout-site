@@ -15,7 +15,7 @@ import {
   visibleReportFilesForPackage,
 } from "../src/lib/reportPackageDisplay.js";
 
-const reportsUrl = "https://www.scoutclear.com/reports";
+const reportsUrl = "https://www.scoutclear.com/reports?org=org-1&property=property-1";
 const property = {
   name: "Rental Unit",
   addressLine1: "123 Main St",
@@ -104,19 +104,24 @@ test("report-ready email copy changes for punchlist_visit", () => {
     property,
     reportsUrl,
     sessionType: PUNCHLIST_VISIT_SESSION_TYPE,
+    readyAt: "2026-09-09T20:45:00.000Z",
     from: "Scout <hello@scoutclear.com>",
     replyTo: "hello@scoutclear.com",
   });
 
   assert.equal(payload.to, "client@example.com");
-  assert.equal(payload.subject, "SCOUT punchlist update ready for Rental Unit");
+  assert.equal(payload.subject, "Your SCOUT punchlist update is ready");
   assert.match(payload.text, /Your SCOUT punchlist update is ready/);
   assert.match(payload.text, /A punchlist update for Rental Unit is ready/);
   assert.doesNotMatch(payload.text, /property documentation report/i);
-  assert.match(payload.text, /Open Reports Portal: https:\/\/www\.scoutclear\.com\/reports/);
+  assert.match(payload.text, /Ready: Sep 9, 2026, 4:45 PM EDT/);
+  assert.match(
+    payload.text,
+    /Open Reports Portal: https:\/\/www\.scoutclear\.com\/reports\?org=org-1&property=property-1/
+  );
   assert.match(payload.html, new RegExp(`src="${PORTAL_EMAIL_LOGO_URL}"`));
   assert.match(payload.html, /Open Reports Portal<\/a>/);
-  assert.match(payload.html, /href="https:\/\/www\.scoutclear\.com\/reports"/);
+  assert.match(payload.html, /href="https:\/\/www\.scoutclear\.com\/reports\?org=org-1&amp;property=property-1"/);
 });
 
 test("report-ready email copy remains full documentation by default", () => {
@@ -129,9 +134,9 @@ test("report-ready email copy remains full documentation by default", () => {
     replyTo: "hello@scoutclear.com",
   });
 
-  assert.equal(payload.subject, "SCOUT property documentation report ready for Rental Unit");
-  assert.match(payload.text, /Your SCOUT property documentation report is ready/);
-  assert.match(payload.text, /The property documentation report for Rental Unit is ready/);
+  assert.equal(payload.subject, "Your SCOUT report is ready");
+  assert.match(payload.text, /Your SCOUT report is ready/);
+  assert.match(payload.text, /The property report package for Rental Unit is ready/);
   assert.doesNotMatch(payload.text, /punchlist update/i);
   assert.match(payload.html, new RegExp(`src="${PORTAL_EMAIL_LOGO_URL}"`));
   assert.match(payload.html, /Open Reports Portal<\/a>/);

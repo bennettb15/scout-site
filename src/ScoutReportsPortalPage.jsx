@@ -1434,7 +1434,14 @@ export default function ScoutReportsPortalPage() {
                           </span>
                         )}
                         {shouldShowReportPackageTypeLabel(reportPackage) && (
-                          <span className="inline-flex w-fit items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
+                          <span
+                            className="inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-semibold shadow-sm"
+                            style={{
+                              backgroundColor: "#FEF2F2",
+                              borderColor: "#DC2626",
+                              color: "#DC2626",
+                            }}
+                          >
                             {reportPackageTypeLabel(reportPackage)}
                           </span>
                         )}

@@ -29,12 +29,29 @@ function propertyDisplayName(property) {
   return property?.name || address || "your property";
 }
 
+function easternTimeLine(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(date);
+}
+
 export function reportReadyEmailPayload({
   email,
   org,
   property,
   reportsUrl,
   sessionType,
+  readyAt,
+  completedAt,
   from = reportFromEmail(),
   replyTo = reportReplyToEmail(),
 }) {
@@ -45,18 +62,24 @@ export function reportReadyEmailPayload({
   const safeOrgName = escapeHtml(orgName);
   const safePropertyName = escapeHtml(propertyName);
   const safeUrl = escapeHtml(reportsUrl);
+  const readyTime = easternTimeLine(readyAt || completedAt);
+  const safeReadyTime = escapeHtml(readyTime);
   const subject = isPunchlist
-    ? `SCOUT punchlist update ready for ${propertyName}`
-    : `SCOUT property documentation report ready for ${propertyName}`;
+    ? "Your SCOUT punchlist update is ready"
+    : "Your SCOUT report is ready";
   const heading = isPunchlist
     ? "Your SCOUT punchlist update is ready"
-    : "Your SCOUT property documentation report is ready";
+    : "Your SCOUT report is ready";
   const intro = isPunchlist
     ? `A punchlist update for ${safePropertyName} is ready in your SCOUT Client Portal.`
-    : `The property documentation report for ${safePropertyName} is ready in your SCOUT Client Portal.`;
+    : `The property report package for ${safePropertyName} is ready in your SCOUT Client Portal.`;
   const textIntro = isPunchlist
     ? `A punchlist update for ${propertyName} is ready in your SCOUT Client Portal.`
-    : `The property documentation report for ${propertyName} is ready in your SCOUT Client Portal.`;
+    : `The property report package for ${propertyName} is ready in your SCOUT Client Portal.`;
+  const readyTimeHtml = safeReadyTime
+    ? `<p style="margin:8px 0 0;font-size:13px;line-height:1.5;color:#64748b">Ready: ${safeReadyTime}</p>`
+    : "";
+  const readyTimeText = readyTime ? [`Ready: ${readyTime}`] : [];
 
   return {
     from,
@@ -79,6 +102,7 @@ export function reportReadyEmailPayload({
                     <h1 style="margin:0;font-size:24px;line-height:1.25;color:#1c2742">${heading}</h1>
                     <p style="margin:16px 0 0;font-size:15px;line-height:1.6;color:#334155">${intro}</p>
                     <p style="margin:8px 0 0;font-size:13px;line-height:1.5;color:#64748b">Organization: ${safeOrgName}</p>
+                    ${readyTimeHtml}
                   </td>
                 </tr>
                 <tr>
@@ -97,17 +121,34 @@ export function reportReadyEmailPayload({
       "",
       textIntro,
       `Organization: ${orgName}`,
+      ...readyTimeText,
       "",
       `Open Reports Portal: ${reportsUrl}`,
     ].join("\n"),
   };
 }
 
-export async function sendReportReadyEmail({ email, org, property, reportsUrl, sessionType }) {
+export async function sendReportReadyEmail({
+  email,
+  org,
+  property,
+  reportsUrl,
+  sessionType,
+  readyAt,
+  completedAt,
+}) {
   assertReportReadyEmailConfigured();
   const resend = new Resend(process.env.RESEND_API_KEY);
   const { error } = await resend.emails.send(
-    reportReadyEmailPayload({ email, org, property, reportsUrl, sessionType })
+    reportReadyEmailPayload({
+      email,
+      org,
+      property,
+      reportsUrl,
+      sessionType,
+      readyAt,
+      completedAt,
+    })
   );
   if (error) throw error;
 }
