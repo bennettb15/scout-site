@@ -26,6 +26,9 @@ import {
 } from "./_reportPortalShared.js";
 import { latestStatusOverride, normalizedExplicitStatus, packageTimestamp } from "../api-lib/punchListStatus.js";
 import {
+  portalAccessCanReviewCompletion,
+} from "../api-lib/punchListPermissions.js";
+import {
   allowedPropertyIdsForPortalAccess,
 } from "../api-lib/portalPropertyAccess.js";
 import {
@@ -1205,7 +1208,17 @@ export function publicObservationRow({
   };
 }
 
-export function publicShotRow({ shot, org, property, session, reportPackage, previewUrl, canAddNote, canEditWorkflow }) {
+export function publicShotRow({
+  shot,
+  org,
+  property,
+  session,
+  reportPackage,
+  previewUrl,
+  canAddNote,
+  canEditWorkflow,
+  canReviewCompletion,
+}) {
   const status = statusFromLatestShot(shot);
   const title = rowTitle(shot.reason);
   const noteEditable = Boolean(canAddNote);
@@ -1245,7 +1258,7 @@ export function publicShotRow({ shot, org, property, session, reportPackage, pre
       canAddNote: noteEditable,
       canEditWorkflow: workflowEditable,
       canSubmitCompletion: noteEditable && status === "active",
-      canReviewCompletion: Boolean(workflowEditable && status === "pending_review"),
+      canReviewCompletion: Boolean(canReviewCompletion && status === "pending_review"),
     },
   };
 }
@@ -1563,6 +1576,12 @@ async function canWritePunchListNotes(auth, orgId) {
 async function canEditPunchListWorkflow(auth, orgId) {
   if (isApprovedAdminEmail(auth.user?.email)) return true;
   return Boolean(await loadWorkflowEditorMembership(auth, orgId));
+}
+
+async function canReviewPunchListCompletion(auth, service, orgId, propertyId) {
+  if (isApprovedAdminEmail(auth.user?.email)) return true;
+  const portalAccess = await loadUserPortalPropertyAccess(service, auth.user);
+  return portalAccessCanReviewCompletion(portalAccess, orgId, propertyId);
 }
 
 async function resolveNoteObservation(auth, service, { observationId, shotId, packageId }) {
@@ -2130,9 +2149,9 @@ async function handleReviewCompletion(req, res, body = null) {
 
     if (submissionError) return sendJson(res, 500, { error: "Unable to load completion submission." });
     if (!submission) return sendJson(res, 404, { error: "Completion submission not found." });
-    if (!(await canEditPunchListWorkflow(auth, submission.org_id))) {
+    if (!(await canReviewPunchListCompletion(auth, service, submission.org_id, submission.property_id))) {
       return sendJson(res, 403, {
-        error: "Workflow editor access is required to review completion submissions.",
+        error: "Review access is required to review completion submissions.",
       });
     }
 
@@ -2660,6 +2679,9 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     adminAllowed ||
     workflowEditorOrgIds.has(orgId) ||
     portalAccessCanUseRole(portalAccess, WORKFLOW_EDITOR_ROLES, orgId, propertyId);
+  const canReviewCompletionForProperty = (orgId, propertyId) =>
+    adminAllowed ||
+    portalAccessCanReviewCompletion(portalAccess, orgId, propertyId);
   const latestUpdateByObservationId = new Map();
   for (const update of observationUpdates) {
     if (!latestUpdateByObservationId.has(update.observation_id)) {
@@ -2802,7 +2824,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       activity: activityRowsForObservation(activityByObservationId, observation.id),
       canAddNote: canAddNoteForProperty(observation.org_id, observation.property_id),
       canEditWorkflow: canEditWorkflowForProperty(observation.org_id, observation.property_id),
-      canReviewCompletion: canEditWorkflowForProperty(observation.org_id, observation.property_id),
+      canReviewCompletion: canReviewCompletionForProperty(observation.org_id, observation.property_id),
       workflowState: workflowStateFromActivity(
         activityRowsForObservation(workflowActivityByObservationId, observation.id)
       ),
@@ -2889,6 +2911,10 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       previewUrl: await previewForShot(shot),
       canAddNote: canAddNoteForProperty(shot.org_id, shot.property_id || reportPackage?.property_id),
       canEditWorkflow: canEditWorkflowForProperty(shot.org_id, shot.property_id || reportPackage?.property_id),
+      canReviewCompletion: canReviewCompletionForProperty(
+        shot.org_id,
+        shot.property_id || reportPackage?.property_id
+      ),
     });
     const historyPhoto = await publicHistoryPhotoForRow({
       row,

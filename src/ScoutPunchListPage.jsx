@@ -27,6 +27,7 @@ import {
   nextPunchListOverdueFilter,
   nextPunchListTradeFilter,
 } from "./lib/punchListSummary";
+import { canReviewCompletionForPunchListRow } from "../api-lib/punchListPermissions";
 
 const BRAND = {
   siteTitle: "Punch List | SCOUT",
@@ -789,10 +790,7 @@ function canSubmitCompletionForRow(row) {
 }
 
 function canReviewCompletionForRow(row) {
-  return Boolean(
-    row?.status === "pending_review" &&
-      (row?.permissions?.canReviewCompletion || canEditWorkflowForRow(row))
-  );
+  return canReviewCompletionForPunchListRow(row);
 }
 
 function completionActivities(row) {
