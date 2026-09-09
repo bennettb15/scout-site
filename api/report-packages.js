@@ -21,6 +21,9 @@ import {
   reportPackageActorId,
   reportSessionActorId,
 } from "../api-lib/auditAttribution.js";
+import {
+  reportPackageSessionTypeFromSources,
+} from "../api-lib/reportPackageSession.js";
 
 const REPORT_PACKAGE_BASE_SELECT =
   "id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at,weather_summary";
@@ -40,6 +43,12 @@ const REPORT_OPTIONAL_AUDIT_COLUMNS = [
   "user_id",
   "user_email",
   "account_email",
+];
+const REPORT_OPTIONAL_SESSION_TYPE_COLUMNS = [
+  "session_type",
+  "session_metadata",
+  "metadata",
+  "package_metadata",
 ];
 
 function toProperty(row) {
@@ -70,6 +79,7 @@ function toSession(row) {
     title: row.title,
     startedAt: row.started_at,
     completedAt: row.completed_at,
+    sessionType: reportPackageSessionTypeFromSources(row),
   };
 }
 
@@ -115,7 +125,10 @@ async function loadReadyPackageRows(service) {
     .limit(500);
   if (error) return { data, error };
   const rows = data || [];
-  await mergeOptionalColumns(service, "report_packages", rows, REPORT_OPTIONAL_AUDIT_COLUMNS);
+  await mergeOptionalColumns(service, "report_packages", rows, [
+    ...REPORT_OPTIONAL_AUDIT_COLUMNS,
+    ...REPORT_OPTIONAL_SESSION_TYPE_COLUMNS,
+  ]);
   return { data: rows, error: null };
 }
 
@@ -340,7 +353,10 @@ export default async function handler(req, res) {
     if (orgsError || sessionsError || exportsError || shotsError) {
       return sendJson(res, 500, { error: "Unable to load report context." });
     }
-    await mergeOptionalColumns(service, "sessions", sessionRows || [], REPORT_OPTIONAL_AUDIT_COLUMNS);
+    await mergeOptionalColumns(service, "sessions", sessionRows || [], [
+      ...REPORT_OPTIONAL_AUDIT_COLUMNS,
+      ...REPORT_OPTIONAL_SESSION_TYPE_COLUMNS,
+    ]);
     await mergeOptionalColumns(service, "shots", shotRows || [], REPORT_OPTIONAL_AUDIT_COLUMNS);
 
     const orgsById = new Map(orgRows.map((row) => [row.id, toOrg(row)]));
@@ -413,6 +429,7 @@ export default async function handler(req, res) {
       return {
         id: row.id,
         status: row.status,
+        sessionType: reportPackageSessionTypeFromSources(row, sessionRow, snapshotMetadata),
         org: orgsById.get(row.org_id) || null,
         property: propertiesById.get(row.property_id) || null,
         session: sessionsById.get(row.session_id) || null,

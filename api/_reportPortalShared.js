@@ -10,6 +10,9 @@ import {
   actorEmailFromSnapshot,
 } from "../api-lib/auditAttribution.js";
 import {
+  reportPackageSessionTypeFromSources,
+} from "../api-lib/reportPackageSession.js";
+import {
   ORG_ACCESS_SCOPE,
   PROPERTY_ACCESS_SCOPE,
   normalizeAccessScope,
@@ -494,6 +497,7 @@ export function buildSnapshotPhotoMetadata(rawSession) {
     byStoragePath,
     byFilename,
     rows,
+    sessionType: reportPackageSessionTypeFromSources(rawSession),
     capturedByEmail,
     firstPhotoCapturedByEmail: firstPhoto?.captured_by_email || "",
     firstPhotoActorId: firstPhoto?.captured_by_user_id || "",
@@ -545,6 +549,7 @@ export async function loadSnapshotPhotoMetadata(service, reportPackage) {
     }
     return {
       ...buildSnapshotPhotoMetadata(raw),
+      sessionType: reportPackageSessionTypeFromSources(payload, raw),
       capturedByEmail: actorEmailFromSnapshot(raw, payload),
     };
   } catch {

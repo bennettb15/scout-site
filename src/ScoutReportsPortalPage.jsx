@@ -17,6 +17,11 @@ import {
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
+  reportPackageTypeLabel,
+  shouldShowReportPackageTypeLabel,
+  visibleReportFilesForPackage,
+} from "./lib/reportPackageDisplay";
+import {
   filterReportPackagesByAllowedProperties,
   filterReportPackagesBySelectedProperty,
 } from "./lib/reportPortalFilters";
@@ -169,7 +174,7 @@ function packageSummary(reportPackage, originalPhotoCount = reportPackage.origin
     ? stampedExportSummary(reportPackage.stampedExport).toLowerCase()
     : "";
   const summaryParts = [
-    countLabel(reportPackage.files.length, "PDF"),
+    countLabel(visibleReportFilesForPackage(reportPackage).length, "PDF"),
     countLabel(originalPhotoCount, "original"),
   ];
   if (stampedStatus) {
@@ -1428,6 +1433,11 @@ export default function ScoutReportsPortalPage() {
                             Newest
                           </span>
                         )}
+                        {shouldShowReportPackageTypeLabel(reportPackage) && (
+                          <span className="inline-flex w-fit items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
+                            {reportPackageTypeLabel(reportPackage)}
+                          </span>
+                        )}
                         <span className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                           Ready
                         </span>
@@ -1453,11 +1463,11 @@ export default function ScoutReportsPortalPage() {
                             <FileText className="h-4 w-4 text-[var(--brand)]" />
                             Reports
                             <span className="text-xs font-medium text-foreground/55">
-                              {countLabel(reportPackage.files.length, "PDF")}
+                              {countLabel(visibleReportFilesForPackage(reportPackage).length, "PDF")}
                             </span>
                           </div>
                           <div className="grid gap-2 md:grid-cols-3">
-                            {[...reportPackage.files]
+                            {visibleReportFilesForPackage(reportPackage)
                               .sort(
                                 (left, right) =>
                                   (REPORT_ORDER[left.reportType] ?? 99) -
