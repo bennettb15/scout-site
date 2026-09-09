@@ -11,6 +11,7 @@ import {
   FileText,
   Flag,
   ImageUp,
+  Info,
   LogOut,
   Pencil,
   RefreshCw,
@@ -481,7 +482,10 @@ function PunchMetadataHeader({ row }) {
       <div className="punch-property-line">
         <PropertyIdentityText property={row.property} />
       </div>
-      <div className="punch-org-line">{orgDateTimeLine(row)}</div>
+      <div className="punch-org-line">
+        <span className="punch-org-line-text">{orgDateTimeLine(row)}</span>
+        <AuditAttributionInfo row={row} />
+      </div>
       <div className="punch-location-line">
         {locationCodeLine(row) || "LOCATION NOT SET"}
       </div>
@@ -527,6 +531,84 @@ function orgDateTimeLine(row) {
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+function actorLabel(value) {
+  return textValue(value) || "System";
+}
+
+function auditAttributionLabel(row) {
+  const label = textValue(row?.attribution?.label);
+  if (label) return label;
+  const action = textValue(row?.attribution?.action);
+  const actor = actorLabel(row?.attribution?.actorEmail);
+  if (action === "uploaded") return `Uploaded by ${actor}`;
+  if (action === "last_updated") return `Last updated by ${actor}`;
+  return `Captured by ${actor}`;
+}
+
+function historyActivityActorLabel(activity) {
+  return actorLabel(activity?.actorEmail);
+}
+
+function historyActivityAuditLabel(activity) {
+  const actor = historyActivityActorLabel(activity);
+  switch (activity?.activityType) {
+    case "completion_submitted":
+      return `Submitted by ${actor}`;
+    case "completion_approved":
+      return `Approved by ${actor}`;
+    case "completion_rejected":
+      return `Rejected by ${actor}`;
+    case "status_changed":
+      return activity?.toValue === "active" && activity?.fromValue === "resolved"
+        ? `Reopened by ${actor}`
+        : `Last updated by ${actor}`;
+    case "note_added":
+      return `Note added by ${actor}`;
+    default:
+      return `Last updated by ${actor}`;
+  }
+}
+
+function noteMetaLine(note) {
+  return [
+    actorLabel(note?.actorEmail),
+    formatDateTime(note?.createdAt) || "Recently",
+  ].join(" · ");
+}
+
+function submittedByLine(activity) {
+  return `Submitted by ${actorLabel(activity?.actorEmail)}`;
+}
+
+function photoSubmittedByLine(photo) {
+  const actor = textValue(photo?.submittedByEmail);
+  return actor ? `Submitted by ${actor}` : "";
+}
+
+function AuditAttributionInfo({ row }) {
+  if (!row?.attribution) return null;
+  const label = auditAttributionLabel(row);
+  if (!label) return null;
+
+  return (
+    <span className="punch-audit-wrap">
+      <button
+        type="button"
+        className="punch-audit-trigger"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+        aria-label={label}
+        title={label}
+      >
+        <Info className="h-3 w-3" />
+      </button>
+      <span className="punch-audit-popover" role="tooltip">
+        {label}
+      </span>
+    </span>
+  );
 }
 
 function priorityStyle(priority) {
@@ -807,6 +889,7 @@ function completionPhotoForActivity(activity, label = "Completion") {
     activityId: activity.id,
     submissionGroupId: activity.submissionGroupId || null,
     capturedAt: activity.createdAt || null,
+    submittedByEmail: activity.actorEmail || null,
     note: textValue(activity.note),
     status: completionActivityLabel(activity),
     preview: {
@@ -1298,14 +1381,78 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-org-line {
+    position: relative;
+    display: inline-flex;
+    max-width: 100%;
+    align-items: center;
+    gap: 6px;
     margin-top: 5px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow: visible;
     color: rgb(71 85 105);
     font-size: 14px;
     font-weight: 650;
     line-height: 1.35;
+  }
+
+  .punch-org-line-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .punch-audit-wrap {
+    position: relative;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .punch-audit-trigger {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid rgb(203 213 225);
+    background: white;
+    color: rgb(71 85 105);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  }
+
+  .punch-audit-trigger:hover,
+  .punch-audit-trigger:focus-visible {
+    border-color: rgb(37 99 235);
+    color: rgb(29 78 216);
+    outline: none;
+  }
+
+  .punch-audit-popover {
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 6px);
+    z-index: 30;
+    display: none;
+    width: max-content;
+    max-width: min(260px, 78vw);
+    transform: translateX(-50%);
+    border-radius: 8px;
+    border: 1px solid rgb(203 213 225);
+    background: white;
+    padding: 7px 9px;
+    color: rgb(15 23 42);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.25;
+    white-space: normal;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+  }
+
+  .punch-audit-wrap:hover .punch-audit-popover,
+  .punch-audit-wrap:focus-within .punch-audit-popover {
+    display: block;
   }
 
   .punch-location-line {
@@ -2957,6 +3104,16 @@ const PUNCH_LIST_STYLES = `
       line-height: 1.25;
     }
 
+    .punch-org-line-text {
+      white-space: normal;
+    }
+
+    .punch-audit-popover {
+      left: auto;
+      right: 0;
+      transform: none;
+    }
+
     .punch-date-clear,
     .punch-control-add {
       height: 27px;
@@ -3074,6 +3231,7 @@ function previewPhotosForRow(row) {
       isPriorSessionPhoto: Boolean(photo.isPriorSessionPhoto),
       note: photo.note,
       status: photo.status,
+      submittedByEmail: photo.submittedByEmail,
       preview: photo.preview,
     };
     addPhoto(normalized);
@@ -3423,6 +3581,9 @@ function CompletionPanel({
               {pendingPhotos.length > 1 ? `${pendingPhotos.length} Photos Pending Review` : "Pending Review"}
             </div>
             <div className="punch-completion-file-status">
+              {submittedByLine(pendingActivity)}
+            </div>
+            <div className="punch-completion-file-status">
               Submitted {formatDateTime(pendingActivity.createdAt) || "recently"}
               {pendingActivity.note ? ` · ${pendingActivity.note}` : ""}
             </div>
@@ -3701,7 +3862,7 @@ function NotesPanel({
               <div key={note.id} className="punch-note-item">
                 <div>
                   <div className="punch-note-meta">
-                    Note Added · {formatDateTime(note.createdAt) || "Recently"}
+                    {noteMetaLine(note)}
                   </div>
                   {isEditing ? (
                     <form
@@ -3841,6 +4002,9 @@ function HistoryPanel({ row, tradeOptions = [], onPreview }) {
                 <div>
                   <div className="punch-completion-event-title">
                     {historyActivityLabel(activity)} · {formatDateTime(activity.createdAt) || "Recently"}
+                  </div>
+                  <div className="punch-completion-event-note">
+                    {historyActivityAuditLabel(activity)}
                   </div>
                   {photoDetail && <div className="punch-completion-event-note">{photoDetail}</div>}
                   {activity.note && activity.activityType !== "note_added" && (
@@ -4550,6 +4714,7 @@ function ImagePreviewModal({ target, onClose }) {
   const activePhotoMeta = [
     activePhoto.status,
     photoDateCaption(activePhoto),
+    photoSubmittedByLine(activePhoto),
   ].filter(Boolean);
   const goPrevious = (event) => {
     event.stopPropagation();

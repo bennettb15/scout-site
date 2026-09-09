@@ -3,6 +3,7 @@ import {
   authenticateRequest,
   createServiceClient,
   loadUserPortalPropertyAccess,
+  loadSnapshotPhotoMetadata,
   methodAllowed,
   originalPathIsExpected,
   publicReportTypeLabel,
@@ -11,6 +12,17 @@ import {
 import {
   allowedPropertyIdsForPortalAccess,
 } from "../api-lib/portalPropertyAccess.js";
+import {
+  actorIdsFromVisibleAttributionRows,
+  capturedByEmailForReportPackage,
+  profileEmailMap,
+  reportPackageActorId,
+} from "../api-lib/auditAttribution.js";
+
+const REPORT_PACKAGE_BASE_SELECT =
+  "id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at,weather_summary";
+const REPORT_PACKAGE_AUDIT_SELECT =
+  `${REPORT_PACKAGE_BASE_SELECT},created_by,uploaded_by,completed_by`;
 
 function toProperty(row) {
   if (!row) return null;
@@ -66,6 +78,33 @@ function shotBelongsToPackage(shotRow, packageRow) {
     idsMatch(shotRow.session_id, packageRow.session_id) &&
     (!shotRow.property_id || idsMatch(shotRow.property_id, packageRow.property_id))
   );
+}
+
+async function loadReadyPackageRows(service) {
+  const buildQuery = (select) =>
+    service
+      .from("report_packages")
+      .select(select)
+      .eq("status", "ready")
+      .is("deleted_at", null)
+      .order("session_completed_at", { ascending: false })
+      .limit(500);
+
+  const { data, error } = await buildQuery(REPORT_PACKAGE_AUDIT_SELECT);
+  if (!error) return { data: data || [], error: null };
+  return buildQuery(REPORT_PACKAGE_BASE_SELECT);
+}
+
+async function loadProfileEmailMap(service, userIds) {
+  const ids = unique(userIds);
+  if (ids.length === 0) return new Map();
+  const { data, error } = await service
+    .from("users_profile")
+    .select("id,email,deleted_at")
+    .in("id", ids)
+    .is("deleted_at", null);
+  if (error) return new Map();
+  return profileEmailMap(data || []);
 }
 
 async function handleReportOrgs(req, res) {
@@ -147,15 +186,7 @@ export default async function handler(req, res) {
 
     const service = createServiceClient();
     const portalAccess = await loadUserPortalPropertyAccess(service, auth.user);
-    const { data: rawPackageRows, error: packagesError } = await service
-      .from("report_packages")
-      .select(
-        "id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at,weather_summary"
-      )
-      .eq("status", "ready")
-      .is("deleted_at", null)
-      .order("session_completed_at", { ascending: false })
-      .limit(500);
+    const { data: rawPackageRows, error: packagesError } = await loadReadyPackageRows(service);
 
     if (packagesError) {
       return sendJson(res, 500, { error: "Unable to load report packages." });
@@ -262,6 +293,15 @@ export default async function handler(req, res) {
     const orgsById = new Map(orgRows.map((row) => [row.id, toOrg(row)]));
     const propertiesById = new Map(propertyRows.map((row) => [row.id, toProperty(row)]));
     const sessionsById = new Map(sessionRows.map((row) => [row.id, toSession(row)]));
+    const profileEmailById = await loadProfileEmailMap(
+      service,
+      actorIdsFromVisibleAttributionRows(packageRows.map((row) => ({ created_by: reportPackageActorId(row) })))
+    );
+    const snapshotMetadataByPackageId = new Map();
+    for (const packageRow of packageRows) {
+      const metadata = await loadSnapshotPhotoMetadata(service, packageRow);
+      if (metadata) snapshotMetadataByPackageId.set(packageRow.id, metadata);
+    }
     const photoCountsByPackageId = new Map(packageRows.map((row) => [row.id, 0]));
     const safeShotRows = (shotRows || []).filter(originalPathIsExpected);
     for (const packageRow of packageRows) {
@@ -300,21 +340,29 @@ export default async function handler(req, res) {
       }
     }
 
-    const packages = packageRows.map((row) => ({
-      id: row.id,
-      status: row.status,
-      org: orgsById.get(row.org_id) || null,
-      property: propertiesById.get(row.property_id) || null,
-      session: sessionsById.get(row.session_id) || null,
-      sessionCompletedAt: row.session_completed_at,
-      completedAt: row.completed_at,
-      weatherSummary: row.weather_summary,
-      originalPhotoCount: photoCountsByPackageId.get(row.id) || 0,
-      files: filesByPackageId.get(row.id) || [],
-      stampedExport:
-        exportByPackageKey.get(`${row.org_id}:${row.property_id}:${row.session_id}:${row.snapshot_id}`) ||
-        null,
-    }));
+    const packages = packageRows.map((row) => {
+      const snapshotMetadata = snapshotMetadataByPackageId.get(row.id) || null;
+      return {
+        id: row.id,
+        status: row.status,
+        org: orgsById.get(row.org_id) || null,
+        property: propertiesById.get(row.property_id) || null,
+        session: sessionsById.get(row.session_id) || null,
+        sessionCompletedAt: row.session_completed_at,
+        completedAt: row.completed_at,
+        weatherSummary: row.weather_summary,
+        capturedByEmail: capturedByEmailForReportPackage({
+          packageRow: row,
+          snapshotMetadata,
+          profileEmailById,
+        }),
+        originalPhotoCount: photoCountsByPackageId.get(row.id) || 0,
+        files: filesByPackageId.get(row.id) || [],
+        stampedExport:
+          exportByPackageKey.get(`${row.org_id}:${row.property_id}:${row.session_id}:${row.snapshot_id}`) ||
+          null,
+      };
+    });
 
     return sendJson(res, 200, { packages });
   } catch {

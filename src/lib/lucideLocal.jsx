@@ -113,6 +113,12 @@ export const ImageUp = createIcon(
     <circle cx="9" cy="9" r="2" />
   </>
 );
+export const Info = createIcon(
+  <>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 16v-4M12 8h.01" />
+  </>
+);
 export const KeyRound = createIcon(
   <>
     <circle cx="8" cy="15" r="4" />

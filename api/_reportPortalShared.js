@@ -5,6 +5,10 @@ import {
   normalizePortalAccessRole,
 } from "../api-lib/portalAdminAccess.js";
 import {
+  actorEmailFromShotSnapshot,
+  actorEmailFromSnapshot,
+} from "../api-lib/auditAttribution.js";
+import {
   ORG_ACCESS_SCOPE,
   PROPERTY_ACCESS_SCOPE,
   normalizeAccessScope,
@@ -446,6 +450,7 @@ export function buildSnapshotPhotoMetadata(rawSession) {
   const byStoragePath = new Map();
   const byFilename = new Map();
   const rows = [];
+  const capturedByEmail = actorEmailFromSnapshot(rawSession);
 
   shots.forEach((shot, index) => {
     const shotId = snapshotShotId(shot);
@@ -468,6 +473,7 @@ export function buildSnapshotPhotoMetadata(rawSession) {
       angle_index: safeAngleIndex(shot?.angleIndex || shot?.angle_index),
       shot_key: textValue(shot?.shotKey || shot?.shot_key),
       captured_at: snapshotCapturedAt(shot),
+      captured_by_email: actorEmailFromShotSnapshot(shot, capturedByEmail),
       is_flagged: boolValue(shot?.isFlagged || shot?.is_flagged || shot?.flagged),
       is_resolved_in_session: issueStatus === "resolved" || (!issueStatus && snapshotResolvedInSession(shot, issuesById)),
       reason: flaggedReasonFromSnapshot(shot, issuesById),
@@ -480,7 +486,7 @@ export function buildSnapshotPhotoMetadata(rawSession) {
     rows.push(metadata);
   });
 
-  return { byShotId, byStoragePath, byFilename, rows };
+  return { byShotId, byStoragePath, byFilename, rows, capturedByEmail };
 }
 
 export async function loadSnapshotPhotoMetadata(service, reportPackage) {
@@ -526,7 +532,10 @@ export async function loadSnapshotPhotoMetadata(service, reportPackage) {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
       return null;
     }
-    return buildSnapshotPhotoMetadata(raw);
+    return {
+      ...buildSnapshotPhotoMetadata(raw),
+      capturedByEmail: actorEmailFromSnapshot(raw, payload),
+    };
   } catch {
     return null;
   }
@@ -563,6 +572,7 @@ export function enrichPhotoRowWithSnapshotMetadata(row, snapshotMetadata) {
     angle_index: metadata.angle_index || row.angle_index,
     shot_key: metadata.shot_key || row.shot_key,
     captured_at: metadata.captured_at || row.captured_at,
+    captured_by_email: metadata.captured_by_email || row.captured_by_email || null,
     is_flagged: metadata.is_flagged,
     is_resolved_in_session: metadata.has_issue_state_signal
       ? metadata.is_resolved_in_session

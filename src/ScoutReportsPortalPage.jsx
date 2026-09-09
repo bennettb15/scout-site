@@ -178,6 +178,10 @@ function packageSummary(reportPackage, originalPhotoCount = reportPackage.origin
   return summaryParts.join(" · ");
 }
 
+function packageCapturedBy(reportPackage) {
+  return String(reportPackage?.capturedByEmail || "System").trim() || "System";
+}
+
 function compactPhotoLabel(photo) {
   return String(photo.displayName || "Photo").replace(/\bAngle\s+(\d+)\b/g, "A$1");
 }
@@ -1404,6 +1408,9 @@ export default function ScoutReportsPortalPage() {
                             {propertyAddressLine(reportPackage.property)}
                           </div>
                         )}
+                        <div className="mt-1 text-xs font-semibold leading-snug text-foreground/50">
+                          Captured by {packageCapturedBy(reportPackage)}
+                        </div>
                         <div className="mt-1 text-sm text-foreground/60">
                           {packageSummary(reportPackage, originalPhotoCount(reportPackage))}
                         </div>

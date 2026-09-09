@@ -29,6 +29,18 @@ import {
   allowedPropertyIdsForPortalAccess,
 } from "../api-lib/portalPropertyAccess.js";
 import {
+  SYSTEM_ACTOR_LABEL,
+  activityActorEmail,
+  actorIdsFromVisibleAttributionRows,
+  capturedAttributionForPunchListRow,
+  completionAttributionForPunchListRow,
+  normalizeAuditEmail,
+  profileEmailMap,
+  publicActivityAttributionFields,
+  submittedByEmailForCompletionActivity,
+  workflowAttributionForPunchListRow,
+} from "../api-lib/auditAttribution.js";
+import {
   ensureUserProfile,
   isApprovedAdminEmail,
   readJsonBody,
@@ -240,6 +252,18 @@ function coverShotRank(row) {
 
 function unique(values) {
   return [...new Set(values.filter(Boolean))];
+}
+
+async function loadProfileEmailMap(service, userIds) {
+  const ids = unique(userIds);
+  if (!service || ids.length === 0) return new Map();
+  const { data, error } = await service
+    .from("users_profile")
+    .select("id,email,deleted_at")
+    .in("id", ids)
+    .is("deleted_at", null);
+  if (error) return new Map();
+  return profileEmailMap(data || []);
 }
 
 function normalizedStatus(value) {
@@ -825,7 +849,7 @@ function completionSubmissionRowsForGroup(rows, groupId) {
     .sort(compareCompletionSubmissionOrder(groupId));
 }
 
-function completionPhotoFromActivity(row, previewUrl, label) {
+export function completionPhotoFromActivity(row, previewUrl, label) {
   if (!row?.storage_path || !previewUrl) return null;
   const groupId = completionSubmissionGroupId(row);
   return {
@@ -833,6 +857,7 @@ function completionPhotoFromActivity(row, previewUrl, label) {
     activityId: row.id,
     submissionGroupId: groupId || null,
     capturedAt: row.created_at || null,
+    submittedByEmail: submittedByEmailForCompletionActivity(row),
     note: compactText(row.note),
     preview: {
       displayName: compactText(row.filename) || "Completion photo",
@@ -844,7 +869,7 @@ function completionPhotoFromActivity(row, previewUrl, label) {
   };
 }
 
-function completionPhotosFromSubmissions(submissions, previewUrlByActivityId, label) {
+export function completionPhotosFromSubmissions(submissions, previewUrlByActivityId, label) {
   return (submissions || [])
     .map((row) =>
       completionPhotoFromActivity(
@@ -856,11 +881,12 @@ function completionPhotosFromSubmissions(submissions, previewUrlByActivityId, la
     .filter(Boolean);
 }
 
-function publicActivityRow(row, options = {}) {
+export function publicActivityRow(row, options = {}) {
   if (!row) return null;
   const canDelete = Boolean(options.canDelete);
   const canEdit = Boolean(options.canEdit);
   const attachment = publicActivityAttachment(row, options.attachmentPreviewUrl || null);
+  const auditFields = publicActivityAttributionFields(row, options);
   const submissionGroupId = row.activity_type === "completion_submitted"
     ? completionSubmissionGroupId(row) || null
     : completionReviewGroupId(row) || null;
@@ -871,8 +897,9 @@ function publicActivityRow(row, options = {}) {
     fromValue: row.from_value || null,
     toValue: row.to_value || null,
     note: compactText(row.note),
-    createdBy: row.created_by || null,
-    createdAt: row.created_at,
+    createdBy: auditFields.createdBy,
+    actorEmail: auditFields.actorEmail,
+    createdAt: auditFields.createdAt,
     attachment,
     canEdit,
     canDelete,
@@ -990,7 +1017,19 @@ function usesCarriedForwardObservationDisplay(observation, shot) {
   );
 }
 
-function publicObservationRow({
+export function rowAuditAttribution({
+  shot,
+  reportPackage,
+  operationalState,
+  completionState,
+  workflowActivityRows,
+}) {
+  return completionAttributionForPunchListRow({ operationalState, completionState }) ||
+    workflowAttributionForPunchListRow({ operationalState, workflowActivityRows }) ||
+    capturedAttributionForPunchListRow({ shot, reportPackage });
+}
+
+export function publicObservationRow({
   observation,
   update,
   activity,
@@ -1003,6 +1042,7 @@ function publicObservationRow({
   completionPhoto,
   completionPhotos,
   completionPhotoIsPrimary,
+  workflowActivityRows,
   shot,
   org,
   property,
@@ -1070,6 +1110,13 @@ function publicObservationRow({
     locationKey: shot ? locationKeyFromShot({ ...shot, property_id: observation.property_id }) : "",
     preview,
     scoutPreview,
+    attribution: rowAuditAttribution({
+      shot,
+      reportPackage,
+      operationalState,
+      completionState,
+      workflowActivityRows,
+    }),
     activity,
     completionReview:
       status === "pending_review" && completionState?.submission?.id
@@ -1100,7 +1147,7 @@ function publicObservationRow({
   };
 }
 
-function publicShotRow({ shot, org, property, session, reportPackage, previewUrl, canAddNote, canEditWorkflow }) {
+export function publicShotRow({ shot, org, property, session, reportPackage, previewUrl, canAddNote, canEditWorkflow }) {
   const status = statusFromLatestShot(shot);
   const title = rowTitle(shot.reason);
   const noteEditable = Boolean(canAddNote);
@@ -1134,6 +1181,7 @@ function publicShotRow({ shot, org, property, session, reportPackage, previewUrl
     resolvedAt: status === "resolved" ? shot.updated_at || shot.captured_at || shot.created_at : null,
     locationKey: locationKeyFromShot(shot),
     preview: publicPreview(shot, previewUrl, reportPackage),
+    attribution: capturedAttributionForPunchListRow({ shot, reportPackage }),
     activity: [],
     permissions: {
       canAddNote: noteEditable,
@@ -1721,7 +1769,11 @@ async function handleAddNote(req, res) {
     }
 
     return sendJson(res, 200, {
-      activity: publicActivityRow(activity, { canEdit: true, canDelete: true }),
+      activity: publicActivityRow(activity, {
+        actorEmail: normalizeAuditEmail(auth.user?.email) || SYSTEM_ACTOR_LABEL,
+        canEdit: true,
+        canDelete: true,
+      }),
       observationId: observation.id,
     });
   } catch (error) {
@@ -1965,10 +2017,12 @@ async function handleSubmitCompletion(req, res) {
       status: "pending_review",
       observationId: observation.id,
       activity: publicActivityRow(submittedActivities[0], {
+        actorEmail: normalizeAuditEmail(auth.user?.email) || SYSTEM_ACTOR_LABEL,
         attachmentPreviewUrl: previewUrls.get(submittedActivities[0]?.id) || null,
       }),
       activities: submittedActivities.map((activity) =>
         publicActivityRow(activity, {
+          actorEmail: normalizeAuditEmail(auth.user?.email) || SYSTEM_ACTOR_LABEL,
           attachmentPreviewUrl: previewUrls.get(activity.id) || null,
         })
       ),
@@ -2057,7 +2111,9 @@ async function handleReviewCompletion(req, res, body = null) {
       reviewed: true,
       status: nextStatus,
       observationId: submission.observation_id,
-      activity: publicActivityRow(activity),
+      activity: publicActivityRow(activity, {
+        actorEmail: normalizeAuditEmail(auth.user?.email) || SYSTEM_ACTOR_LABEL,
+      }),
     });
   } catch (error) {
     return sendJson(res, error.statusCode || 500, {
@@ -2120,6 +2176,7 @@ async function handleUpdateNote(req, res, body = null) {
         updated: true,
         unchanged: true,
         activity: publicActivityRow(activity, {
+          actorEmail: normalizeAuditEmail(auth.user?.email) || SYSTEM_ACTOR_LABEL,
           canEdit: true,
           canDelete: adminAllowed || Boolean(ownNoteWriterNote),
         }),
@@ -2146,6 +2203,7 @@ async function handleUpdateNote(req, res, body = null) {
     return sendJson(res, 200, {
       updated: true,
       activity: publicActivityRow(updatedActivity, {
+        actorEmail: normalizeAuditEmail(auth.user?.email) || SYSTEM_ACTOR_LABEL,
         canEdit: true,
         canDelete: adminAllowed || Boolean(ownNoteWriterNote),
       }),
@@ -2247,7 +2305,9 @@ async function handleUpdateWorkflowField(req, res, body = null) {
 
     return sendJson(res, 200, {
       updated: true,
-      activity: publicActivityRow(activity),
+      activity: publicActivityRow(activity, {
+        actorEmail: normalizeAuditEmail(auth.user?.email) || SYSTEM_ACTOR_LABEL,
+      }),
       observationId: observation.id,
     });
   } catch (error) {
@@ -2412,6 +2472,14 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
           .limit(MAX_ACTIVITY_ROWS)
       )
     : [];
+  const profileEmailById = await loadProfileEmailMap(
+    service,
+    actorIdsFromVisibleAttributionRows(punchListActivity)
+  );
+  const attributedPunchListActivity = punchListActivity.map((row) => ({
+    ...row,
+    actorEmail: activityActorEmail(row, profileEmailById),
+  }));
 
   const packageBySession = latestPackageBySession(visiblePackageRows);
   const sessionIds = unique([
@@ -2457,6 +2525,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     for (const reportPackage of visiblePackageRows) {
       const metadata = await loadSnapshotPhotoMetadata(service, reportPackage);
       if (metadata) snapshotMetadataByPackageId.set(reportPackage.id, metadata);
+      reportPackage.captured_by_email = metadata?.capturedByEmail || null;
     }
   }
 
@@ -2522,7 +2591,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   const rawActivityByObservationId = new Map();
   const workflowActivityByObservationId = new Map();
   const completionPreviewUrlByActivityId = new Map();
-  for (const activityRow of punchListActivity) {
+  for (const activityRow of attributedPunchListActivity) {
     const rows = rawActivityByObservationId.get(activityRow.observation_id) || [];
     rows.push(activityRow);
     rawActivityByObservationId.set(activityRow.observation_id, rows);
@@ -2531,15 +2600,18 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       if (previewUrl) completionPreviewUrlByActivityId.set(activityRow.id, previewUrl);
     }
   }
-  for (const activityRow of punchListActivity) {
+  for (const activityRow of attributedPunchListActivity) {
     const workflowField = WORKFLOW_ACTIVITY_FIELD_BY_TYPE[activityRow.activity_type];
     if (workflowField) {
       const rows = workflowActivityByObservationId.get(activityRow.observation_id) || [];
       rows.push(activityRow);
       workflowActivityByObservationId.set(activityRow.observation_id, rows);
-      continue;
     }
-    if (activityRow.activity_type !== "note_added" && !COMPLETION_ACTIVITY_TYPES.has(activityRow.activity_type)) {
+    if (
+      activityRow.activity_type !== "note_added" &&
+      !COMPLETION_ACTIVITY_TYPES.has(activityRow.activity_type) &&
+      !workflowField
+    ) {
       continue;
     }
     const ownNoteWriterNote =
@@ -2660,6 +2732,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       completionPhoto,
       completionPhotos,
       completionPhotoIsPrimary,
+      workflowActivityRows: activityRowsForObservation(workflowActivityByObservationId, observation.id),
       shot,
       org: orgById.get(observation.org_id) || null,
       property: propertyById.get(observation.property_id || shot?.property_id) || null,
