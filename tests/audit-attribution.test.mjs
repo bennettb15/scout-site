@@ -15,6 +15,11 @@ import {
   workflowAttributionForPunchListRow,
 } from "../api-lib/auditAttribution.js";
 import {
+  completionPhotosFromSubmissions,
+  publicActivityRow,
+  publicObservationRow,
+} from "../api/punch-list.js";
+import {
   filterRowsByCurrentPortalPropertyAccess,
 } from "../api-lib/portalPropertyAccess.js";
 
@@ -46,6 +51,19 @@ test("Reports package resolves capturedByEmail from package actor profile", () =
       profileEmailById: emails,
     }),
     "uploader@example.com"
+  );
+});
+
+test("Reports package resolves capturedByEmail from session actor profile", () => {
+  const emails = profileEmailMap([{ id: actorId, email: "Session.Uploader@Example.com" }]);
+
+  assert.equal(
+    capturedByEmailForReportPackage({
+      packageRow: {},
+      sessionRow: { created_by: actorId },
+      profileEmailById: emails,
+    }),
+    "session.uploader@example.com"
   );
 });
 
@@ -132,6 +150,98 @@ test("fallback attribution is System, not Unknown", () => {
 
   assert.equal(activity.actorEmail, "System");
   assert.equal(String(activity.actorEmail).includes("Unknown"), false);
+});
+
+test("Punch List rows with missing actor data still render notes, uploads, and history", () => {
+  const note = publicActivityRow({
+    id: "77777777-7777-4777-8777-777777777777",
+    org_id: orgId,
+    property_id: propertyA,
+    observation_id: "88888888-8888-4888-8888-888888888888",
+    activity_type: "note_added",
+    note: "Legacy note",
+    created_at: "2026-09-09T11:32:00.000Z",
+  });
+  const uploadRow = {
+    id: "99999999-9999-4999-8999-999999999999",
+    org_id: orgId,
+    property_id: propertyA,
+    observation_id: "88888888-8888-4888-8888-888888888888",
+    activity_type: "completion_submitted",
+    from_value: "99999999-9999-4999-8999-999999999999",
+    to_value: "pending_review",
+    storage_path: "punchlist-completions/photo.jpg",
+    filename: "photo.jpg",
+    mime_type: "image/jpeg",
+    byte_size: 128,
+    created_at: "2026-09-09T12:32:00.000Z",
+    actorEmail: "System",
+  };
+  const upload = publicActivityRow(uploadRow, {
+    attachmentPreviewUrl: "https://example.com/photo.jpg",
+  });
+  const completionPhotos = completionPhotosFromSubmissions(
+    [uploadRow],
+    new Map([[uploadRow.id, "https://example.com/photo.jpg"]]),
+    "Pending Review"
+  );
+
+  const row = publicObservationRow({
+    observation: {
+      id: "88888888-8888-4888-8888-888888888888",
+      org_id: orgId,
+      property_id: propertyA,
+      session_id: sessionId,
+      shot_id: shotId,
+      title: "Legacy issue",
+      status: "active",
+      created_at: "2026-09-09T10:32:00.000Z",
+      updated_at: "2026-09-09T10:32:00.000Z",
+    },
+    update: null,
+    activity: [note, upload],
+    canAddNote: true,
+    canEditWorkflow: true,
+    canReviewCompletion: true,
+    workflowState: {},
+    statusOverride: "pending_review",
+    operationalState: {
+      source: "completion",
+      status: "pending_review",
+      activity: uploadRow,
+      groupId: uploadRow.id,
+    },
+    completionState: {
+      status: "pending_review",
+      submission: uploadRow,
+      submissions: [uploadRow],
+      groupId: uploadRow.id,
+    },
+    completionPhoto: completionPhotos[0],
+    completionPhotos,
+    completionPhotoIsPrimary: true,
+    workflowActivityRows: [],
+    shot: {
+      id: shotId,
+      org_id: orgId,
+      property_id: propertyA,
+      session_id: sessionId,
+      reason: "Legacy issue",
+      created_at: "2026-09-09T10:32:00.000Z",
+    },
+    org: { id: orgId, name: "Test Org" },
+    property: { id: propertyA, name: "Test Property" },
+    session: { id: sessionId },
+    reportPackage: {},
+    previewUrl: null,
+  });
+
+  assert.equal(note.actorEmail, "System");
+  assert.equal(upload.actorEmail, "System");
+  assert.equal(row.attribution.actorEmail, "System");
+  assert.equal(row.attribution.label, "Uploaded by System");
+  assert.equal(row.activity.length, 2);
+  assert.equal(row.completionReview.photos[0].submittedByEmail, "System");
 });
 
 test("property-scoped users do not gain unrelated actor data", () => {

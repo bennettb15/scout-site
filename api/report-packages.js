@@ -17,12 +17,26 @@ import {
   capturedByEmailForReportPackage,
   profileEmailMap,
   reportPackageActorId,
+  reportSessionActorId,
 } from "../api-lib/auditAttribution.js";
 
 const REPORT_PACKAGE_BASE_SELECT =
   "id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at,weather_summary";
-const REPORT_PACKAGE_AUDIT_SELECT =
-  `${REPORT_PACKAGE_BASE_SELECT},created_by,uploaded_by,completed_by`;
+const REPORT_OPTIONAL_AUDIT_COLUMNS = [
+  "completed_by",
+  "completed_by_user_id",
+  "completed_by_email",
+  "uploaded_by",
+  "uploaded_by_user_id",
+  "uploaded_by_email",
+  "captured_by_email",
+  "created_by",
+  "created_by_user_id",
+  "created_by_email",
+  "user_id",
+  "user_email",
+  "account_email",
+];
 
 function toProperty(row) {
   if (!row) return null;
@@ -81,30 +95,56 @@ function shotBelongsToPackage(shotRow, packageRow) {
 }
 
 async function loadReadyPackageRows(service) {
-  const buildQuery = (select) =>
-    service
-      .from("report_packages")
-      .select(select)
-      .eq("status", "ready")
-      .is("deleted_at", null)
-      .order("session_completed_at", { ascending: false })
-      .limit(500);
-
-  const { data, error } = await buildQuery(REPORT_PACKAGE_AUDIT_SELECT);
-  if (!error) return { data: data || [], error: null };
-  return buildQuery(REPORT_PACKAGE_BASE_SELECT);
+  const { data, error } = await service
+    .from("report_packages")
+    .select(REPORT_PACKAGE_BASE_SELECT)
+    .eq("status", "ready")
+    .is("deleted_at", null)
+    .order("session_completed_at", { ascending: false })
+    .limit(500);
+  if (error) return { data, error };
+  const rows = data || [];
+  await mergeOptionalColumns(service, "report_packages", rows, REPORT_OPTIONAL_AUDIT_COLUMNS);
+  return { data: rows, error: null };
 }
 
 async function loadProfileEmailMap(service, userIds) {
   const ids = unique(userIds);
   if (ids.length === 0) return new Map();
-  const { data, error } = await service
-    .from("users_profile")
-    .select("id,email,deleted_at")
-    .in("id", ids)
-    .is("deleted_at", null);
-  if (error) return new Map();
-  return profileEmailMap(data || []);
+  try {
+    const { data, error } = await service
+      .from("users_profile")
+      .select("id,email,deleted_at")
+      .in("id", ids)
+      .is("deleted_at", null);
+    if (error) return new Map();
+    return profileEmailMap(data || []);
+  } catch {
+    return new Map();
+  }
+}
+
+async function mergeOptionalColumns(service, table, rows, columns) {
+  const ids = unique(rows.map((row) => row.id));
+  if (!service || ids.length === 0) return rows;
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  for (const column of columns) {
+    try {
+      const { data, error } = await service
+        .from(table)
+        .select(`id,${column}`)
+        .in("id", ids);
+      if (error) continue;
+      for (const row of data || []) {
+        if (byId.has(row.id) && Object.prototype.hasOwnProperty.call(row, column)) {
+          byId.get(row.id)[column] = row[column];
+        }
+      }
+    } catch {
+      // Optional audit columns vary across environments; absence must not block Reports.
+    }
+  }
+  return rows;
 }
 
 async function handleReportOrgs(req, res) {
@@ -289,13 +329,17 @@ export default async function handler(req, res) {
     if (orgsError || sessionsError || exportsError || shotsError) {
       return sendJson(res, 500, { error: "Unable to load report context." });
     }
+    await mergeOptionalColumns(service, "sessions", sessionRows || [], REPORT_OPTIONAL_AUDIT_COLUMNS);
 
     const orgsById = new Map(orgRows.map((row) => [row.id, toOrg(row)]));
     const propertiesById = new Map(propertyRows.map((row) => [row.id, toProperty(row)]));
     const sessionsById = new Map(sessionRows.map((row) => [row.id, toSession(row)]));
     const profileEmailById = await loadProfileEmailMap(
       service,
-      actorIdsFromVisibleAttributionRows(packageRows.map((row) => ({ created_by: reportPackageActorId(row) })))
+      actorIdsFromVisibleAttributionRows([
+        ...packageRows.map((row) => ({ created_by: reportPackageActorId(row) })),
+        ...(sessionRows || []).map((row) => ({ created_by: reportSessionActorId(row) })),
+      ])
     );
     const snapshotMetadataByPackageId = new Map();
     for (const packageRow of packageRows) {
@@ -342,6 +386,7 @@ export default async function handler(req, res) {
 
     const packages = packageRows.map((row) => {
       const snapshotMetadata = snapshotMetadataByPackageId.get(row.id) || null;
+      const sessionRow = sessionRows.find((item) => item.id === row.session_id) || null;
       return {
         id: row.id,
         status: row.status,
@@ -353,6 +398,7 @@ export default async function handler(req, res) {
         weatherSummary: row.weather_summary,
         capturedByEmail: capturedByEmailForReportPackage({
           packageRow: row,
+          sessionRow,
           snapshotMetadata,
           profileEmailById,
         }),

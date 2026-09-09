@@ -100,6 +100,7 @@ export function actorEmailFromShotSnapshot(shot = {}, sessionEmail = "") {
 
 export function actorEmailFromProfileMap(userId, profileEmailById) {
   if (!userId || !profileEmailById) return "";
+  if (typeof profileEmailById.get !== "function") return "";
   return normalizeAuditEmail(profileEmailById.get(userId));
 }
 
@@ -151,15 +152,21 @@ export function activityActorEmail(row, profileEmailById, fallbackEmail = "") {
 }
 
 export function publicActivityAttributionFields(row, options = {}) {
+  const actorEmail = normalizeAuditEmail(options.actorEmail) ||
+    normalizeAuditEmail(row?.actorEmail) ||
+    normalizeAuditEmail(row?.actor_email) ||
+    SYSTEM_ACTOR_LABEL;
   return {
     createdBy: row?.created_by || row?.createdBy || null,
-    actorEmail: options.actorEmail || row?.actorEmail || row?.actor_email || SYSTEM_ACTOR_LABEL,
+    actorEmail,
     createdAt: row?.created_at || row?.createdAt || null,
   };
 }
 
 export function submittedByEmailForCompletionActivity(activity) {
-  return activity?.actorEmail || activity?.actor_email || null;
+  return normalizeAuditEmail(activity?.actorEmail) ||
+    normalizeAuditEmail(activity?.actor_email) ||
+    SYSTEM_ACTOR_LABEL;
 }
 
 export function workflowAttributionForPunchListRow({ operationalState, workflowActivityRows } = {}) {
@@ -190,8 +197,7 @@ export function completionAttributionForPunchListRow({ operationalState, complet
     };
   }
 
-  const actorEmail = completionState?.submission?.actorEmail || completionState?.submission?.actor_email;
-  if (!actorEmail) return null;
+  const actorEmail = submittedByEmailForCompletionActivity(completionState?.submission);
   return {
     action: "uploaded",
     actorEmail,
@@ -203,24 +209,80 @@ export function actorIdsFromVisibleAttributionRows(rows = []) {
   return [
     ...new Set(
       (rows || [])
-        .map((row) => row?.created_by || row?.createdBy || row?.actorId)
+        .flatMap((row) => [
+          row?.completed_by,
+          row?.completedBy,
+          row?.completed_by_user_id,
+          row?.completedByUserId,
+          row?.uploaded_by,
+          row?.uploadedBy,
+          row?.uploaded_by_user_id,
+          row?.uploadedByUserId,
+          row?.created_by,
+          row?.createdBy,
+          row?.created_by_user_id,
+          row?.createdByUserId,
+          row?.user_id,
+          row?.userId,
+          row?.actorId,
+        ])
         .filter(Boolean)
     ),
   ];
 }
 
 export function reportPackageActorId(row) {
-  return row?.completed_by || row?.uploaded_by || row?.created_by || "";
+  return row?.completed_by ||
+    row?.completedBy ||
+    row?.completed_by_user_id ||
+    row?.completedByUserId ||
+    row?.uploaded_by ||
+    row?.uploadedBy ||
+    row?.uploaded_by_user_id ||
+    row?.uploadedByUserId ||
+    row?.created_by ||
+    row?.createdBy ||
+    row?.created_by_user_id ||
+    row?.createdByUserId ||
+    row?.user_id ||
+    row?.userId ||
+    "";
+}
+
+export function reportSessionActorId(row) {
+  return reportPackageActorId(row);
+}
+
+export function actorEmailFromAuditRow(row) {
+  return firstEmail(
+    row?.completedByEmail,
+    row?.completed_by_email,
+    row?.uploadedByEmail,
+    row?.uploaded_by_email,
+    row?.capturedByEmail,
+    row?.captured_by_email,
+    row?.createdByEmail,
+    row?.created_by_email,
+    row?.userEmail,
+    row?.user_email,
+    row?.accountEmail,
+    row?.account_email
+  );
 }
 
 export function capturedByEmailForReportPackage({
   packageRow,
+  sessionRow,
   snapshotMetadata,
   profileEmailById,
 } = {}) {
   return auditActorLabel({
-    email: snapshotMetadata?.capturedByEmail,
-    userId: reportPackageActorId(packageRow),
+    email: firstEmail(
+      snapshotMetadata?.capturedByEmail,
+      actorEmailFromAuditRow(packageRow),
+      actorEmailFromAuditRow(sessionRow)
+    ),
+    userId: reportPackageActorId(packageRow) || reportSessionActorId(sessionRow),
     profileEmailById,
   });
 }

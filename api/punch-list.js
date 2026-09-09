@@ -32,11 +32,14 @@ import {
   SYSTEM_ACTOR_LABEL,
   activityActorEmail,
   actorIdsFromVisibleAttributionRows,
+  capturedByEmailForReportPackage,
   capturedAttributionForPunchListRow,
   completionAttributionForPunchListRow,
   normalizeAuditEmail,
   profileEmailMap,
   publicActivityAttributionFields,
+  reportPackageActorId,
+  reportSessionActorId,
   submittedByEmailForCompletionActivity,
   workflowAttributionForPunchListRow,
 } from "../api-lib/auditAttribution.js";
@@ -125,6 +128,21 @@ const PUNCHLIST_ACTIVITY_SELECT = [
   "mime_type",
   "byte_size",
 ].join(",");
+const OPTIONAL_AUDIT_COLUMNS = [
+  "completed_by",
+  "completed_by_user_id",
+  "completed_by_email",
+  "uploaded_by",
+  "uploaded_by_user_id",
+  "uploaded_by_email",
+  "captured_by_email",
+  "created_by",
+  "created_by_user_id",
+  "created_by_email",
+  "user_id",
+  "user_email",
+  "account_email",
+];
 const FIELD_REVIEW_ELEVATION_ORDER = ["front", "north", "east", "south", "west", "rear"];
 const NATURAL_COLLATOR = new Intl.Collator("en-US", {
   numeric: true,
@@ -257,13 +275,48 @@ function unique(values) {
 async function loadProfileEmailMap(service, userIds) {
   const ids = unique(userIds);
   if (!service || ids.length === 0) return new Map();
-  const { data, error } = await service
-    .from("users_profile")
-    .select("id,email,deleted_at")
-    .in("id", ids)
-    .is("deleted_at", null);
-  if (error) return new Map();
-  return profileEmailMap(data || []);
+  try {
+    const { data, error } = await service
+      .from("users_profile")
+      .select("id,email,deleted_at")
+      .in("id", ids)
+      .is("deleted_at", null);
+    if (error) return new Map();
+    return profileEmailMap(data || []);
+  } catch {
+    return new Map();
+  }
+}
+
+async function mergeOptionalColumns(service, table, rows, columns) {
+  const ids = unique((rows || []).map((row) => row?.id));
+  if (!service || ids.length === 0) return rows || [];
+  const byId = new Map((rows || []).map((row) => [row.id, row]));
+  for (const column of columns) {
+    try {
+      const { data, error } = await service
+        .from(table)
+        .select(`id,${column}`)
+        .in("id", ids);
+      if (error) continue;
+      for (const row of data || []) {
+        if (byId.has(row.id) && Object.prototype.hasOwnProperty.call(row, column)) {
+          byId.get(row.id)[column] = row[column];
+        }
+      }
+    } catch {
+      // Optional audit columns are best-effort and must not affect Punch List loading.
+    }
+  }
+  return rows || [];
+}
+
+function auditSafeAttribution(build) {
+  try {
+    return build() || null;
+  } catch {
+    return null;
+  }
 }
 
 function normalizedStatus(value) {
@@ -1024,9 +1077,13 @@ export function rowAuditAttribution({
   completionState,
   workflowActivityRows,
 }) {
-  return completionAttributionForPunchListRow({ operationalState, completionState }) ||
-    workflowAttributionForPunchListRow({ operationalState, workflowActivityRows }) ||
-    capturedAttributionForPunchListRow({ shot, reportPackage });
+  return auditSafeAttribution(() =>
+    completionAttributionForPunchListRow({ operationalState, completionState })
+  ) ||
+    auditSafeAttribution(() =>
+      workflowAttributionForPunchListRow({ operationalState, workflowActivityRows })
+    ) ||
+    auditSafeAttribution(() => capturedAttributionForPunchListRow({ shot, reportPackage }));
 }
 
 export function publicObservationRow({
@@ -1038,6 +1095,7 @@ export function publicObservationRow({
   canReviewCompletion,
   workflowState,
   statusOverride,
+  operationalState,
   completionState,
   completionPhoto,
   completionPhotos,
@@ -2448,6 +2506,9 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   const visibleObservations = observations.filter((row) =>
     canSeeCurrentProperty(row.org_id, row.property_id)
   );
+  if (service) {
+    await mergeOptionalColumns(service, "report_packages", visiblePackageRows, OPTIONAL_AUDIT_COLUMNS);
+  }
 
   const observationIds = visibleObservations.map((row) => row.id);
   const observationUpdates = observationIds.length
@@ -2472,14 +2533,6 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
           .limit(MAX_ACTIVITY_ROWS)
       )
     : [];
-  const profileEmailById = await loadProfileEmailMap(
-    service,
-    actorIdsFromVisibleAttributionRows(punchListActivity)
-  );
-  const attributedPunchListActivity = punchListActivity.map((row) => ({
-    ...row,
-    actorEmail: activityActorEmail(row, profileEmailById),
-  }));
 
   const packageBySession = latestPackageBySession(visiblePackageRows);
   const sessionIds = unique([
@@ -2566,6 +2619,32 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
             .is("deleted_at", null)
         : { data: [] },
     ]);
+  if (service) {
+    await mergeOptionalColumns(service, "sessions", sessionRows || [], OPTIONAL_AUDIT_COLUMNS);
+  }
+
+  const profileEmailById = await loadProfileEmailMap(
+    service,
+    actorIdsFromVisibleAttributionRows([
+      ...punchListActivity,
+      ...visiblePackageRows.map((row) => ({ created_by: reportPackageActorId(row) })),
+      ...(sessionRows || []).map((row) => ({ created_by: reportSessionActorId(row) })),
+    ])
+  );
+  const attributedPunchListActivity = punchListActivity.map((row) => ({
+    ...row,
+    actorEmail: auditSafeAttribution(() => activityActorEmail(row, profileEmailById)) || SYSTEM_ACTOR_LABEL,
+  }));
+  const rawSessionById = new Map((sessionRows || []).map((row) => [row.id, row]));
+  for (const reportPackage of visiblePackageRows) {
+    const snapshotMetadata = snapshotMetadataByPackageId.get(reportPackage.id) || null;
+    reportPackage.captured_by_email = capturedByEmailForReportPackage({
+      packageRow: reportPackage,
+      sessionRow: rawSessionById.get(reportPackage.session_id) || null,
+      snapshotMetadata,
+      profileEmailById,
+    });
+  }
 
   const orgById = new Map((orgRows || []).map((row) => [row.id, toOrg(row)]));
   const propertyById = new Map((propertyRows || []).map((row) => [row.id, toProperty(row)]));
@@ -2728,6 +2807,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
         activityRowsForObservation(workflowActivityByObservationId, observation.id)
       ),
       statusOverride,
+      operationalState,
       completionState,
       completionPhoto,
       completionPhotos,
