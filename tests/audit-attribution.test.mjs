@@ -67,6 +67,48 @@ test("Reports package resolves capturedByEmail from session actor profile", () =
   );
 });
 
+test("Reports package prefers first photo captured email over package fallback", () => {
+  assert.equal(
+    capturedByEmailForReportPackage({
+      packageRow: { captured_by_email: "package@example.com" },
+      firstPhotoRow: { captured_by_email: "First.Photo@Example.com" },
+    }),
+    "first.photo@example.com"
+  );
+});
+
+test("Reports package resolves first photo user id to email", () => {
+  const emails = profileEmailMap([{ id: actorId, email: "First.Actor@Example.com" }]);
+
+  assert.equal(
+    capturedByEmailForReportPackage({
+      packageRow: { captured_by_email: "package@example.com" },
+      firstPhotoRow: { captured_by_user_id: actorId },
+      profileEmailById: emails,
+    }),
+    "first.actor@example.com"
+  );
+});
+
+test("Snapshot metadata preserves first photo actor id for report attribution", () => {
+  const snapshotMetadata = buildSnapshotPhotoMetadata({
+    shots: [
+      {
+        id: shotId,
+        originalFilename: "first.jpg",
+        capturedByUserId: actorId,
+      },
+    ],
+  });
+  const emails = profileEmailMap([{ id: actorId, email: "Snapshot.Actor@Example.com" }]);
+
+  assert.equal(snapshotMetadata.firstPhotoActorId, actorId);
+  assert.equal(
+    capturedByEmailForReportPackage({ snapshotMetadata, profileEmailById: emails }),
+    "snapshot.actor@example.com"
+  );
+});
+
 test("Punch List ScoutCapture-origin rows include captured attribution data", () => {
   const attribution = capturedAttributionForPunchListRow({
     shot: {

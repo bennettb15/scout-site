@@ -1416,17 +1416,22 @@ const PUNCH_LIST_STYLES = `
     align-items: center;
     justify-content: center;
     border-radius: 999px;
-    border: 1px solid rgb(203 213 225);
-    background: white;
+    border: 0;
+    background: transparent;
     color: rgb(71 85 105);
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    padding: 0;
   }
 
   .punch-audit-trigger:hover,
   .punch-audit-trigger:focus-visible {
-    border-color: rgb(37 99 235);
     color: rgb(29 78 216);
     outline: none;
+  }
+
+  .punch-audit-trigger svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2.75;
   }
 
   .punch-audit-popover {

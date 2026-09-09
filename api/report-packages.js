@@ -2,12 +2,14 @@ import {
   ORIGINALS_BUCKET,
   authenticateRequest,
   createServiceClient,
+  enrichPhotoRowWithSnapshotMetadata,
   loadUserPortalPropertyAccess,
   loadSnapshotPhotoMetadata,
   methodAllowed,
   originalPathIsExpected,
   publicReportTypeLabel,
   sendJson,
+  sortPhotoRowsBySnapshot,
 } from "./_reportPortalShared.js";
 import {
   allowedPropertyIdsForPortalAccess,
@@ -29,6 +31,8 @@ const REPORT_OPTIONAL_AUDIT_COLUMNS = [
   "uploaded_by",
   "uploaded_by_user_id",
   "uploaded_by_email",
+  "captured_by",
+  "captured_by_user_id",
   "captured_by_email",
   "created_by",
   "created_by_user_id",
@@ -92,6 +96,13 @@ function shotBelongsToPackage(shotRow, packageRow) {
     idsMatch(shotRow.session_id, packageRow.session_id) &&
     (!shotRow.property_id || idsMatch(shotRow.property_id, packageRow.property_id))
   );
+}
+
+function firstOriginalPhotoForPackage(packageRow, shotRows, snapshotMetadata) {
+  const rows = (shotRows || [])
+    .filter((shotRow) => shotBelongsToPackage(shotRow, packageRow))
+    .map((shotRow) => enrichPhotoRowWithSnapshotMetadata(shotRow, snapshotMetadata));
+  return sortPhotoRowsBySnapshot(rows)[0] || null;
 }
 
 async function loadReadyPackageRows(service) {
@@ -318,7 +329,7 @@ export default async function handler(req, res) {
           .order("requested_at", { ascending: false }),
         service
           .from("shots")
-          .select("id,org_id,property_id,session_id,storage_path")
+          .select("id,org_id,property_id,session_id,storage_path,captured_at,created_at,position")
           .in("session_id", sessionIds)
           .eq("storage_bucket", ORIGINALS_BUCKET)
           .eq("upload_state", "uploaded")
@@ -330,17 +341,11 @@ export default async function handler(req, res) {
       return sendJson(res, 500, { error: "Unable to load report context." });
     }
     await mergeOptionalColumns(service, "sessions", sessionRows || [], REPORT_OPTIONAL_AUDIT_COLUMNS);
+    await mergeOptionalColumns(service, "shots", shotRows || [], REPORT_OPTIONAL_AUDIT_COLUMNS);
 
     const orgsById = new Map(orgRows.map((row) => [row.id, toOrg(row)]));
     const propertiesById = new Map(propertyRows.map((row) => [row.id, toProperty(row)]));
     const sessionsById = new Map(sessionRows.map((row) => [row.id, toSession(row)]));
-    const profileEmailById = await loadProfileEmailMap(
-      service,
-      actorIdsFromVisibleAttributionRows([
-        ...packageRows.map((row) => ({ created_by: reportPackageActorId(row) })),
-        ...(sessionRows || []).map((row) => ({ created_by: reportSessionActorId(row) })),
-      ])
-    );
     const snapshotMetadataByPackageId = new Map();
     for (const packageRow of packageRows) {
       const metadata = await loadSnapshotPhotoMetadata(service, packageRow);
@@ -354,6 +359,23 @@ export default async function handler(req, res) {
         safeShotRows.filter((shotRow) => shotBelongsToPackage(shotRow, packageRow)).length
       );
     }
+    const firstPhotoByPackageId = new Map();
+    for (const packageRow of packageRows) {
+      const firstPhoto = firstOriginalPhotoForPackage(
+        packageRow,
+        safeShotRows,
+        snapshotMetadataByPackageId.get(packageRow.id) || null
+      );
+      if (firstPhoto) firstPhotoByPackageId.set(packageRow.id, firstPhoto);
+    }
+    const profileEmailById = await loadProfileEmailMap(
+      service,
+      actorIdsFromVisibleAttributionRows([
+        ...Array.from(firstPhotoByPackageId.values()),
+        ...packageRows.map((row) => ({ created_by: reportPackageActorId(row) })),
+        ...(sessionRows || []).map((row) => ({ created_by: reportSessionActorId(row) })),
+      ])
+    );
     const filesByPackageId = new Map();
     for (const row of fileRows) {
       const files = filesByPackageId.get(row.package_id) || [];
@@ -387,6 +409,7 @@ export default async function handler(req, res) {
     const packages = packageRows.map((row) => {
       const snapshotMetadata = snapshotMetadataByPackageId.get(row.id) || null;
       const sessionRow = sessionRows.find((item) => item.id === row.session_id) || null;
+      const firstPhotoRow = firstPhotoByPackageId.get(row.id) || null;
       return {
         id: row.id,
         status: row.status,
@@ -399,6 +422,7 @@ export default async function handler(req, res) {
         capturedByEmail: capturedByEmailForReportPackage({
           packageRow: row,
           sessionRow,
+          firstPhotoRow,
           snapshotMetadata,
           profileEmailById,
         }),

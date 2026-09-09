@@ -6,6 +6,7 @@ import {
 } from "../api-lib/portalAdminAccess.js";
 import {
   actorEmailFromShotSnapshot,
+  actorIdFromShotSnapshot,
   actorEmailFromSnapshot,
 } from "../api-lib/auditAttribution.js";
 import {
@@ -474,6 +475,7 @@ export function buildSnapshotPhotoMetadata(rawSession) {
       shot_key: textValue(shot?.shotKey || shot?.shot_key),
       captured_at: snapshotCapturedAt(shot),
       captured_by_email: actorEmailFromShotSnapshot(shot, capturedByEmail),
+      captured_by_user_id: actorIdFromShotSnapshot(shot) || null,
       is_flagged: boolValue(shot?.isFlagged || shot?.is_flagged || shot?.flagged),
       is_resolved_in_session: issueStatus === "resolved" || (!issueStatus && snapshotResolvedInSession(shot, issuesById)),
       reason: flaggedReasonFromSnapshot(shot, issuesById),
@@ -486,7 +488,16 @@ export function buildSnapshotPhotoMetadata(rawSession) {
     rows.push(metadata);
   });
 
-  return { byShotId, byStoragePath, byFilename, rows, capturedByEmail };
+  const firstPhoto = rows[0] || null;
+  return {
+    byShotId,
+    byStoragePath,
+    byFilename,
+    rows,
+    capturedByEmail,
+    firstPhotoCapturedByEmail: firstPhoto?.captured_by_email || "",
+    firstPhotoActorId: firstPhoto?.captured_by_user_id || "",
+  };
 }
 
 export async function loadSnapshotPhotoMetadata(service, reportPackage) {
@@ -573,6 +584,7 @@ export function enrichPhotoRowWithSnapshotMetadata(row, snapshotMetadata) {
     shot_key: metadata.shot_key || row.shot_key,
     captured_at: metadata.captured_at || row.captured_at,
     captured_by_email: metadata.captured_by_email || row.captured_by_email || null,
+    captured_by_user_id: metadata.captured_by_user_id || row.captured_by_user_id || null,
     is_flagged: metadata.is_flagged,
     is_resolved_in_session: metadata.has_issue_state_signal
       ? metadata.is_resolved_in_session

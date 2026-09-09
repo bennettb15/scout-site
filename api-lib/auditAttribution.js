@@ -98,6 +98,27 @@ export function actorEmailFromShotSnapshot(shot = {}, sessionEmail = "") {
   );
 }
 
+export function actorIdFromShotSnapshot(shot = {}) {
+  return firstPathValue(shot, [
+    ["capturedByUserId"],
+    ["captured_by_user_id"],
+    ["uploadedByUserId"],
+    ["uploaded_by_user_id"],
+    ["createdByUserId"],
+    ["created_by_user_id"],
+    ["userId"],
+    ["user_id"],
+    ["accountId"],
+    ["account_id"],
+    ["actorId"],
+    ["actor_id"],
+    ["actor", "id"],
+    ["uploader", "id"],
+    ["capturedBy", "id"],
+    ["createdBy", "id"],
+  ]);
+}
+
 export function actorEmailFromProfileMap(userId, profileEmailById) {
   if (!userId || !profileEmailById) return "";
   if (typeof profileEmailById.get !== "function") return "";
@@ -218,6 +239,10 @@ export function actorIdsFromVisibleAttributionRows(rows = []) {
           row?.uploadedBy,
           row?.uploaded_by_user_id,
           row?.uploadedByUserId,
+          row?.captured_by,
+          row?.capturedBy,
+          row?.captured_by_user_id,
+          row?.capturedByUserId,
           row?.created_by,
           row?.createdBy,
           row?.created_by_user_id,
@@ -240,6 +265,10 @@ export function reportPackageActorId(row) {
     row?.uploadedBy ||
     row?.uploaded_by_user_id ||
     row?.uploadedByUserId ||
+    row?.captured_by ||
+    row?.capturedBy ||
+    row?.captured_by_user_id ||
+    row?.capturedByUserId ||
     row?.created_by ||
     row?.createdBy ||
     row?.created_by_user_id ||
@@ -270,19 +299,31 @@ export function actorEmailFromAuditRow(row) {
   );
 }
 
+export function actorIdFromAuditRow(row) {
+  return reportPackageActorId(row);
+}
+
 export function capturedByEmailForReportPackage({
   packageRow,
   sessionRow,
+  firstPhotoRow,
   snapshotMetadata,
   profileEmailById,
 } = {}) {
-  return auditActorLabel({
-    email: firstEmail(
-      snapshotMetadata?.capturedByEmail,
-      actorEmailFromAuditRow(packageRow),
-      actorEmailFromAuditRow(sessionRow)
-    ),
-    userId: reportPackageActorId(packageRow) || reportSessionActorId(sessionRow),
-    profileEmailById,
-  });
+  const firstPhotoActorId = snapshotMetadata?.firstPhotoActorId || actorIdFromAuditRow(firstPhotoRow);
+  const firstPhotoEmail = firstEmail(
+    snapshotMetadata?.firstPhotoCapturedByEmail,
+    actorEmailFromAuditRow(firstPhotoRow)
+  );
+  return firstPhotoEmail ||
+    actorEmailFromProfileMap(firstPhotoActorId, profileEmailById) ||
+    auditActorLabel({
+      email: firstEmail(
+        snapshotMetadata?.capturedByEmail,
+        actorEmailFromAuditRow(packageRow),
+        actorEmailFromAuditRow(sessionRow)
+      ),
+      userId: reportPackageActorId(packageRow) || reportSessionActorId(sessionRow),
+      profileEmailById,
+    });
 }
