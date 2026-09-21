@@ -413,6 +413,24 @@ function snapshotResolvedInSession(shot, issuesById) {
   return snapshotIssueOperationalStatus(shot, issuesById) === "resolved";
 }
 
+function snapshotHasResolvedEvidence(shot, issuesById) {
+  const shotStatus = normalizedOperationalStatus(shot?.issueStatus || shot?.issue_status);
+  const issue = issuesById.get(snapshotIssueId(shot));
+  const issueStatus = issueOperationalStatus(issue);
+  return Boolean(
+    boolValue(
+      shot?.isResolvedInSession ||
+        shot?.is_resolved_in_session ||
+        shot?.resolvedInSession ||
+        shot?.resolved_in_session
+    ) ||
+      snapshotCaptureKind(shot) === "resolved_capture" ||
+      shotStatus === "resolved" ||
+      textValue(shot?.resolvedIssueID || shot?.resolvedIssueId || shot?.resolved_issue_id) ||
+      issueStatus === "resolved"
+  );
+}
+
 function issueReopenedInSession(issue, sessionId) {
   const events = Array.isArray(issue?.historyEvents)
     ? issue.historyEvents
@@ -480,7 +498,10 @@ export function buildSnapshotPhotoMetadata(rawSession) {
       captured_by_email: actorEmailFromShotSnapshot(shot, capturedByEmail),
       captured_by_user_id: actorIdFromShotSnapshot(shot) || null,
       is_flagged: boolValue(shot?.isFlagged || shot?.is_flagged || shot?.flagged),
-      is_resolved_in_session: issueStatus === "resolved" || (!issueStatus && snapshotResolvedInSession(shot, issuesById)),
+      is_resolved_in_session:
+        issueStatus === "resolved" ||
+        (issueStatus === "pending_review" && snapshotHasResolvedEvidence(shot, issuesById)) ||
+        (!issueStatus && snapshotResolvedInSession(shot, issuesById)),
       reason: flaggedReasonFromSnapshot(shot, issuesById),
       priority: textValue(shot?.priority),
       snapshot_order: index,

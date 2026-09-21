@@ -5684,7 +5684,6 @@ export default function ScoutPunchListPage() {
     setPunchListError("");
     try {
       const submissionActivityId = row?.completionReview?.activityId;
-      const nextStatus = normalizedAction === "approve" ? "resolved" : "active";
       const response = submissionActivityId
         ? await fetch("/api/punch-list?mode=completion-review", {
             method: "PATCH",
@@ -5698,7 +5697,7 @@ export default function ScoutPunchListPage() {
               note,
             }),
           })
-        : await fetch("/api/punch-list", {
+        : await fetch("/api/punch-list?mode=completion-review", {
             method: "PATCH",
             headers: {
               Authorization: `Bearer ${session.access_token}`,
@@ -5708,9 +5707,7 @@ export default function ScoutPunchListPage() {
               observationId: row.observationId,
               shotId: row.observationId ? null : row.shotId,
               packageId: row.observationId ? null : row.packageId,
-              field: "status",
-              value: nextStatus,
-              forceActivity: true,
+              action: normalizedAction,
               fromValue: "pending_review",
               note,
             }),

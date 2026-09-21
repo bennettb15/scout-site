@@ -74,7 +74,7 @@ test("resolved capture metadata remains resolved", () => {
   assert.equal(metadata.is_resolved_in_session, true);
 });
 
-test("SC package pending_review metadata drives Website Pending Review", () => {
+test("SC package pending_review resolved capture stays reviewable but visually resolved", () => {
   const snapshotMetadata = buildSnapshotPhotoMetadata({
     id: sessionId,
     shots: [
@@ -98,10 +98,10 @@ test("SC package pending_review metadata drives Website Pending Review", () => {
   );
 
   assert.equal(metadata.issue_status, "pending_review");
-  assert.equal(metadata.is_resolved_in_session, false);
+  assert.equal(metadata.is_resolved_in_session, true);
   assert.equal(enriched.issue_status, "pending_review");
   assert.equal(enriched.snapshot_issue_status, "pending_review");
-  assert.equal(enriched.is_resolved_in_session, false);
+  assert.equal(enriched.is_resolved_in_session, true);
   assert.equal(
     latestStatusOverride({
       operationalState: null,

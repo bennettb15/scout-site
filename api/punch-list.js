@@ -1682,6 +1682,45 @@ async function resolveWorkflowObservation(auth, service, { observationId, shotId
   return existing || createObservationForFallbackShot(service, auth, shot);
 }
 
+async function resolveReviewObservation(auth, service, { observationId, shotId, packageId }) {
+  if (observationId) {
+    const { data: observation, error: observationError } = await auth.client
+      .from("observations")
+      .select(safeObservationSelect())
+      .eq("id", observationId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (observationError) {
+      const error = new Error("Unable to load punch list item.");
+      error.statusCode = 500;
+      throw error;
+    }
+    if (!observation) {
+      const error = new Error("Punch list item not found.");
+      error.statusCode = 404;
+      throw error;
+    }
+    return observation;
+  }
+
+  if (!shotId) {
+    const error = new Error("Valid completion review target is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const shot = await loadAccessibleFallbackShot(auth, service, shotId, packageId);
+  if (!shot) {
+    const error = new Error("Punch list photo not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const existing = await findExistingObservationForShot(service, shot);
+  return existing || createObservationForFallbackShot(service, auth, shot);
+}
+
 async function workflowStateForObservation(service, observationId) {
   const data = await safePunchListActivityRows((select) =>
     service
@@ -2111,6 +2150,25 @@ async function handleSubmitCompletion(req, res) {
   }
 }
 
+async function syncObservationReviewStatus(service, observation, status, actorId) {
+  const nextStatus = status === "resolved" ? "resolved" : "active";
+  const patch = {
+    status: nextStatus,
+    resolved_at: nextStatus === "resolved" ? new Date().toISOString() : null,
+    updated_by: actorId,
+  };
+  const { error } = await service
+    .from("observations")
+    .update(patch)
+    .eq("id", observation.id)
+    .is("deleted_at", null);
+  if (error) {
+    const syncError = new Error("Unable to update punch list item status.");
+    syncError.statusCode = 500;
+    throw syncError;
+  }
+}
+
 async function handleReviewCompletion(req, res, body = null) {
   if (!body) {
     try {
@@ -2121,8 +2179,12 @@ async function handleReviewCompletion(req, res, body = null) {
   }
 
   const submissionId = validateUuid(body.activityId || body.submissionId);
+  const observationId = validateUuid(body.observationId);
+  const shotId = validateUuid(body.shotId);
+  const packageId = validateUuid(body.packageId);
   const action = keyValue(body.action);
-  if (!submissionId || !["approve", "reject"].includes(action)) {
+  const reviewingPendingReviewState = keyValue(body.fromValue) === "pending_review";
+  if ((!submissionId && !observationId && !shotId) || !["approve", "reject"].includes(action)) {
     return sendJson(res, 400, { error: "Valid completion review action is required." });
   }
 
@@ -2139,6 +2201,59 @@ async function handleReviewCompletion(req, res, body = null) {
 
     const service = createServiceClient();
     await ensureUserProfile(service, auth.user, auth.user.id);
+    if (!submissionId) {
+      const observation = await resolveReviewObservation(auth, service, {
+        observationId,
+        shotId,
+        packageId,
+      });
+      if (!(await canReviewPunchListCompletion(auth, service, observation.org_id, observation.property_id))) {
+        return sendJson(res, 403, {
+          error: "Review access is required to review completion submissions.",
+        });
+      }
+
+      const activityRows = await activityRowsForCompletionReview(service, observation.id);
+      const currentStatus =
+        operationalStatusFromActivity(activityRows) || normalizedStatus(observation.status);
+      if (currentStatus !== "pending_review" && !reviewingPendingReviewState) {
+        return sendJson(res, 400, { error: "This field-resolved item is not pending review." });
+      }
+
+      const nextStatus = action === "approve" ? "resolved" : "active";
+      const { data: activity, error: activityError } = await service
+        .from("punchlist_activity")
+        .insert({
+          org_id: observation.org_id,
+          property_id: observation.property_id,
+          observation_id: observation.id,
+          shot_id: observation.shot_id || null,
+          activity_type: action === "approve" ? "completion_approved" : "completion_rejected",
+          from_value: "pending_review",
+          to_value: nextStatus,
+          note,
+          created_by: auth.user.id,
+          deleted_at: null,
+        })
+        .select(PUNCHLIST_ACTIVITY_SELECT)
+        .single();
+
+      if (activityError) {
+        return sendJson(res, 500, { error: "Unable to review completion submission." });
+      }
+
+      await syncObservationReviewStatus(service, observation, nextStatus, auth.user.id);
+
+      return sendJson(res, 200, {
+        reviewed: true,
+        status: nextStatus,
+        observationId: observation.id,
+        activity: publicActivityRow(activity, {
+          actorEmail: normalizeAuditEmail(auth.user?.email) || SYSTEM_ACTOR_LABEL,
+        }),
+      });
+    }
+
     const { data: submission, error: submissionError } = await service
       .from("punchlist_activity")
       .select(PUNCHLIST_ACTIVITY_SELECT)
