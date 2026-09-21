@@ -2152,20 +2152,33 @@ async function handleSubmitCompletion(req, res) {
 
 async function syncObservationReviewStatus(service, observation, status, actorId) {
   const nextStatus = status === "resolved" ? "resolved" : "active";
+  const now = new Date().toISOString();
   const patch = {
     status: nextStatus,
-    resolved_at: nextStatus === "resolved" ? new Date().toISOString() : null,
+    resolved_at: nextStatus === "resolved" ? now : null,
     updated_by: actorId,
   };
-  const { error } = await service
+  const { error: observationError } = await service
     .from("observations")
     .update(patch)
     .eq("id", observation.id)
     .is("deleted_at", null);
-  if (error) {
+  if (observationError) {
     const syncError = new Error("Unable to update punch list item status.");
     syncError.statusCode = 500;
     throw syncError;
+  }
+  if (observation.shot_id) {
+    const { error: shotError } = await service
+      .from("shots")
+      .update({ issue_status: nextStatus })
+      .eq("id", observation.shot_id)
+      .is("deleted_at", null);
+    if (shotError) {
+      const syncError = new Error("Unable to update punch list photo status.");
+      syncError.statusCode = 500;
+      throw syncError;
+    }
   }
 }
 
