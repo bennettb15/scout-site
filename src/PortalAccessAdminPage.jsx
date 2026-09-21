@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Trash2,
   UserPlus,
+  X,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import {
@@ -506,6 +507,7 @@ export default function PortalAccessAdminPage() {
   const [selectedPropertyIds, setSelectedPropertyIds] = useState([]);
   const [clientEmail, setClientEmail] = useState("");
   const [newOrgName, setNewOrgName] = useState("");
+  const [isCreateOrgOpen, setIsCreateOrgOpen] = useState(false);
   const [creatingOrg, setCreatingOrg] = useState(false);
   const [setupLinkDetails, setSetupLinkDetails] = useState(null);
   const [copyMessage, setCopyMessage] = useState("");
@@ -797,6 +799,7 @@ export default function PortalAccessAdminPage() {
       }
 
       setNewOrgName("");
+      setIsCreateOrgOpen(false);
       await loadAccess(session);
       if (body.org?.id) setSelectedOrgId(body.org.id);
       setActionMessage("Created organization. Add properties in ScoutCapture, then invite the client.");
@@ -1057,6 +1060,24 @@ export default function PortalAccessAdminPage() {
     setScopeEditRowId("");
   }, [selectedOrgId]);
 
+  useEffect(() => {
+    if (!isCreateOrgOpen) return undefined;
+    function handleKeyDown(event) {
+      if (event.key === "Escape" && !creatingOrg) {
+        setIsCreateOrgOpen(false);
+        setNewOrgName("");
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [creatingOrg, isCreateOrgOpen]);
+
+  function handleCloseCreateOrganization() {
+    if (creatingOrg) return;
+    setIsCreateOrgOpen(false);
+    setNewOrgName("");
+  }
+
   const inviteScopeIncomplete =
     selectedAccessRole !== "owner" &&
     selectedAccessScope === "property" &&
@@ -1250,6 +1271,43 @@ export default function PortalAccessAdminPage() {
               .
             </div>
 
+            <section className="rounded-lg border border-border bg-background p-5 shadow-sm">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <label className="grid flex-1 gap-1.5 text-sm font-medium text-foreground">
+                  Organization
+                  <select
+                    value={selectedOrgId}
+                    onChange={(event) => setSelectedOrgId(event.target.value)}
+                    disabled={!orgs.length}
+                    className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
+                  >
+                    {orgs.length ? (
+                      orgs.map((org) => (
+                        <option key={org.id} value={org.id}>
+                          {org.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="">No organizations available</option>
+                    )}
+                  </select>
+                </label>
+                {isPlatformAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewOrgName("");
+                      setIsCreateOrgOpen(true);
+                    }}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create Organization
+                  </button>
+                )}
+              </div>
+            </section>
+
             {loadError && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                 {loadError}
@@ -1261,46 +1319,11 @@ export default function PortalAccessAdminPage() {
               </div>
             )}
 
-            {isPlatformAdmin && (
-              <section className="rounded-lg border border-border bg-background p-5 shadow-sm">
-                <div className="grid max-w-3xl gap-4">
-                  <div>
-                    <h2 className="text-base font-semibold text-foreground">
-                      Create Organization
-                    </h2>
-                    <p className="mt-1 text-sm leading-relaxed text-foreground/60">
-                      Create the organization here. Add properties in ScoutCapture.
-                    </p>
-                  </div>
-                  <form
-                    onSubmit={handleCreateOrganization}
-                    className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end"
-                  >
-                    <label className="grid gap-1.5 text-sm font-medium text-foreground">
-                      Organization Name
-                      <input
-                        type="text"
-                        value={newOrgName}
-                        onChange={(event) => setNewOrgName(event.target.value)}
-                        maxLength={120}
-                        className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
-                      />
-                    </label>
-                    <button
-                      type="submit"
-                      disabled={creatingOrg || !newOrgName.trim()}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
-                    >
-                      <Plus className="h-4 w-4" />
-                      {creatingOrg ? "Creating..." : "Create Organization"}
-                    </button>
-                  </form>
-                </div>
-              </section>
-            )}
-
             <section className="rounded-lg border border-border bg-background p-5 shadow-sm">
-              <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_190px_260px_auto] lg:items-start">
+              <h2 className="mb-4 text-base font-semibold text-foreground">
+                Add Client
+              </h2>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_190px_260px_auto] lg:items-start">
                 <label className="grid gap-1.5 text-sm font-medium text-foreground">
                   Client Email
                   <input
@@ -1314,20 +1337,6 @@ export default function PortalAccessAdminPage() {
                     }}
                     className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
                   />
-                </label>
-                <label className="grid gap-1.5 text-sm font-medium text-foreground">
-                  Organization
-                  <select
-                    value={selectedOrgId}
-                    onChange={(event) => setSelectedOrgId(event.target.value)}
-                    className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
-                  >
-                    {orgs.map((org) => (
-                      <option key={org.id} value={org.id}>
-                        {org.name}
-                      </option>
-                    ))}
-                  </select>
                 </label>
                 <label className="grid gap-1.5 text-sm font-medium text-foreground">
                   Access Type
@@ -1358,7 +1367,7 @@ export default function PortalAccessAdminPage() {
                     }}
                   />
                 </div>
-                <div className="flex flex-col gap-2 pt-6 sm:flex-row md:col-span-3 lg:col-span-1">
+                <div className="flex flex-col gap-2 pt-6 sm:flex-row md:col-span-2 lg:col-span-1">
                   <button
                     type="button"
                     onClick={() => handleAccessSubmit("grantExisting")}
@@ -1456,8 +1465,11 @@ export default function PortalAccessAdminPage() {
               <div className="flex flex-col justify-between gap-3 border-b border-border px-5 py-4 md:flex-row md:items-center">
                 <div>
                   <h2 className="text-base font-semibold text-foreground">
-                    {selectedOrg?.name || "Organization"} Access
+                    Active Access
                   </h2>
+                  <p className="mt-1 text-sm text-foreground/60">
+                    {selectedOrg?.name || "Organization"} Access
+                  </p>
                   <p className="mt-1 text-sm text-foreground/60">
                     {visibleRows.length} active access row
                     {visibleRows.length === 1 ? "" : "s"};{" "}
@@ -1670,6 +1682,74 @@ export default function PortalAccessAdminPage() {
           </div>
         )}
       </main>
+
+      {isCreateOrgOpen && isPlatformAdmin && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-organization-title"
+          onMouseDown={handleCloseCreateOrganization}
+        >
+          <form
+            onSubmit={handleCreateOrganization}
+            onMouseDown={(event) => event.stopPropagation()}
+            className="w-full max-w-md rounded-lg border border-border bg-background p-5 shadow-xl"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2
+                  id="create-organization-title"
+                  className="text-base font-semibold text-foreground"
+                >
+                  Create Organization
+                </h2>
+                <p className="mt-1 text-sm leading-relaxed text-foreground/60">
+                  Add the organization here, then add properties in ScoutCapture.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseCreateOrganization}
+                disabled={creatingOrg}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-foreground/60 shadow-sm hover:text-foreground disabled:opacity-50"
+                aria-label="Close create organization dialog"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <label className="mt-5 grid gap-1.5 text-sm font-medium text-foreground">
+              Organization Name
+              <input
+                type="text"
+                value={newOrgName}
+                onChange={(event) => setNewOrgName(event.target.value)}
+                maxLength={120}
+                autoFocus
+                className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+              />
+            </label>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={handleCloseCreateOrganization}
+                disabled={creatingOrg}
+                className="inline-flex h-11 items-center justify-center rounded-lg border border-border bg-background px-4 text-sm font-semibold text-foreground/70 shadow-sm hover:text-foreground disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={creatingOrg || !newOrgName.trim()}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+              >
+                <Plus className="h-4 w-4" />
+                {creatingOrg ? "Creating..." : "Create"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
