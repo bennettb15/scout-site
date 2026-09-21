@@ -96,6 +96,10 @@ function forbidden(message) {
   return Object.assign(new Error(message), { status: 403 });
 }
 
+function booleanSetting(value) {
+  return value === true || value === "true" || value === 1 || value === "1";
+}
+
 function normalizeOrgName(value) {
   return String(value || "").trim().replace(/\s+/g, " ");
 }
@@ -379,6 +383,44 @@ async function activeOwnerCount(service, orgId) {
   return count || 0;
 }
 
+async function loadReportEmailOrgSettings(service, orgIds) {
+  if (!orgIds.length) return new Map();
+  const { data, error } = await service
+    .from("report_email_org_settings")
+    .select("org_id,report_ready_enabled")
+    .in("org_id", orgIds);
+
+  if (error) {
+    if (error.code === "42P01") return new Map();
+    throw error;
+  }
+
+  return new Map(
+    (data || []).map((row) => [row.org_id, row.report_ready_enabled !== false])
+  );
+}
+
+async function loadReportEmailUserPreferences(service, orgIds, userIds) {
+  if (!orgIds.length || !userIds.length) return new Map();
+  const { data, error } = await service
+    .from("report_email_user_preferences")
+    .select("org_id,user_id,report_ready_enabled")
+    .in("org_id", orgIds)
+    .in("user_id", userIds);
+
+  if (error) {
+    if (error.code === "42P01") return new Map();
+    throw error;
+  }
+
+  return new Map(
+    (data || []).map((row) => [
+      `${row.org_id}:${row.user_id}`,
+      row.report_ready_enabled !== false,
+    ])
+  );
+}
+
 function decorateAccessRowsForActor(rows, context) {
   const ownerCountsByOrg = new Map();
   for (const row of rows) {
@@ -540,6 +582,12 @@ async function loadPortalAccess(context) {
     orgIds,
     userIds
   );
+  const reportEmailOrgSettings = await loadReportEmailOrgSettings(context.service, orgIds);
+  const reportEmailUserPreferences = await loadReportEmailUserPreferences(
+    context.service,
+    orgIds,
+    userIds
+  );
   const orgById = new Map((orgRows || []).map((row) => [row.id, row]));
   const profileById = new Map((profileRows || []).map((row) => [row.id, row]));
   const accessRows = decorateAccessRowsForActor(
@@ -557,6 +605,8 @@ async function loadPortalAccess(context) {
           propertyIds,
           propertyById,
         }),
+        reportEmailEnabled:
+          reportEmailUserPreferences.get(`${row.org_id}:${row.user_id}`) !== false,
       };
     }),
     context
@@ -601,6 +651,7 @@ async function loadPortalAccess(context) {
         name: row.name,
         actorRole,
         inviteRoles: inviteRolesForActor(actorRole),
+        reportEmailEnabled: reportEmailOrgSettings.get(row.id) !== false,
         properties,
       };
     }),
@@ -1618,6 +1669,78 @@ async function changeOrgAccessScope(req, res, context) {
   }
 }
 
+async function changeReportEmailPreference(req, res, context) {
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body." });
+  }
+
+  const orgId = validateUuid(body.orgId);
+  const userId = body.userId ? validateUuid(body.userId) : "";
+  const enabled = booleanSetting(body.enabled);
+  if (!orgId) return sendJson(res, 400, { error: "Valid org ID is required." });
+  if (body.userId && !userId) {
+    return sendJson(res, 400, { error: "Valid user ID is required." });
+  }
+
+  try {
+    await requireActorManagementRole(context, orgId);
+    if (userId) {
+      const { membership } = await findActiveMembershipWithProfile(context.service, {
+        orgId,
+        userId,
+      });
+      if (!membership) {
+        return sendJson(res, 404, { error: "Active org access not found." });
+      }
+      const { error } = await context.service
+        .from("report_email_user_preferences")
+        .upsert(
+          {
+            org_id: orgId,
+            user_id: userId,
+            report_ready_enabled: enabled,
+            updated_by: context.user.id,
+          },
+          { onConflict: "org_id,user_id" }
+        );
+      if (error) throw error;
+      return sendJson(res, 200, {
+        changed: true,
+        orgId,
+        userId,
+        reportEmailEnabled: enabled,
+      });
+    }
+
+    const { error } = await context.service
+      .from("report_email_org_settings")
+      .upsert(
+        {
+          org_id: orgId,
+          report_ready_enabled: enabled,
+          updated_by: context.user.id,
+        },
+        { onConflict: "org_id" }
+      );
+    if (error) throw error;
+    return sendJson(res, 200, {
+      changed: true,
+      orgId,
+      reportEmailEnabled: enabled,
+    });
+  } catch (error) {
+    const isMissingTable = error?.code === "42P01";
+    return sendJson(res, error.status || (isMissingTable ? 409 : 500), {
+      error: isMissingTable
+        ? "Report email preferences are not installed yet. Run the database migration first."
+        : error.message || "Unable to update report email preference.",
+    });
+  }
+}
+
 async function revokeOrgAccess(req, res, context) {
   let body = {};
   try {
@@ -1812,6 +1935,7 @@ export default async function handler(req, res) {
     if (body.action === "grantExisting") return grantExistingOrgAccess(req, res, context);
     if (body.action === "changeRole") return changeOrgAccessRole(req, res, context);
     if (body.action === "changeScope") return changeOrgAccessScope(req, res, context);
+    if (body.action === "changeReportEmailPreference") return changeReportEmailPreference(req, res, context);
     if (body.action === "cancelInvite") return cancelPendingInvite(req, res, context);
     return grantOrgAccess(req, res, context);
   }

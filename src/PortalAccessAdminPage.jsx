@@ -4,6 +4,7 @@ import {
   FileText,
   KeyRound,
   LogOut,
+  Mail,
   Plus,
   RefreshCw,
   ShieldCheck,
@@ -513,6 +514,7 @@ export default function PortalAccessAdminPage() {
   const [roleChangeId, setRoleChangeId] = useState("");
   const [scopeChangeId, setScopeChangeId] = useState("");
   const [scopeEditRowId, setScopeEditRowId] = useState("");
+  const [reportEmailChangeId, setReportEmailChangeId] = useState("");
 
   useEffect(() => {
     document.title = BRAND.siteTitle;
@@ -938,6 +940,45 @@ export default function PortalAccessAdminPage() {
   async function handleExpandedScopeSave(row, nextScope, nextPropertyIds) {
     const changed = await handleScopeChange(row, nextScope, nextPropertyIds);
     if (changed) setScopeEditRowId("");
+  }
+
+  async function handleReportEmailPreferenceChange({ row, orgId, userId, enabled }) {
+    if (!session?.access_token || !orgId) return;
+    const targetKey = userId ? `${orgId}:${userId}` : `org:${orgId}`;
+    setReportEmailChangeId(targetKey);
+    setActionMessage("");
+    setLoadError("");
+
+    try {
+      const response = await fetch("/api/admin/portal-access", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "changeReportEmailPreference",
+          orgId,
+          userId,
+          enabled,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body.error || "Unable to update report email preference.");
+      }
+      setActionMessage(
+        userId
+          ? `Updated report-ready email preference for ${row?.email || body.userId}.`
+          : `Updated report-ready email preference for ${selectedOrg?.name || "organization"}.`
+      );
+      await loadAccess(session);
+    } catch (error) {
+      setLoadError(error.message || "Unable to update report email preference.");
+      await loadAccess(session);
+    } finally {
+      setReportEmailChangeId("");
+    }
   }
 
   async function handleCancelInvite(row) {
@@ -1425,6 +1466,25 @@ export default function PortalAccessAdminPage() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  {selectedOrg && (
+                    <label className="inline-flex items-center gap-2 rounded-lg border border-border bg-slate-50 px-3 py-2 text-xs font-semibold text-foreground/75">
+                      <Mail className="h-4 w-4 text-[var(--brand)]" />
+                      <span>Report emails</span>
+                      <input
+                        type="checkbox"
+                        checked={selectedOrg.reportEmailEnabled !== false}
+                        disabled={reportEmailChangeId === `org:${selectedOrg.id}`}
+                        onChange={(event) =>
+                          handleReportEmailPreferenceChange({
+                            orgId: selectedOrg.id,
+                            enabled: event.target.checked,
+                          })
+                        }
+                        className="h-4 w-4 accent-[var(--brand)] disabled:opacity-50"
+                        aria-label={`Send report-ready emails for ${selectedOrg.name}`}
+                      />
+                    </label>
+                  )}
                   {activeAdminRows.map((adminRow) => (
                     <span
                       key={adminRow.id}
@@ -1438,13 +1498,14 @@ export default function PortalAccessAdminPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1080px] text-left text-sm">
+                <table className="w-full min-w-[1180px] text-left text-sm">
                   <thead className="border-b border-border bg-slate-50 text-xs uppercase text-foreground/55">
                     <tr>
                       <th className="px-5 py-3 font-semibold">Email</th>
                       <th className="px-5 py-3 font-semibold">Status</th>
                       <th className="px-5 py-3 font-semibold">Role</th>
                       <th className="px-5 py-3 font-semibold">Properties</th>
+                      <th className="px-5 py-3 font-semibold">Report Emails</th>
                       <th className="px-5 py-3 font-semibold">Created</th>
                       <th className="px-5 py-3 text-right font-semibold">Action</th>
                     </tr>
@@ -1497,6 +1558,42 @@ export default function PortalAccessAdminPage() {
                               />
                             </td>
                             <td className="px-5 py-3 text-foreground/70">
+                              {row.rowType === "invite" ? (
+                                <span className="text-xs text-foreground/45">
+                                  After activation
+                                </span>
+                              ) : (
+                                <label className="inline-flex items-center gap-2 text-xs font-semibold text-foreground/65">
+                                  <input
+                                    type="checkbox"
+                                    checked={
+                                      selectedOrg?.reportEmailEnabled !== false &&
+                                      row.reportEmailEnabled !== false
+                                    }
+                                    disabled={
+                                      selectedOrg?.reportEmailEnabled === false ||
+                                      reportEmailChangeId === `${row.orgId}:${row.userId}`
+                                    }
+                                    onChange={(event) =>
+                                      handleReportEmailPreferenceChange({
+                                        row,
+                                        orgId: row.orgId,
+                                        userId: row.userId,
+                                        enabled: event.target.checked,
+                                      })
+                                    }
+                                    className="h-4 w-4 accent-[var(--brand)] disabled:opacity-50"
+                                    aria-label={`Send report-ready emails to ${row.email || row.userId}`}
+                                  />
+                                  {selectedOrg?.reportEmailEnabled === false
+                                    ? "Org off"
+                                    : row.reportEmailEnabled === false
+                                      ? "Off"
+                                      : "On"}
+                                </label>
+                              )}
+                            </td>
+                            <td className="px-5 py-3 text-foreground/70">
                               {formatDate(row.createdAt)}
                             </td>
                             <td className="px-5 py-3 text-right">
@@ -1535,7 +1632,7 @@ export default function PortalAccessAdminPage() {
                           </tr>
                           {isScopeEditing && (
                             <tr className="border-b border-border bg-slate-50/70">
-                              <td colSpan={6} className="px-5 py-4">
+                              <td colSpan={7} className="px-5 py-4">
                                 <PropertyScopeEditor
                                   row={row}
                                   role={row.role}
@@ -1559,7 +1656,7 @@ export default function PortalAccessAdminPage() {
                     {unifiedAccessRows.length === 0 && (
                       <tr>
                         <td
-                          colSpan={6}
+                          colSpan={7}
                           className="px-5 py-8 text-center text-sm text-foreground/60"
                         >
                           No access rows or pending invites.
