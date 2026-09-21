@@ -1465,11 +1465,8 @@ export default function PortalAccessAdminPage() {
               <div className="flex flex-col justify-between gap-3 border-b border-border px-5 py-4 md:flex-row md:items-center">
                 <div>
                   <h2 className="text-base font-semibold text-foreground">
-                    Active Access
+                    {selectedOrg?.name || "Organization"} - Active Access
                   </h2>
-                  <p className="mt-1 text-sm text-foreground/60">
-                    {selectedOrg?.name || "Organization"} Access
-                  </p>
                   <p className="mt-1 text-sm text-foreground/60">
                     {visibleRows.length} active access row
                     {visibleRows.length === 1 ? "" : "s"};{" "}
