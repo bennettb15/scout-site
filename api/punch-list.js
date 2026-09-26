@@ -525,6 +525,22 @@ async function signedPreviewUrlForPhoto(service, row) {
   return data?.signedUrl || null;
 }
 
+export function prefetchPhotoPreviewUrls(service, shots) {
+  const entries = shots.map((shot) => {
+    let resolve;
+    const promise = new Promise((next) => { resolve = next; });
+    return { shot, promise, resolve };
+  });
+  void mapWithConcurrency(entries, 8, async ({ shot, resolve }) => {
+    try {
+      resolve({ value: await signedPreviewUrlForPhoto(service, shot) });
+    } catch (error) {
+      resolve({ error });
+    }
+  });
+  return new Map(entries.map(({ shot, promise }) => [shot.id, promise]));
+}
+
 function safeFilename(value) {
   return String(value || "")
     .replace(/\\/g, "/")
@@ -2887,13 +2903,18 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   }
 
   const previewCache = new Map();
+  let prefetchedPreviewByShotId = new Map();
   async function previewForShot(shot) {
     if (!shot) return null;
     if (previewCache.has(shot.id)) return previewCache.get(shot.id);
     if (previewCache.size >= maxPreviewUrls) return null;
-    const previewUrl = await signedPreviewUrlForPhoto(service, shot);
-    previewCache.set(shot.id, previewUrl);
-    return previewUrl;
+    const prefetched = prefetchedPreviewByShotId.get(shot.id);
+    const result = prefetched
+      ? await prefetched
+      : { value: await signedPreviewUrlForPhoto(service, shot) };
+    if (Object.prototype.hasOwnProperty.call(result, "error")) throw result.error;
+    previewCache.set(shot.id, result.value);
+    return result.value;
   }
 
   const candidateShots = [];
@@ -2924,6 +2945,44 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     }
     addHistoryShot(historyShotsByIssueId, issueId, shot);
     addHistoryShot(historyShotsByLocationKey, locationKey, shot);
+  }
+
+  if (service && !includeCoverPhoto) {
+    const prefetchShots = [];
+    const prefetchedIds = new Set();
+    const addPrefetchShot = (shot) => {
+      if (!shot?.id || prefetchedIds.has(shot.id) || prefetchShots.length >= maxPreviewUrls) return;
+      prefetchedIds.add(shot.id);
+      prefetchShots.push(shot);
+    };
+    for (const observation of visibleObservations) {
+      const observationShot = observation.shot_id ? shotsById.get(observation.shot_id) : null;
+      const shot =
+        latestFlaggedShotForObservation(
+          observation,
+          observationShot,
+          latestFlaggedShotByIssueId,
+          latestFlaggedShotByLocationKey
+        ) || observationShot;
+      addPrefetchShot(shot);
+      if (shot) {
+        const historyCandidates = rankedHistoryCandidates({
+          shot,
+          historyShotsByIssueId,
+          historyShotsByLocationKey,
+          candidateOrderByShotId,
+        });
+        addPrefetchShot(historyCandidates.find((candidate) => !isResolvedShot(candidate)) || historyCandidates[0]);
+      }
+      if (prefetchShots.length >= maxPreviewUrls) break;
+    }
+    if (visibleObservations.length === 0) {
+      for (const shot of candidateShots) {
+        if (prefetchShots.length >= maxPreviewUrls) break;
+        if (isFlaggedShot(shot)) addPrefetchShot(shot);
+      }
+    }
+    prefetchedPreviewByShotId = prefetchPhotoPreviewUrls(service, prefetchShots);
   }
 
   const coverPhoto = includeCoverPhoto
