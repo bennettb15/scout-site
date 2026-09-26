@@ -1,41 +1,34 @@
-import ScoutMarketingSite from "./ScoutMarketingSite";
-import ResetPasswordPage from "./ResetPasswordPage";
-import VerifiedEmailPage from "./VerifiedEmailPage";
-import ScoutReportsPortalPage from "./ScoutReportsPortalPage";
-import ScoutPunchListPage from "./ScoutPunchListPage";
-import PortalAccessAdminPage from "./PortalAccessAdminPage";
-import ForgotPasswordPage from "./ForgotPasswordPage";
+import { lazy, Suspense } from "react";
+
+const ScoutMarketingSite = lazy(() => import("./ScoutMarketingSite"));
+const ResetPasswordPage = lazy(() => import("./ResetPasswordPage"));
+const VerifiedEmailPage = lazy(() => import("./VerifiedEmailPage"));
+const ScoutReportsPortalPage = lazy(() => import("./ScoutReportsPortalPage"));
+const ScoutPunchListPage = lazy(() => import("./ScoutPunchListPage"));
+const PortalAccessAdminPage = lazy(() => import("./PortalAccessAdminPage"));
+const ForgotPasswordPage = lazy(() => import("./ForgotPasswordPage"));
 
 export default function App() {
   const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+  let Page = ScoutMarketingSite;
 
   if (pathname === "/verified") {
-    return <VerifiedEmailPage />;
+    Page = VerifiedEmailPage;
+  } else if (pathname === "/reset-password" || pathname === "/accept-invite") {
+    Page = ResetPasswordPage;
+  } else if (pathname === "/forgot-password") {
+    Page = ForgotPasswordPage;
+  } else if (pathname === "/reports") {
+    Page = ScoutReportsPortalPage;
+  } else if (pathname === "/punch-list") {
+    Page = ScoutPunchListPage;
+  } else if (pathname === "/admin/portal-access") {
+    Page = PortalAccessAdminPage;
   }
 
-  if (pathname === "/reset-password") {
-    return <ResetPasswordPage />;
-  }
-
-  if (pathname === "/accept-invite") {
-    return <ResetPasswordPage />;
-  }
-
-  if (pathname === "/forgot-password") {
-    return <ForgotPasswordPage />;
-  }
-
-  if (pathname === "/reports") {
-    return <ScoutReportsPortalPage />;
-  }
-
-  if (pathname === "/punch-list") {
-    return <ScoutPunchListPage />;
-  }
-
-  if (pathname === "/admin/portal-access") {
-    return <PortalAccessAdminPage />;
-  }
-
-  return <ScoutMarketingSite />;
+  return (
+    <Suspense fallback={null}>
+      <Page />
+    </Suspense>
+  );
 }

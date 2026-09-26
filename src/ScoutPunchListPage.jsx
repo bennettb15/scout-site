@@ -47,6 +47,8 @@ const COMPLETION_PHOTO_ACCEPT = "image/jpeg,image/jpg,image/png,image/heic,image
 const punchListFilterCache = new Map();
 const punchListRowsCache = new Map();
 const punchListViewCache = new Map();
+const punchListRowsInFlight = new Map();
+let punchListCacheEpoch = 0;
 
 function cacheGet(cache, key) {
   const entry = cache.get(key);
@@ -66,9 +68,11 @@ function cacheSet(cache, key, value) {
 }
 
 function clearPunchListCaches() {
+  punchListCacheEpoch += 1;
   punchListFilterCache.clear();
   punchListRowsCache.clear();
   punchListViewCache.clear();
+  punchListRowsInFlight.clear();
 }
 
 function sessionCacheScope(session) {
@@ -102,6 +106,60 @@ function buildRowsFilterKey(session, orgId, propertyId, tab, priority, trade) {
     normalizedCacheValue(priority),
     normalizedCacheValue(trade),
   ].join("|");
+}
+
+function requestPunchListRows(activeSession, orgId, propertyId, { force = false } = {}) {
+  const propertyScope = propertyId && propertyId !== ALL ? propertyId : ALL;
+  const requestKey = [buildRowsScopeKey(activeSession, orgId, propertyScope), activeSession.access_token].join("|");
+  if (!force && punchListRowsInFlight.has(requestKey)) {
+    return punchListRowsInFlight.get(requestKey);
+  }
+
+  const request = (async () => {
+    const params = new URLSearchParams({ orgId });
+    if (propertyScope !== ALL) params.set("propertyId", propertyScope);
+    const response = await fetch(`/api/punch-list?${params.toString()}`, {
+      headers: {
+        Authorization: `Bearer ${activeSession.access_token}`,
+      },
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || !Array.isArray(body.rows)) {
+      throw new Error(body.error || "Unable to load punch list.");
+    }
+    return body.rows;
+  })();
+
+  if (!force) {
+    punchListRowsInFlight.set(requestKey, request);
+    request.then(
+      () => {
+        if (punchListRowsInFlight.get(requestKey) === request) punchListRowsInFlight.delete(requestKey);
+      },
+      () => {
+        if (punchListRowsInFlight.get(requestKey) === request) punchListRowsInFlight.delete(requestKey);
+      }
+    );
+  }
+  return request;
+}
+
+function prefetchSavedPunchListRows(activeSession) {
+  const savedContext = readPortalContext(activeSession);
+  if (!savedContext.orgId || !savedContext.propertyId) return;
+  const propertyScope = savedContext.propertyId;
+  const rowsScopeKey = buildRowsScopeKey(activeSession, savedContext.orgId, propertyScope);
+  if (cacheGet(punchListRowsCache, rowsScopeKey) !== null) return;
+  const cacheEpoch = punchListCacheEpoch;
+  requestPunchListRows(activeSession, savedContext.orgId, propertyScope)
+    .then((rows) => {
+      if (cacheEpoch === punchListCacheEpoch) {
+        cacheSet(punchListRowsCache, rowsScopeKey, rows);
+      }
+    })
+    .catch(() => {
+      // The regular load will report errors after filters confirm the selected scope.
+    });
 }
 
 function clearViewCacheForRowsScope(session, orgId, propertyId) {
@@ -4880,6 +4938,7 @@ export default function ScoutPunchListPage() {
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
   const sessionScopeRef = useRef("");
   const filterRequestRef = useRef(0);
+  const rowsRequestRef = useRef(0);
   const bootstrapTokenRef = useRef("");
   const pendingManualRefreshRef = useRef(false);
 
@@ -5032,6 +5091,9 @@ export default function ScoutPunchListPage() {
 
   async function loadPunchList(activeSession = session, { force = false } = {}) {
     if (!activeSession?.access_token) return false;
+    const requestId = rowsRequestRef.current + 1;
+    rowsRequestRef.current = requestId;
+    const isLatestRequest = () => rowsRequestRef.current === requestId;
     if (!selectedOrgId) {
       setRows([]);
       setLoadedRowsScope({ orgId: "", propertyId: "" });
@@ -5076,37 +5138,28 @@ export default function ScoutPunchListPage() {
     setPunchListLoading(true);
     setPunchListError("");
     try {
-      const params = new URLSearchParams({ orgId: selectedOrgId });
-      if (selectedPropertyId && selectedPropertyId !== ALL) {
-        params.set("propertyId", selectedPropertyId);
-      }
-      const response = await fetch(`/api/punch-list?${params.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${activeSession.access_token}`,
-        },
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok || !Array.isArray(body.rows)) {
-        throw new Error(body.error || "Unable to load punch list.");
-      }
+      const nextRows = await requestPunchListRows(activeSession, selectedOrgId, propertyScope, { force });
+      if (!isLatestRequest()) return false;
       clearViewCacheForRowsScope(activeSession, selectedOrgId, propertyScope);
-      cacheSet(punchListRowsCache, rowsScopeKey, body.rows);
-      cacheSet(punchListViewCache, rowsFilterKey, body.rows);
+      cacheSet(punchListRowsCache, rowsScopeKey, nextRows);
+      cacheSet(punchListViewCache, rowsFilterKey, nextRows);
       setLoadedRowsScope({ orgId: selectedOrgId, propertyId: propertyScope });
-      setRows(body.rows);
+      setRows(nextRows);
       return true;
     } catch (error) {
+      if (!isLatestRequest()) return false;
       setPunchListError(error.message || "Unable to load punch list.");
       setRows([]);
       setLoadedRowsScope({ orgId: "", propertyId: "" });
       return false;
     } finally {
-      setPunchListLoading(false);
+      if (isLatestRequest()) setPunchListLoading(false);
     }
   }
 
   useEffect(() => {
     if (!session?.access_token) {
+      rowsRequestRef.current += 1;
       clearPunchListCaches();
       pendingManualRefreshRef.current = false;
       sessionScopeRef.current = "";
@@ -5185,6 +5238,7 @@ export default function ScoutPunchListPage() {
         setFiltersReady(false);
       }
       bootstrapTokenRef.current = nextBootstrapScope;
+      prefetchSavedPunchListRows(session);
       loadPunchListFilters(session);
     } else {
       filterRequestRef.current += 1;
@@ -5900,6 +5954,7 @@ export default function ScoutPunchListPage() {
   }
 
   function prepareRowsForScope(orgId, propertyId) {
+    rowsRequestRef.current += 1;
     setLastRefreshedAt(null);
     if (!orgId || !propertyId) {
       setRows([]);

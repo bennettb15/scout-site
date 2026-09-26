@@ -934,16 +934,12 @@ export default function ScoutReportsPortalPage() {
     );
   }, [orgs, packages]);
 
-  const reportsContextSettled =
-    reportsFetchStatus !== FETCH_IDLE &&
-    reportsFetchStatus !== FETCH_LOADING &&
-    orgsFetchStatus !== FETCH_IDLE &&
-    orgsFetchStatus !== FETCH_LOADING;
   const reportsPropertyContextReady =
-    reportsContextSettled && reportsFetchStatus === FETCH_SUCCESS;
+    orgsFetchStatus === FETCH_SUCCESS ||
+    (orgsFetchStatus === FETCH_ERROR && reportsFetchStatus === FETCH_SUCCESS);
 
   useEffect(() => {
-    if (!session?.access_token || !reportsContextSettled) return;
+    if (!session?.access_token || !reportsPropertyContextReady) return;
     if (orgOptions.length === 0) {
       if (selectedOrgId) setSelectedOrgId("");
       return;
@@ -955,7 +951,7 @@ export default function ScoutReportsPortalPage() {
       ? savedContext.orgId
       : "";
     setSelectedOrgId(savedOrgId || orgOptions[0].id);
-  }, [orgOptions, reportsContextSettled, selectedOrgId, session]);
+  }, [orgOptions, reportsPropertyContextReady, selectedOrgId, session]);
 
   const selectedOrg = useMemo(
     () => orgOptions.find((org) => org.id === selectedOrgId) || null,
@@ -1263,7 +1259,7 @@ export default function ScoutReportsPortalPage() {
                         propertyId: event.target.value,
                       });
                     }}
-                    disabled={reportsLoading || propertyOptions.length === 0}
+                    disabled={propertyOptions.length === 0}
                     className="h-9 max-w-[280px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
                   >
                     <option value={ALL_PROPERTIES}>All Properties</option>

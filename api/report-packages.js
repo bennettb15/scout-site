@@ -24,6 +24,7 @@ import {
 import {
   reportPackageSessionTypeFromSources,
 } from "../api-lib/reportPackageSession.js";
+import { mapWithConcurrency } from "../api-lib/mapWithConcurrency.js";
 
 const REPORT_PACKAGE_BASE_SELECT =
   "id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at,weather_summary";
@@ -116,20 +117,13 @@ function firstOriginalPhotoForPackage(packageRow, shotRows, snapshotMetadata) {
 }
 
 async function loadReadyPackageRows(service) {
-  const { data, error } = await service
+  return service
     .from("report_packages")
     .select(REPORT_PACKAGE_BASE_SELECT)
     .eq("status", "ready")
     .is("deleted_at", null)
     .order("session_completed_at", { ascending: false })
     .limit(500);
-  if (error) return { data, error };
-  const rows = data || [];
-  await mergeOptionalColumns(service, "report_packages", rows, [
-    ...REPORT_OPTIONAL_AUDIT_COLUMNS,
-    ...REPORT_OPTIONAL_SESSION_TYPE_COLUMNS,
-  ]);
-  return { data: rows, error: null };
 }
 
 async function loadProfileEmailMap(service, userIds) {
@@ -152,20 +146,24 @@ async function mergeOptionalColumns(service, table, rows, columns) {
   const ids = unique(rows.map((row) => row.id));
   if (!service || ids.length === 0) return rows;
   const byId = new Map(rows.map((row) => [row.id, row]));
-  for (const column of columns) {
+  const columnRows = await mapWithConcurrency(columns, 4, async (column) => {
     try {
       const { data, error } = await service
         .from(table)
         .select(`id,${column}`)
         .in("id", ids);
-      if (error) continue;
-      for (const row of data || []) {
-        if (byId.has(row.id) && Object.prototype.hasOwnProperty.call(row, column)) {
-          byId.get(row.id)[column] = row[column];
-        }
-      }
+      return error ? [] : data || [];
     } catch {
       // Optional audit columns vary across environments; absence must not block Reports.
+      return [];
+    }
+  });
+  for (let index = 0; index < columns.length; index += 1) {
+    const column = columns[index];
+    for (const row of columnRows[index]) {
+      if (byId.has(row.id) && Object.prototype.hasOwnProperty.call(row, column)) {
+        byId.get(row.id)[column] = row[column];
+      }
     }
   }
   return rows;
@@ -177,8 +175,8 @@ async function handleReportOrgs(req, res) {
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
     const service = createServiceClient();
-    const portalAccess = await loadUserPortalPropertyAccess(service, auth.user);
-    const [{ data, error }, { data: propertyRows, error: propertiesError }] = await Promise.all([
+    const [portalAccess, { data, error }, { data: propertyRows, error: propertiesError }] = await Promise.all([
+      loadUserPortalPropertyAccess(service, auth.user),
       service
         .from("orgs")
         .select("id,name")
@@ -249,8 +247,10 @@ export default async function handler(req, res) {
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
     const service = createServiceClient();
-    const portalAccess = await loadUserPortalPropertyAccess(service, auth.user);
-    const { data: rawPackageRows, error: packagesError } = await loadReadyPackageRows(service);
+    const [portalAccess, { data: rawPackageRows, error: packagesError }] = await Promise.all([
+      loadUserPortalPropertyAccess(service, auth.user),
+      loadReadyPackageRows(service),
+    ]);
 
     if (packagesError) {
       return sendJson(res, 500, { error: "Unable to load report packages." });
@@ -291,6 +291,11 @@ export default async function handler(req, res) {
         return allowedPropertyIdsByOrg.get(row.org_id).has(row.property_id);
       })
       .slice(0, 50);
+
+    await mergeOptionalColumns(service, "report_packages", packageRows, [
+      ...REPORT_OPTIONAL_AUDIT_COLUMNS,
+      ...REPORT_OPTIONAL_SESSION_TYPE_COLUMNS,
+    ]);
 
     const packageIds = packageRows.map((row) => row.id);
     if (packageIds.length === 0) {
@@ -363,9 +368,12 @@ export default async function handler(req, res) {
     const propertiesById = new Map(propertyRows.map((row) => [row.id, toProperty(row)]));
     const sessionsById = new Map(sessionRows.map((row) => [row.id, toSession(row)]));
     const snapshotMetadataByPackageId = new Map();
-    for (const packageRow of packageRows) {
-      const metadata = await loadSnapshotPhotoMetadata(service, packageRow);
-      if (metadata) snapshotMetadataByPackageId.set(packageRow.id, metadata);
+    const snapshotMetadata = await mapWithConcurrency(packageRows, 4, (packageRow) =>
+      loadSnapshotPhotoMetadata(service, packageRow)
+    );
+    for (let index = 0; index < packageRows.length; index += 1) {
+      const metadata = snapshotMetadata[index];
+      if (metadata) snapshotMetadataByPackageId.set(packageRows[index].id, metadata);
     }
     const photoCountsByPackageId = new Map(packageRows.map((row) => [row.id, 0]));
     const safeShotRows = (shotRows || []).filter(originalPathIsExpected);

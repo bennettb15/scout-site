@@ -25,6 +25,7 @@ import {
   stampedPhotoFilename,
 } from "./_reportPortalShared.js";
 import { latestStatusOverride, normalizedExplicitStatus, packageTimestamp } from "../api-lib/punchListStatus.js";
+import { mapWithConcurrency } from "../api-lib/mapWithConcurrency.js";
 import {
   portalAccessCanReviewCompletion,
 } from "../api-lib/punchListPermissions.js";
@@ -295,20 +296,24 @@ async function mergeOptionalColumns(service, table, rows, columns) {
   const ids = unique((rows || []).map((row) => row?.id));
   if (!service || ids.length === 0) return rows || [];
   const byId = new Map((rows || []).map((row) => [row.id, row]));
-  for (const column of columns) {
+  const columnRows = await mapWithConcurrency(columns, 4, async (column) => {
     try {
       const { data, error } = await service
         .from(table)
         .select(`id,${column}`)
         .in("id", ids);
-      if (error) continue;
-      for (const row of data || []) {
-        if (byId.has(row.id) && Object.prototype.hasOwnProperty.call(row, column)) {
-          byId.get(row.id)[column] = row[column];
-        }
-      }
+      return error ? [] : data || [];
     } catch {
       // Optional audit columns are best-effort and must not affect Punch List loading.
+      return [];
+    }
+  });
+  for (let index = 0; index < columns.length; index += 1) {
+    const column = columns[index];
+    for (const row of columnRows[index]) {
+      if (byId.has(row.id) && Object.prototype.hasOwnProperty.call(row, column)) {
+        byId.get(row.id)[column] = row[column];
+      }
     }
   }
   return rows || [];
@@ -2584,33 +2589,32 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   const { client } = auth;
   const service = await maybeServiceClient();
   const queryClient = service || client;
-  const portalAccess = service
-    ? await loadUserPortalPropertyAccess(service, auth.user)
-    : null;
-  const packageRows = await safeRows(
-    applyScope(
-      queryClient
-        .from("report_packages")
-        .select("id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at")
-        .eq("status", "ready")
-        .is("deleted_at", null),
-      scope
-    )
-      .order("session_completed_at", { ascending: false })
-      .limit(100)
-  );
-
-  const observations = await safeRows(
-    applyScope(
-      queryClient
-        .from("observations")
-        .select(safeObservationSelect())
-        .is("deleted_at", null),
-      scope
-    )
-      .order("updated_at", { ascending: false })
-      .limit(MAX_ROWS)
-  );
+  const [portalAccess, packageRows, observations] = await Promise.all([
+    service ? loadUserPortalPropertyAccess(service, auth.user) : null,
+    safeRows(
+      applyScope(
+        queryClient
+          .from("report_packages")
+          .select("id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at")
+          .eq("status", "ready")
+          .is("deleted_at", null),
+        scope
+      )
+        .order("session_completed_at", { ascending: false })
+        .limit(100)
+    ),
+    safeRows(
+      applyScope(
+        queryClient
+          .from("observations")
+          .select(safeObservationSelect())
+          .is("deleted_at", null),
+        scope
+      )
+        .order("updated_at", { ascending: false })
+        .limit(MAX_ROWS)
+    ),
+  ]);
   const scopedPropertyIds = unique([
     ...packageRows.map((row) => row.property_id),
     ...observations.map((row) => row.property_id),
@@ -2658,28 +2662,30 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   }
 
   const observationIds = visibleObservations.map((row) => row.id);
-  const observationUpdates = observationIds.length
-    ? await safeRows(
-        queryClient
-          .from("observation_updates")
-          .select("id,org_id,property_id,observation_id,session_id,shot_id,update_type,status,message,note,priority,trade,captured_at,created_at,updated_at,deleted_at")
-          .in("observation_id", observationIds)
-          .is("deleted_at", null)
-          .order("updated_at", { ascending: false })
-          .limit(MAX_ROWS * 3)
-      )
-    : [];
-  const punchListActivity = observationIds.length
-    ? await safePunchListActivityRows((select) =>
-        queryClient
-          .from("punchlist_activity")
-          .select(select)
-          .in("observation_id", observationIds)
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-          .limit(MAX_ACTIVITY_ROWS)
-      )
-    : [];
+  const [observationUpdates, punchListActivity] = await Promise.all([
+    observationIds.length
+      ? safeRows(
+          queryClient
+            .from("observation_updates")
+            .select("id,org_id,property_id,observation_id,session_id,shot_id,update_type,status,message,note,priority,trade,captured_at,created_at,updated_at,deleted_at")
+            .in("observation_id", observationIds)
+            .is("deleted_at", null)
+            .order("updated_at", { ascending: false })
+            .limit(MAX_ROWS * 3)
+        )
+      : [],
+    observationIds.length
+      ? safePunchListActivityRows((select) =>
+          queryClient
+            .from("punchlist_activity")
+            .select(select)
+            .in("observation_id", observationIds)
+            .is("deleted_at", null)
+            .order("created_at", { ascending: false })
+            .limit(MAX_ACTIVITY_ROWS)
+        )
+      : [],
+  ]);
 
   const packageBySession = latestPackageBySession(visiblePackageRows);
   const sessionIds = unique([
@@ -2722,8 +2728,12 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
 
   const snapshotMetadataByPackageId = new Map();
   if (service) {
-    for (const reportPackage of visiblePackageRows) {
-      const metadata = await loadSnapshotPhotoMetadata(service, reportPackage);
+    const metadataRows = await mapWithConcurrency(visiblePackageRows, 4, (reportPackage) =>
+      loadSnapshotPhotoMetadata(service, reportPackage)
+    );
+    for (let index = 0; index < visiblePackageRows.length; index += 1) {
+      const reportPackage = visiblePackageRows[index];
+      const metadata = metadataRows[index];
       if (metadata) snapshotMetadataByPackageId.set(reportPackage.id, metadata);
       reportPackage.captured_by_email = metadata?.capturedByEmail || null;
     }
@@ -2796,8 +2806,10 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   const orgById = new Map((orgRows || []).map((row) => [row.id, toOrg(row)]));
   const propertyById = new Map((propertyRows || []).map((row) => [row.id, toProperty(row)]));
   const sessionById = new Map((sessionRows || []).map((row) => [row.id, toSession(row)]));
-  const noteWriterOrgIds = await noteWriterOrgIdSet(auth, orgIds);
-  const workflowEditorOrgIds = await workflowEditorOrgIdSet(auth, orgIds);
+  const [noteWriterOrgIds, workflowEditorOrgIds] = await Promise.all([
+    noteWriterOrgIdSet(auth, orgIds),
+    workflowEditorOrgIdSet(auth, orgIds),
+  ]);
   const adminAllowed = isApprovedAdminEmail(auth.user?.email);
   const canAddNoteForProperty = (orgId, propertyId) =>
     adminAllowed ||
@@ -2824,10 +2836,16 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     const rows = rawActivityByObservationId.get(activityRow.observation_id) || [];
     rows.push(activityRow);
     rawActivityByObservationId.set(activityRow.observation_id, rows);
-    if (activityRow.activity_type === "completion_submitted") {
-      const previewUrl = await signedCompletionPhotoUrl(service, activityRow);
-      if (previewUrl) completionPreviewUrlByActivityId.set(activityRow.id, previewUrl);
-    }
+  }
+  const completionActivities = attributedPunchListActivity.filter(
+    (activityRow) => activityRow.activity_type === "completion_submitted"
+  );
+  const completionPreviewUrls = await mapWithConcurrency(completionActivities, 4, (activityRow) =>
+    signedCompletionPhotoUrl(service, activityRow)
+  );
+  for (let index = 0; index < completionActivities.length; index += 1) {
+    const previewUrl = completionPreviewUrls[index];
+    if (previewUrl) completionPreviewUrlByActivityId.set(completionActivities[index].id, previewUrl);
   }
   for (const activityRow of attributedPunchListActivity) {
     const workflowField = WORKFLOW_ACTIVITY_FIELD_BY_TYPE[activityRow.activity_type];
@@ -3987,8 +4005,8 @@ async function handleFilters(req, res) {
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
     const service = createServiceClient();
-    const portalAccess = await loadUserPortalPropertyAccess(service, auth.user);
-    const [packageRows, observationRows] = await Promise.all([
+    const [portalAccess, packageRows, observationRows, tradeOptions, tradeOptionEditable] = await Promise.all([
+      loadUserPortalPropertyAccess(service, auth.user),
       safeRows(
         service
           .from("report_packages")
@@ -4006,6 +4024,8 @@ async function handleFilters(req, res) {
           .order("updated_at", { ascending: false })
           .limit(1000)
       ),
+      loadTradeOptions(),
+      canAddTradeOption(auth),
     ]);
     const visiblePackageRows = packageRows.filter((row) =>
       portalAccess.canAccessProperty(row.org_id, row.property_id)
@@ -4023,7 +4043,7 @@ async function handleFilters(req, res) {
       ...visibleObservationRows.map((row) => row.property_id),
     ]);
 
-    const [{ data: orgRows }, { data: propertyRows }, tradeOptions, tradeOptionEditable] = await Promise.all([
+    const [{ data: orgRows }, { data: propertyRows }] = await Promise.all([
       orgIds.length
         ? service
             .from("orgs")
@@ -4040,8 +4060,6 @@ async function handleFilters(req, res) {
             .is("deleted_at", null)
             .order("name", { ascending: true })
         : { data: [] },
-      loadTradeOptions(),
-      canAddTradeOption(auth),
     ]);
 
     return sendJson(res, 200, {
