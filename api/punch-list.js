@@ -26,6 +26,7 @@ import {
 } from "./_reportPortalShared.js";
 import { latestStatusOverride, normalizedExplicitStatus, packageTimestamp } from "../api-lib/punchListStatus.js";
 import { mapWithConcurrency } from "../api-lib/mapWithConcurrency.js";
+import { startPortalRequestTiming } from "../api-lib/portalRequestTiming.js";
 import {
   portalAccessCanReviewCompletion,
 } from "../api-lib/punchListPermissions.js";
@@ -2585,7 +2586,7 @@ async function handleDeleteNote(req, res) {
   }
 }
 
-async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URLS, includeCoverPhoto = false } = {}) {
+async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URLS, includeCoverPhoto = false, timing = null } = {}) {
   const { client } = auth;
   const service = await maybeServiceClient();
   const queryClient = service || client;
@@ -2615,6 +2616,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
         .limit(MAX_ROWS)
     ),
   ]);
+  timing?.mark("access_packages_observations");
   const scopedPropertyIds = unique([
     ...packageRows.map((row) => row.property_id),
     ...observations.map((row) => row.property_id),
@@ -2661,6 +2663,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     await mergeOptionalColumns(service, "report_packages", visiblePackageRows, OPTIONAL_AUDIT_COLUMNS);
   }
 
+  timing?.mark("properties_and_package_audit");
   const observationIds = visibleObservations.map((row) => row.id);
   const [observationUpdates, punchListActivity] = await Promise.all([
     observationIds.length
@@ -2687,6 +2690,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       : [],
   ]);
 
+  timing?.mark("updates_and_activity");
   const packageBySession = latestPackageBySession(visiblePackageRows);
   const sessionIds = unique([
     ...visiblePackageRows.map((row) => row.session_id),
@@ -2726,6 +2730,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       : [],
   ]);
 
+  timing?.mark("shots");
   const snapshotMetadataByPackageId = new Map();
   if (service) {
     const metadataRows = await mapWithConcurrency(visiblePackageRows, 4, (reportPackage) =>
@@ -2739,6 +2744,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     }
   }
 
+  timing?.mark("snapshots");
   const shotsById = new Map();
   const shotsBySession = new Map();
   for (const rawShot of [...packageSessionShots, ...observationShots]) {
@@ -2780,6 +2786,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     await mergeOptionalColumns(service, "sessions", sessionRows || [], OPTIONAL_AUDIT_COLUMNS);
   }
 
+  timing?.mark("orgs_sessions_audit");
   const profileEmailById = await loadProfileEmailMap(
     service,
     actorIdsFromVisibleAttributionRows([
@@ -2803,6 +2810,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     });
   }
 
+  timing?.mark("profiles");
   const orgById = new Map((orgRows || []).map((row) => [row.id, toOrg(row)]));
   const propertyById = new Map((propertyRows || []).map((row) => [row.id, toProperty(row)]));
   const sessionById = new Map((sessionRows || []).map((row) => [row.id, toSession(row)]));
@@ -2810,6 +2818,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     noteWriterOrgIdSet(auth, orgIds),
     workflowEditorOrgIdSet(auth, orgIds),
   ]);
+  timing?.mark("permissions");
   const adminAllowed = isApprovedAdminEmail(auth.user?.email);
   const canAddNoteForProperty = (orgId, propertyId) =>
     adminAllowed ||
@@ -2843,6 +2852,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   const completionPreviewUrls = await mapWithConcurrency(completionActivities, 4, (activityRow) =>
     signedCompletionPhotoUrl(service, activityRow)
   );
+  timing?.mark("completion_previews");
   for (let index = 0; index < completionActivities.length; index += 1) {
     const previewUrl = completionPreviewUrls[index];
     if (previewUrl) completionPreviewUrlByActivityId.set(completionActivities[index].id, previewUrl);
@@ -3082,6 +3092,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
 
   rows.sort(compareFieldReviewOrder);
   const limitedRows = rows.slice(0, MAX_ROWS);
+  timing?.mark("build_rows_and_previews");
   return includeCoverPhoto ? { rows: limitedRows, coverPhoto } : limitedRows;
 }
 
@@ -3999,9 +4010,10 @@ async function handleGeneratePdf(req, res) {
   }
 }
 
-async function handleFilters(req, res) {
+async function handleFilters(req, res, timing) {
   try {
     const auth = await authenticateRequest(req);
+    timing.mark("auth");
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
     const service = createServiceClient();
@@ -4027,6 +4039,7 @@ async function handleFilters(req, res) {
       loadTradeOptions(),
       canAddTradeOption(auth),
     ]);
+    timing.mark("access_and_filter_sources");
     const visiblePackageRows = packageRows.filter((row) =>
       portalAccess.canAccessProperty(row.org_id, row.property_id)
     );
@@ -4062,6 +4075,7 @@ async function handleFilters(req, res) {
         : { data: [] },
     ]);
 
+    timing.mark("orgs_and_properties");
     return sendJson(res, 200, {
       orgs: (orgRows || []).map(toOrg),
       properties: (propertyRows || []).map(toProperty),
@@ -4112,18 +4126,21 @@ export default async function handler(req, res) {
     return handleDeleteNote(req, res);
   }
 
-  if (getQueryValue(req, "mode") === "filters") {
-    return handleFilters(req, res);
+  const mode = getQueryValue(req, "mode") === "filters" ? "filters" : "rows";
+  const timing = startPortalRequestTiming(res, "punch_list", mode);
+  if (mode === "filters") {
+    return handleFilters(req, res, timing);
   }
 
   try {
     const auth = await authenticateRequest(req);
+    timing.mark("auth");
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
     const rows = await loadPunchListRows(auth, {
       orgId: scopeId(req, "orgId"),
       propertyId: scopeId(req, "propertyId"),
-    });
+    }, { timing });
 
     return sendJson(res, 200, { rows });
   } catch {

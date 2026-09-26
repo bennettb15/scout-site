@@ -25,6 +25,7 @@ import {
   reportPackageSessionTypeFromSources,
 } from "../api-lib/reportPackageSession.js";
 import { mapWithConcurrency } from "../api-lib/mapWithConcurrency.js";
+import { startPortalRequestTiming } from "../api-lib/portalRequestTiming.js";
 
 const REPORT_PACKAGE_BASE_SELECT =
   "id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at,weather_summary";
@@ -169,9 +170,10 @@ async function mergeOptionalColumns(service, table, rows, columns) {
   return rows;
 }
 
-async function handleReportOrgs(req, res) {
+async function handleReportOrgs(req, res, timing) {
   try {
     const auth = await authenticateRequest(req);
+    timing.mark("auth");
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
     const service = createServiceClient();
@@ -189,6 +191,7 @@ async function handleReportOrgs(req, res) {
         .order("name", { ascending: true }),
     ]);
 
+    timing.mark("orgs_and_properties");
     if (error || propertiesError) {
       return sendJson(res, 500, { error: "Unable to load organizations." });
     }
@@ -240,10 +243,13 @@ async function handleReportOrgs(req, res) {
 
 export default async function handler(req, res) {
   if (!methodAllowed(req, res, ["GET", "OPTIONS"])) return;
-  if (requestMode(req) === "orgs") return handleReportOrgs(req, res);
+  const mode = requestMode(req) === "orgs" ? "orgs" : "packages";
+  const timing = startPortalRequestTiming(res, "reports", mode);
+  if (mode === "orgs") return handleReportOrgs(req, res, timing);
 
   try {
     const auth = await authenticateRequest(req);
+    timing.mark("auth");
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
     const service = createServiceClient();
@@ -252,6 +258,7 @@ export default async function handler(req, res) {
       loadReadyPackageRows(service),
     ]);
 
+    timing.mark("access_and_packages");
     if (packagesError) {
       return sendJson(res, 500, { error: "Unable to load report packages." });
     }
@@ -264,6 +271,7 @@ export default async function handler(req, res) {
           .is("deleted_at", null)
       : { data: [], error: null };
 
+    timing.mark("properties");
     if (propertiesError) {
       return sendJson(res, 500, { error: "Unable to load report context." });
     }
@@ -297,6 +305,7 @@ export default async function handler(req, res) {
       ...REPORT_OPTIONAL_SESSION_TYPE_COLUMNS,
     ]);
 
+    timing.mark("package_audit");
     const packageIds = packageRows.map((row) => row.id);
     if (packageIds.length === 0) {
       return sendJson(res, 200, { packages: [] });
@@ -313,6 +322,7 @@ export default async function handler(req, res) {
       .is("storage_deleted_at", null)
       .order("report_type", { ascending: true });
 
+    timing.mark("files");
     if (filesError) {
       return sendJson(res, 500, { error: "Unable to load report files." });
     }
@@ -355,6 +365,7 @@ export default async function handler(req, res) {
           .not("storage_path", "is", null),
       ]);
 
+    timing.mark("context");
     if (orgsError || sessionsError || exportsError || shotsError) {
       return sendJson(res, 500, { error: "Unable to load report context." });
     }
@@ -364,6 +375,7 @@ export default async function handler(req, res) {
     ]);
     await mergeOptionalColumns(service, "shots", shotRows || [], REPORT_OPTIONAL_AUDIT_COLUMNS);
 
+    timing.mark("context_audit");
     const orgsById = new Map(orgRows.map((row) => [row.id, toOrg(row)]));
     const propertiesById = new Map(propertyRows.map((row) => [row.id, toProperty(row)]));
     const sessionsById = new Map(sessionRows.map((row) => [row.id, toSession(row)]));
@@ -371,6 +383,7 @@ export default async function handler(req, res) {
     const snapshotMetadata = await mapWithConcurrency(packageRows, 4, (packageRow) =>
       loadSnapshotPhotoMetadata(service, packageRow)
     );
+    timing.mark("snapshots");
     for (let index = 0; index < packageRows.length; index += 1) {
       const metadata = snapshotMetadata[index];
       if (metadata) snapshotMetadataByPackageId.set(packageRows[index].id, metadata);
@@ -400,6 +413,7 @@ export default async function handler(req, res) {
         ...(sessionRows || []).map((row) => ({ created_by: reportSessionActorId(row) })),
       ])
     );
+    timing.mark("profiles");
     const filesByPackageId = new Map();
     for (const row of fileRows) {
       const files = filesByPackageId.get(row.package_id) || [];
