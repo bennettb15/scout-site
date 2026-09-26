@@ -4,7 +4,7 @@ import {
   createServiceClient,
   enrichPhotoRowWithSnapshotMetadata,
   loadUserPortalPropertyAccess,
-  loadSnapshotPhotoMetadata,
+  loadSnapshotPhotoMetadataBatch,
   methodAllowed,
   originalPathIsExpected,
   publicReportTypeLabel,
@@ -380,9 +380,7 @@ export default async function handler(req, res) {
     const propertiesById = new Map(propertyRows.map((row) => [row.id, toProperty(row)]));
     const sessionsById = new Map(sessionRows.map((row) => [row.id, toSession(row)]));
     const snapshotMetadataByPackageId = new Map();
-    const snapshotMetadata = await mapWithConcurrency(packageRows, 4, (packageRow) =>
-      loadSnapshotPhotoMetadata(service, packageRow)
-    );
+    const snapshotMetadata = await loadSnapshotPhotoMetadataBatch(service, packageRows);
     timing.mark("snapshots");
     for (let index = 0; index < packageRows.length; index += 1) {
       const metadata = snapshotMetadata[index];

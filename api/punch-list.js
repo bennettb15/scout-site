@@ -15,6 +15,7 @@ import {
   getQueryValue,
   loadUserPortalPropertyAccess,
   loadSnapshotPhotoMetadata,
+  loadSnapshotPhotoMetadataBatch,
   methodAllowed,
   originalIsBrowserPreviewable,
   originalNeedsJpgPreviewDerivative,
@@ -2733,9 +2734,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   timing?.mark("shots");
   const snapshotMetadataByPackageId = new Map();
   if (service) {
-    const metadataRows = await mapWithConcurrency(visiblePackageRows, 4, (reportPackage) =>
-      loadSnapshotPhotoMetadata(service, reportPackage)
-    );
+    const metadataRows = await loadSnapshotPhotoMetadataBatch(service, visiblePackageRows);
     for (let index = 0; index < visiblePackageRows.length; index += 1) {
       const reportPackage = visiblePackageRows[index];
       const metadata = metadataRows[index];

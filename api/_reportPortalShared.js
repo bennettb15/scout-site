@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { mapWithConcurrency } from "../api-lib/mapWithConcurrency.js";
 import {
   PORTAL_ACCESS_ROLES,
   isApprovedAdminEmail,
@@ -525,26 +526,24 @@ export function buildSnapshotPhotoMetadata(rawSession) {
   };
 }
 
-export async function loadSnapshotPhotoMetadata(service, reportPackage) {
-  if (!reportPackage.snapshot_id) return null;
-  const { data: snapshot, error } = await service
-    .from("session_snapshots")
-    .select(
-      "id,org_id,property_id,session_id,snapshot_kind,session_status,is_sealed,payload_storage_bucket,payload_storage_path,deleted_at"
-    )
-    .eq("id", reportPackage.snapshot_id)
-    .eq("org_id", reportPackage.org_id)
-    .eq("property_id", reportPackage.property_id)
-    .eq("session_id", reportPackage.session_id)
-    .eq("snapshot_kind", "completed")
-    .eq("session_status", "completed")
-    .eq("is_sealed", true)
-    .is("deleted_at", null)
-    .maybeSingle();
+const SNAPSHOT_SELECT =
+  "id,org_id,property_id,session_id,snapshot_kind,session_status,is_sealed,payload_storage_bucket,payload_storage_path,deleted_at";
 
-  if (error || !snapshot?.payload_storage_bucket || !snapshot?.payload_storage_path) {
-    return null;
-  }
+function snapshotMatchesPackage(snapshot, reportPackage) {
+  return (
+    snapshot?.org_id === reportPackage.org_id &&
+    snapshot?.property_id === reportPackage.property_id &&
+    snapshot?.session_id === reportPackage.session_id &&
+    snapshot?.snapshot_kind === "completed" &&
+    snapshot?.session_status === "completed" &&
+    snapshot?.is_sealed === true &&
+    snapshot?.deleted_at == null
+  );
+}
+
+async function downloadSnapshotPhotoMetadata(service, reportPackage, snapshot) {
+  if (!snapshotMatchesPackage(snapshot, reportPackage)) return null;
+  if (!snapshot.payload_storage_bucket || !snapshot.payload_storage_path) return null;
 
   const { data: object, error: downloadError } = await service.storage
     .from(snapshot.payload_storage_bucket)
@@ -576,6 +575,56 @@ export async function loadSnapshotPhotoMetadata(service, reportPackage) {
   } catch {
     return null;
   }
+}
+
+export async function loadSnapshotPhotoMetadata(service, reportPackage) {
+  if (!reportPackage.snapshot_id) return null;
+  const { data: snapshot, error } = await service
+    .from("session_snapshots")
+    .select(SNAPSHOT_SELECT)
+    .eq("id", reportPackage.snapshot_id)
+    .eq("org_id", reportPackage.org_id)
+    .eq("property_id", reportPackage.property_id)
+    .eq("session_id", reportPackage.session_id)
+    .eq("snapshot_kind", "completed")
+    .eq("session_status", "completed")
+    .eq("is_sealed", true)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (error || !snapshot) return null;
+  return downloadSnapshotPhotoMetadata(service, reportPackage, snapshot);
+}
+
+export async function loadSnapshotPhotoMetadataBatch(service, reportPackages, concurrency = 8) {
+  const snapshotIds = Array.from(
+    new Set(reportPackages.map((reportPackage) => reportPackage.snapshot_id).filter(Boolean))
+  );
+  if (snapshotIds.length === 0) return reportPackages.map(() => null);
+
+  const { data: snapshots, error } = await service
+    .from("session_snapshots")
+    .select(SNAPSHOT_SELECT)
+    .in("id", snapshotIds)
+    .eq("snapshot_kind", "completed")
+    .eq("session_status", "completed")
+    .eq("is_sealed", true)
+    .is("deleted_at", null);
+
+  if (error) {
+    return mapWithConcurrency(reportPackages, 4, (reportPackage) =>
+      loadSnapshotPhotoMetadata(service, reportPackage)
+    );
+  }
+
+  const snapshotsById = new Map((snapshots || []).map((snapshot) => [snapshot.id, snapshot]));
+  return mapWithConcurrency(reportPackages, concurrency, (reportPackage) =>
+    downloadSnapshotPhotoMetadata(
+      service,
+      reportPackage,
+      snapshotsById.get(reportPackage.snapshot_id)
+    )
+  );
 }
 
 function filenameFromPath(path) {
