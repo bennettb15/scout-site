@@ -224,6 +224,7 @@ export default function ScoutReportsPortalPage() {
   const [reportsError, setReportsError] = useState("");
   const [reportsLoading, setReportsLoading] = useState(false);
   const [reportsFetchStatus, setReportsFetchStatus] = useState(FETCH_IDLE);
+  const [loadedReportsScopeKey, setLoadedReportsScopeKey] = useState("");
   const [orgs, setOrgs] = useState([]);
   const [orgsLoading, setOrgsLoading] = useState(false);
   const [orgsFetchStatus, setOrgsFetchStatus] = useState(FETCH_IDLE);
@@ -241,6 +242,8 @@ export default function ScoutReportsPortalPage() {
   const [activePhotoViewer, setActivePhotoViewer] = useState(null);
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
   const reportsRequestIdRef = useRef(0);
+  const reportsCacheRef = useRef(new Map());
+  const loadingReportsScopeKeyRef = useRef("");
   const orgsRequestIdRef = useRef(0);
   const reportsRetrySessionKeyRef = useRef("");
 
@@ -302,27 +305,53 @@ export default function ScoutReportsPortalPage() {
 
   async function loadReports(activeSession = session, options = {}) {
     if (!activeSession?.access_token) return;
+    const orgId = Object.prototype.hasOwnProperty.call(options, "orgId")
+      ? options.orgId
+      : selectedOrgId;
+    const history = options.history || dateFilter;
+    const scopeKey = `${orgId || "all"}:${history}`;
+    const force = options.force === true;
+    if (!force && loadingReportsScopeKeyRef.current === scopeKey) return;
+
     const requestId = reportsRequestIdRef.current + 1;
     reportsRequestIdRef.current = requestId;
+    if (force) reportsCacheRef.current.clear();
+    const cached = !force ? reportsCacheRef.current.get(scopeKey) : null;
+    if (cached) {
+      loadingReportsScopeKeyRef.current = "";
+      setPackages(cached);
+      setLoadedReportsScopeKey(scopeKey);
+      setReportsFetchStatus(FETCH_SUCCESS);
+      setReportsLoading(false);
+      setReportsError("");
+      return;
+    }
+
     const initialSessionKey = sessionRequestKey(activeSession);
     const allowSessionRetry = options.allowSessionRetry !== false;
+    loadingReportsScopeKeyRef.current = scopeKey;
     setReportsLoading(true);
     setReportsFetchStatus(FETCH_LOADING);
+    setLoadedReportsScopeKey("");
     setReportsError("");
     try {
-      const response = await fetch("/api/report-packages", {
+      const params = new URLSearchParams({ history });
+      if (orgId) params.set("orgId", orgId);
+      const response = await fetch(`/api/report-packages?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${activeSession.access_token}`,
         },
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
+      if (!response.ok || !Array.isArray(body.packages)) {
         const error = new Error(body.error || "Unable to load reports.");
         error.status = response.status;
         throw error;
       }
       if (requestId !== reportsRequestIdRef.current) return;
-      setPackages(Array.isArray(body.packages) ? body.packages : []);
+      reportsCacheRef.current.set(scopeKey, body.packages);
+      setPackages(body.packages);
+      setLoadedReportsScopeKey(scopeKey);
       setReportsFetchStatus(FETCH_SUCCESS);
     } catch (error) {
       if (requestId !== reportsRequestIdRef.current) return;
@@ -338,7 +367,12 @@ export default function ScoutReportsPortalPage() {
           settledSession?.access_token &&
           (!activeSession.user?.id || settledSession.user?.id === activeSession.user.id)
         ) {
-          await loadReports(settledSession, { allowSessionRetry: false });
+          await loadReports(settledSession, {
+            orgId,
+            history,
+            force: true,
+            allowSessionRetry: false,
+          });
           return;
         }
       }
@@ -347,6 +381,7 @@ export default function ScoutReportsPortalPage() {
       setReportsFetchStatus(FETCH_ERROR);
     } finally {
       if (requestId === reportsRequestIdRef.current) {
+        loadingReportsScopeKeyRef.current = "";
         setReportsLoading(false);
       }
     }
@@ -385,10 +420,23 @@ export default function ScoutReportsPortalPage() {
 
   useEffect(() => {
     if (session?.access_token) {
-      loadReports(session, { allowSessionRetry: true });
+      reportsRequestIdRef.current += 1;
+      reportsCacheRef.current.clear();
+      loadingReportsScopeKeyRef.current = "";
+      setLoadedReportsScopeKey("");
+      setReportsFetchStatus(FETCH_IDLE);
+      setReportsLoading(false);
+      setPackages([]);
+      const savedOrgId = readPortalContext(session).orgId;
+      if (savedOrgId) {
+        loadReports(session, { orgId: savedOrgId, history: dateFilter, allowSessionRetry: true });
+      }
       loadOrgs(session);
     } else {
       reportsRequestIdRef.current += 1;
+      reportsCacheRef.current.clear();
+      loadingReportsScopeKeyRef.current = "";
+      setLoadedReportsScopeKey("");
       orgsRequestIdRef.current += 1;
       setPackages([]);
       setOrgs([]);
@@ -953,6 +1001,11 @@ export default function ScoutReportsPortalPage() {
     setSelectedOrgId(savedOrgId || orgOptions[0].id);
   }, [orgOptions, reportsPropertyContextReady, selectedOrgId, session]);
 
+  useEffect(() => {
+    if (!session?.access_token || !reportsPropertyContextReady || !selectedOrgId) return;
+    loadReports(session, { orgId: selectedOrgId, history: dateFilter });
+  }, [session?.access_token, reportsPropertyContextReady, selectedOrgId, dateFilter]);
+
   const selectedOrg = useMemo(
     () => orgOptions.find((org) => org.id === selectedOrgId) || null,
     [orgOptions, selectedOrgId]
@@ -1083,6 +1136,7 @@ export default function ScoutReportsPortalPage() {
   const reportsViewSettled =
     reportsFetchStatus === FETCH_SUCCESS &&
     orgsFetchStatus === FETCH_SUCCESS &&
+    loadedReportsScopeKey === `${selectedOrgId}:${dateFilter}` &&
     orgSelectionSettled &&
     propertySelectionSettled;
   const hasActiveLoadError =
@@ -1288,7 +1342,7 @@ export default function ScoutReportsPortalPage() {
             <button
               type="button"
               onClick={() => {
-                loadReports();
+                loadReports(session, { orgId: selectedOrgId, history: dateFilter, force: true });
                 loadOrgs();
               }}
               disabled={reportsLoading}

@@ -3,6 +3,7 @@ import {
   authenticateRequest,
   createServiceClient,
   enrichPhotoRowWithSnapshotMetadata,
+  getQueryValue,
   loadUserPortalPropertyAccess,
   loadSnapshotPhotoMetadataBatch,
   methodAllowed,
@@ -127,6 +128,25 @@ async function loadReadyPackageRows(service) {
     .limit(500);
 }
 
+export async function loadReadyPackageRowsForOrg(service, orgId, properties, history = "latest") {
+  const results = await mapWithConcurrency(properties, 8, (property) =>
+    service
+      .from("report_packages")
+      .select(REPORT_PACKAGE_BASE_SELECT)
+      .eq("org_id", orgId)
+      .eq("property_id", property.id)
+      .eq("status", "ready")
+      .is("deleted_at", null)
+      .order("session_completed_at", { ascending: false })
+      .limit(history === "all" ? 50 : 2)
+  );
+  const error = results.find((result) => result.error)?.error;
+  return {
+    data: error ? null : results.flatMap((result) => result.data || []),
+    error: error || null,
+  };
+}
+
 async function loadProfileEmailMap(service, userIds) {
   const ids = unique(userIds);
   if (ids.length === 0) return new Map();
@@ -247,33 +267,74 @@ export default async function handler(req, res) {
   const timing = startPortalRequestTiming(res, "reports", mode);
   if (mode === "orgs") return handleReportOrgs(req, res, timing);
 
+  const orgId = getQueryValue(req, "orgId");
+  const history = getQueryValue(req, "history") === "all" ? "all" : "latest";
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (orgId && !uuidPattern.test(orgId)) {
+    return sendJson(res, 400, { error: "Valid organization ID is required." });
+  }
+
   try {
     const auth = await authenticateRequest(req);
     timing.mark("auth");
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
     const service = createServiceClient();
-    const [portalAccess, { data: rawPackageRows, error: packagesError }] = await Promise.all([
-      loadUserPortalPropertyAccess(service, auth.user),
-      loadReadyPackageRows(service),
-    ]);
-
-    timing.mark("access_and_packages");
-    if (packagesError) {
-      return sendJson(res, 500, { error: "Unable to load report packages." });
-    }
-    const candidatePropertyIds = unique((rawPackageRows || []).map((row) => row.property_id));
-    const { data: propertyRows, error: propertiesError } = candidatePropertyIds.length
-      ? await service
+    let portalAccess;
+    let rawPackageRows;
+    let propertyRows;
+    if (orgId) {
+      const [access, { data: orgPropertyRows, error: propertiesError }] = await Promise.all([
+        loadUserPortalPropertyAccess(service, auth.user),
+        service
           .from("properties")
           .select("id,org_id,name,address_line1,city,state,postal_code")
-          .in("id", candidatePropertyIds)
+          .eq("org_id", orgId)
           .is("deleted_at", null)
-      : { data: [], error: null };
-
-    timing.mark("properties");
-    if (propertiesError) {
-      return sendJson(res, 500, { error: "Unable to load report context." });
+          .order("name", { ascending: true }),
+      ]);
+      portalAccess = access;
+      timing.mark("access_and_properties");
+      if (propertiesError) {
+        return sendJson(res, 500, { error: "Unable to load report context." });
+      }
+      propertyRows = orgPropertyRows || [];
+      const allowedPropertyIds = allowedPropertyIdsForPortalAccess(
+        portalAccess,
+        orgId,
+        propertyRows.map((property) => property.id)
+      );
+      const visibleProperties = propertyRows.filter((property) => allowedPropertyIds.has(property.id));
+      const { data, error } = await loadReadyPackageRowsForOrg(service, orgId, visibleProperties, history);
+      rawPackageRows = data;
+      timing.mark("packages_per_property");
+      if (error) {
+        return sendJson(res, 500, { error: "Unable to load report packages." });
+      }
+    } else {
+      const [access, { data, error }] = await Promise.all([
+        loadUserPortalPropertyAccess(service, auth.user),
+        loadReadyPackageRows(service),
+      ]);
+      portalAccess = access;
+      rawPackageRows = data;
+      timing.mark("access_and_packages");
+      if (error) {
+        return sendJson(res, 500, { error: "Unable to load report packages." });
+      }
+      const candidatePropertyIds = unique((rawPackageRows || []).map((row) => row.property_id));
+      const { data: packagePropertyRows, error: propertiesError } = candidatePropertyIds.length
+        ? await service
+            .from("properties")
+            .select("id,org_id,name,address_line1,city,state,postal_code")
+            .in("id", candidatePropertyIds)
+            .is("deleted_at", null)
+        : { data: [], error: null };
+      timing.mark("properties");
+      if (propertiesError) {
+        return sendJson(res, 500, { error: "Unable to load report context." });
+      }
+      propertyRows = packagePropertyRows || [];
     }
 
     const currentPropertyIdsByOrg = new Map();
@@ -297,8 +358,8 @@ export default async function handler(req, res) {
           );
         }
         return allowedPropertyIdsByOrg.get(row.org_id).has(row.property_id);
-      })
-      .slice(0, 50);
+      });
+    if (!orgId) packageRows.splice(50);
 
     await mergeOptionalColumns(service, "report_packages", packageRows, [
       ...REPORT_OPTIONAL_AUDIT_COLUMNS,
