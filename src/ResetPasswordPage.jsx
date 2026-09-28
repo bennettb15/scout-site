@@ -119,7 +119,7 @@ export default function ResetPasswordPage() {
             button: "Set Password",
             submitting: "Setting Password...",
             updatedTitle: "Password Set",
-            updatedBody: "Your Client Portal password is ready.",
+            updatedBody: "Your account is ready. You can now sign in to the Scout Capture app with the email and password you just set. If your organization has given you Reports Portal access, you can sign in there with the same credentials.",
           }
         : {
             checkingTitle: "Checking Reset Link",
@@ -161,15 +161,13 @@ export default function ResetPasswordPage() {
 
   async function finishAcceptedInvite(body, password) {
     if (password && body?.user?.email && hasSupabaseConfig && supabase) {
-      await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: body.user.email,
         password,
       });
+      if (error) throw error;
     }
-    setLinkStatus("updated");
-    window.setTimeout(() => {
-      window.location.assign("/reports");
-    }, REDIRECT_DELAY_MS);
+    setLinkStatus(password ? "updated" : "updated-existing");
   }
 
   function applyInviteError(error) {
@@ -372,9 +370,11 @@ export default function ResetPasswordPage() {
       } else {
         await updateRecoveryPassword(newPassword);
         setLinkStatus("updated");
-        window.setTimeout(() => {
-          window.location.assign("/reports");
-        }, REDIRECT_DELAY_MS);
+        if (!isInvite) {
+          window.setTimeout(() => {
+            window.location.assign("/reports");
+          }, REDIRECT_DELAY_MS);
+        }
       }
     } catch (error) {
       if (isPortalInvite) {
@@ -598,12 +598,12 @@ export default function ResetPasswordPage() {
               </>
             )}
 
-            {linkStatus === "updated" && (
+            {["updated", "updated-existing"].includes(linkStatus) && (
               <MessageState
                 icon="✓"
-                title={pageCopy.updatedTitle}
-                body={pageCopy.updatedBody}
-                secondaryBody="Opening your reports..."
+                title={linkStatus === "updated-existing" ? customInviteCopy.updated.title : pageCopy.updatedTitle}
+                body={linkStatus === "updated-existing" ? customInviteCopy.updated.body : pageCopy.updatedBody}
+                secondaryBody={isInvite ? undefined : "Opening your reports..."}
               />
             )}
           </div>

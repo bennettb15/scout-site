@@ -275,3 +275,77 @@ test("invite password validation rejects short passwords", () => {
       error.code === "password_too_short"
   );
 });
+
+test("accepting an invite sets the shared Auth password and activates org membership", async () => {
+  const email = "new@example.com";
+  const password = "invited-password-123";
+  let authUser = null;
+  let membership = null;
+  let acceptedInvite = null;
+  const service = {
+    auth: {
+      admin: {
+        async listUsers() {
+          return { data: { users: authUser ? [authUser] : [] }, error: null };
+        },
+        async createUser(input) {
+          assert.deepEqual(input, { email, password, email_confirm: true });
+          authUser = { id: "user-1", email, email_confirmed_at: now.toISOString() };
+          return { data: { user: authUser }, error: null };
+        },
+      },
+    },
+    from(table) {
+      if (table === "users_profile") {
+        return {
+          async upsert(profile) {
+            assert.equal(profile.id, "user-1");
+            assert.equal(profile.email, email);
+            return { error: null };
+          },
+        };
+      }
+      assert.equal(table, "portal_invites");
+      return {
+        update(values) {
+          acceptedInvite = values;
+          return {
+            eq() {
+              return {
+                is() {
+                  return { is: async () => ({ error: null }) };
+                },
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+  const response = await activateInvite({
+    service,
+    req: {},
+    invite: invite({
+      id: "invite-1",
+      email,
+      org_id: "org-1",
+      role: "field",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+    }),
+    org: { id: "org-1", name: "Client Org" },
+    password,
+    actorId: "admin-1",
+    async upsertOrgMembership(_service, assignment) {
+      membership = assignment;
+      return { id: "membership-1", ...assignment };
+    },
+  });
+
+  assert.equal(response.user.id, "user-1");
+  assert.equal(response.membership.id, "membership-1");
+  assert.equal(membership.orgId, "org-1");
+  assert.equal(membership.userId, "user-1");
+  assert.equal(membership.role, "field");
+  assert.equal(acceptedInvite.accepted_by, "user-1");
+  assert.equal(authUser.email, email);
+});
