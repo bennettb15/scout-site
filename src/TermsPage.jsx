@@ -5,7 +5,7 @@ const terms = {
   service: {
     title: "Ohio Documentation Service Terms",
     label: "Scout-performed documentation",
-    intro: "These proposed terms describe property documentation performed by Scout Systems LLC in Ohio. The property, areas to be covered, deliverables, schedule, and price belong in the accepted service order or quote for each job.",
+    intro: "These proposed terms describe Scout Systems LLC's Ohio photographic documentation service: photos of accessible property areas and factual flags for visible conditions. The property, areas to be covered, deliverables, schedule, and price belong in the accepted service order or quote for each job.",
     sections: [
       {
         id: "service-scope",
@@ -57,7 +57,7 @@ const terms = {
   software: {
     title: "U.S. Software Subscription Terms",
     label: "Organization use of Scout Capture",
-    intro: "These proposed terms describe access to Scout Capture and the Reports Portal by a subscribing organization in the United States. They do not include Scout performing an on-site documentation visit unless Scout separately accepts an Ohio service order.",
+    intro: "These proposed terms describe access to Scout Capture and the Reports Portal by a subscribing organization in the United States. An organization may use the software for documentation, inspections, or other work it is authorized to perform. A software subscription does not include an on-site visit by Scout unless Scout separately accepts an Ohio service order.",
     sections: [
       {
         id: "software-access",
@@ -69,9 +69,10 @@ const terms = {
       },
       {
         id: "software-work",
-        title: "Who performs the documentation",
+        title: "Who performs the work",
         paragraphs: [
           "When an organization uses the software, that organization decides what property areas to capture, enters notes and flag reasons, reviews its records, and decides how to use or share them. A report generated with Scout software does not mean Scout visited the property, selected the observations, or reviewed the report.",
+          "If the organization uses Scout Capture for an inspection or another regulated service, the organization performs that service. It is responsible for its personnel, required licenses, applicable standards, testing, measurements, findings, recommendations, final reports, and customer relationship. Scout does not review, certify, or adopt the organization's professional conclusions.",
           "The organization is responsible for obtaining access and permissions for its work, for its agreements with its own customers, and for determining which professional or regulatory requirements apply to its activities. Scout remains responsible for providing the software and handling organization data as described in the accepted subscription terms.",
         ],
       },
