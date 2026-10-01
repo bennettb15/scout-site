@@ -50,8 +50,8 @@ import {
 const BRAND = {
   name: "SCOUT",
   tagline: "Observe & Report",
-  descriptor: "Visual documentation services",
-  siteTitle: "SCOUT | Visual Property Records",
+  descriptor: "Property documentation service and software",
+  siteTitle: "SCOUT | Property Documentation Service & Software",
 
   // Matched to your navy mark
   brandNavy: "#1C2742",
@@ -67,7 +67,7 @@ const BRAND = {
   serviceArea: "Columbus, Ohio and surrounding areas",
   phone: "(614) 321-9845",
   email: "hello@scoutclear.com",
-  ctaPrimary: "Request a Quote",
+  ctaPrimary: "Contact SCOUT",
   ctaSecondary: "See How It Works",
   sampleReportLabel: "Download sample report (PDF)",
   sampleReportHref: "/scout-sample-report.pdf",
@@ -251,6 +251,7 @@ useEffect(() => {
   };
 
   const [form, setForm] = useState({
+  interest: "Ohio documentation service",
   name: "",
   company: "",
   email: "",
@@ -271,6 +272,7 @@ async function handleContactSubmit(e) {
 
   try {
     const payload = {
+      interest: form.interest,
       name: form.name,
       company: form.company,
       email: form.email,
@@ -290,6 +292,7 @@ async function handleContactSubmit(e) {
 
     setStatus("success");
     setForm({
+      interest: "Ohio documentation service",
       name: "",
       company: "",
       email: "",
@@ -306,9 +309,10 @@ async function handleContactSubmit(e) {
 
 
    const nav = [
-  { label: "Services", href: "#services" },
+  { label: "Options", href: "#options" },
+  { label: "Ohio service", href: "#services" },
+  { label: "Software", href: "#software" },
   { label: "How it works", href: "#how" },
-  { label: "Value", href: "#value" },
   { label: "FAQ", href: "#faq" },
   { label: "Contact", href: "#contact" },
 ];
@@ -467,24 +471,22 @@ async function handleContactSubmit(e) {
 
               <h1 className="text-3xl font-semibold tracking-tight text-white md:text-6xl">
 
-                Clear, time-stamped visual records for your property.
+                Property records, created by SCOUT or your team.
               </h1>
 
               <p className="mt-4 max-w-xl text-base font-medium leading-relaxed text-white/90">
 
 
-                {BRAND.descriptor} for property owners, managers, HOAs, and 
-                commercial facilities. We create structured, time-stamped visual 
-                records of observable property conditions for reference and comparison over time.
+                Hire SCOUT for photographic documentation in Ohio, or use Scout Capture and the Reports Portal to create and share records with your own team across the U.S.
               </p>
 
               <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Button
                   className="rounded-2xl bg-white text-[var(--brand)] hover:bg-white/90"
-                  onClick={() => scrollToSection("#contact")}
+                  onClick={() => scrollToSection("#options")}
 
                 >
-                  {BRAND.ctaPrimary}
+                  Explore your options
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
 
@@ -506,6 +508,14 @@ async function handleContactSubmit(e) {
   <Download className="h-4 w-4 text-white/90" />
                   {BRAND.sampleReportLabel}
                 </a>
+                <button
+                  type="button"
+                  onClick={() => scrollToSection("#software")}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/40 bg-transparent px-4 py-2 text-sm font-medium text-white/90 shadow-sm hover:bg-white/10"
+                >
+                  Explore Scout Capture
+                  <ArrowRight className="h-4 w-4" />
+                </button>
               </div>
 
               {/*<div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -521,7 +531,7 @@ async function handleContactSubmit(e) {
 
               <Card className="rounded-3xl shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-xl">What SCOUT delivers</CardTitle>
+                  <CardTitle className="text-xl">What the Ohio service delivers</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-start gap-3">
@@ -676,8 +686,34 @@ async function handleContactSubmit(e) {
       </header>
 
       <Section
+        id="options"
+        eyebrow="Two ways to use SCOUT"
+        title="Choose the service or use the software with your own team"
+        subtitle="The two offerings have different roles: SCOUT performs an Ohio visit, while software customers perform their own work."
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="rounded-3xl shadow-sm">
+            <CardHeader><CardTitle className="text-xl">SCOUT documents your property</CardTitle></CardHeader>
+            <CardContent className="space-y-4 text-sm leading-relaxed text-foreground/70">
+              <p>For Ohio properties, SCOUT photographs agreed, accessible areas and may add factual flags for visible conditions. You receive an organized, time-stamped visual record.</p>
+              <p>On-site service currently focuses on Columbus and surrounding areas.</p>
+              <Button className="rounded-2xl bg-[var(--brand)] text-white hover:opacity-90" onClick={() => scrollToSection("#services")}>Explore the Ohio service</Button>
+            </CardContent>
+          </Card>
+          <Card className="rounded-3xl shadow-sm">
+            <CardHeader><CardTitle className="text-xl">Your team uses Scout Capture</CardTitle></CardHeader>
+            <CardContent className="space-y-4 text-sm leading-relaxed text-foreground/70">
+              <p>Organizations in the U.S. can request access to Scout Capture and the Reports Portal to create, organize, and share their own property records.</p>
+              <p>Your organization controls its fieldwork, observations, reports, and customer relationship.</p>
+              <Button variant="outline" className="rounded-2xl hover:border-[var(--brand)]" onClick={() => scrollToSection("#software")}>Explore the software</Button>
+            </CardContent>
+          </Card>
+        </div>
+      </Section>
+
+      <Section
         id="services"
-        eyebrow="Services"
+        eyebrow="Ohio documentation service"
         title="Visual record packages built for repeatability"
         subtitle="Choose a one-time visit or a recurring cadence. Every deliverable is organized, time-stamped, and easy to file, share, and compare over time."
         /*className="py-10 md:py-14"*/
@@ -761,8 +797,25 @@ async function handleContactSubmit(e) {
 
 
       <Section
+        id="software"
+        eyebrow="Software for U.S. organizations"
+        title="Put the visual record workflow in your team's hands"
+        subtitle="Scout Capture and the Reports Portal help your organization collect photos and notes, organize records, and share reports. Your team decides what work to perform and what conclusions to make."
+      >
+        <div className="grid gap-4 md:grid-cols-3">
+          <Feature icon={Camera} title="Capture in the field" desc="Collect property photos, timestamps, metadata, and descriptive notes with Scout Capture." />
+          <Feature icon={ClipboardList} title="Organize the record" desc="Keep photos and visible-condition flags together in a consistent property record." />
+          <Feature icon={FileText} title="Share reports" desc="Generate report files and make them available to authorized users through the Reports Portal." />
+        </div>
+        <div className="mt-6 rounded-3xl border border-border bg-[var(--brand)]/5 p-6 shadow-sm md:flex md:items-center md:justify-between md:gap-6">
+          <p className="max-w-3xl text-sm leading-relaxed text-foreground/70">Organizations may use the software for documentation or other work they are authorized to perform, including inspections. Each organization is responsible for its work, licenses, and customer agreements. Software access does not include an on-site SCOUT visit.</p>
+          <Button className="mt-4 shrink-0 rounded-2xl bg-[var(--brand)] text-white hover:opacity-90 md:mt-0" onClick={() => { setForm((p) => ({ ...p, interest: "Scout Capture software" })); scrollToSection("#contact"); }}>Ask about software access</Button>
+        </div>
+      </Section>
+
+      <Section
         id="how"
-        eyebrow="Process"
+        eyebrow="Ohio service process"
         title="A simple workflow that produces consistent records"
         subtitle="We aim for clarity and repeatability. The same structure is used for each visit so differences over time are obvious."
        /*className="py-10 md:py-14"*/
@@ -943,12 +996,20 @@ async function handleContactSubmit(e) {
         id="faq"
         eyebrow="FAQ"
         title="Answers to the questions clients ask first"
-        subtitle="If you have a question that’s not covered here, contact us and we’ll respond quickly."
+        subtitle="Questions about the Ohio service or Scout Capture? Contact us and we’ll respond."
       >
         <div className="grid gap-4 md:grid-cols-2">
           <FAQItem
             q="Is SCOUT a home or property inspection service?"
-            a="No. SCOUT documents what is visually observable at the time of service. Deliverables are structured photographic records intended for reference and comparison, not evaluation or analysis."
+            a="SCOUT's Ohio service provides photographic documentation of agreed, accessible areas and may flag visible conditions factually. It does not include testing, measurements, diagnoses, or repair recommendations."
+          />
+          <FAQItem
+            q="Can my company use Scout Capture for its own inspections?"
+            a="Yes, if your organization is authorized to perform that work. Your company controls its fieldwork, findings, reports, licensing, and customer agreements. SCOUT provides the software; it does not perform or approve your inspection."
+          />
+          <FAQItem
+            q="Where are the two offerings available?"
+            a="SCOUT's on-site documentation service is offered in Ohio, currently focused on the Columbus area. Scout Capture software is for organizations in the United States."
           />
           <FAQItem
             q="What do you mean by ‘observable notes’?"
@@ -967,7 +1028,7 @@ async function handleContactSubmit(e) {
             a="Only if access is explicitly provided and it is safe and reasonably accessible. Otherwise, documentation is limited to accessible vantage points."
           />
           <FAQItem
-            q="How fast do you deliver?"
+            q="How fast do you deliver Ohio service records?"
             a="Typical turnaround is 24-72 hours depending on scope and photo volume. Priority turnaround is available for time-sensitive situations."
           />
         </div>
@@ -978,8 +1039,8 @@ async function handleContactSubmit(e) {
 
     className="py-16 md:py-20"
     eyebrow="Contact"
-    title="Request a quote or schedule a walkthrough"
-    subtitle="Send the basics and we’ll reply with a scoped price and the next available window."
+    title="Ask about the Ohio service or Scout Capture"
+    subtitle="Tell us which offering interests you. For on-site documentation, we’ll reply with scope and scheduling details."
       >
         <div className="grid gap-4 md:grid-cols-5">
           <Card className="rounded-3xl shadow-sm md:col-span-3">
@@ -1005,6 +1066,18 @@ onChange={(e) => {
     />
 
     <div className="grid gap-3 md:grid-cols-2">
+      <div className="space-y-1 md:col-span-2">
+        <label htmlFor="scout-interest" className="text-xs font-medium text-foreground/70">I’m interested in</label>
+        <select
+          id="scout-interest"
+          value={form.interest}
+          onChange={(e) => setForm((p) => ({ ...p, interest: e.target.value }))}
+          className="flex h-10 w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm text-foreground"
+        >
+          <option>Ohio documentation service</option>
+          <option>Scout Capture software</option>
+        </select>
+      </div>
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground/70">Name</label>
         <Input
@@ -1085,7 +1158,7 @@ onChange={(e) => {
 
       <div className="space-y-1 md:col-span-2">
         <label className="text-xs font-medium text-foreground/70">
-          Property address
+          Property address (Ohio service only)
         </label>
         <Input
   value={form.propertyAddress}
@@ -1102,7 +1175,7 @@ onChange={(e) => {
 
       <div className="space-y-1 md:col-span-2">
         <label className="text-xs font-medium text-foreground/70">
-          What do you need documented?
+          What would you like to do?
         </label>
         <Textarea
           value={form.message}
@@ -1111,7 +1184,7 @@ onChange={(e) => {
   setForm((p) => ({ ...p, message: e.target.value }));
 }}
 
-          placeholder="Example: baseline for a new tenant, quarterly tracking, after-storm documentation..."
+          placeholder="Tell us about the property documentation you need or how your team would use Scout Capture."
           className="min-h-[110px] rounded-2xl"
           required
         />
@@ -1237,7 +1310,7 @@ onChange={(e) => {
                 />
               </div>
               <div className="mt-1 text-sm text-foreground/70">
-                {BRAND.descriptor} · {BRAND.serviceArea}
+                Ohio documentation service · U.S. software access
               </div>
               <div className="mt-2 text-xs text-foreground/60">
                 © {new Date().getFullYear()} Scout Systems LLC. All rights reserved.
@@ -1258,11 +1331,7 @@ onChange={(e) => {
           </div>
 
           <div className="mt-6 rounded-2xl border border-border bg-[var(--brand)]/5 p-4 text-xs leading-relaxed text-foreground/70">
-            <strong className="text-[var(--brand)]">Important:</strong> SCOUT
-            provides visual documentation of observable property features only.
-            SCOUT does not perform inspections, evaluations, assessments,
-            analysis, testing, measurements, or professional opinions of any
-            kind.
+            SCOUT's Ohio on-site service provides visual documentation of observable property features. Organizations using Scout Capture perform and are responsible for their own work.
           </div>
         </div>
       </footer>

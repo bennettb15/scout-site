@@ -88,7 +88,7 @@ const terms = {
         id: "software-commercial",
         title: "Fees, renewal, and cancellation",
         paragraphs: [
-          "The accepted order or checkout summary should state the subscription price, billing frequency, start date, renewal terms, and how to cancel. Any separate onboarding, support, or professional service charges should be stated there as well. These proposed terms do not create a paid subscription or an automatic renewal by themselves.",
+          "The accepted order or checkout summary should state the subscription price, billing frequency, start date, and renewal terms. The organization may cancel renewal at any time. Cancellation stops future billing, while software access continues until the end of the current paid period. Any separate onboarding, support, or professional service charges should be stated in the order. These proposed terms do not create a paid subscription or an automatic renewal by themselves.",
         ],
       },
       {

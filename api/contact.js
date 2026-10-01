@@ -41,6 +41,7 @@ export default async function handler(req, res) {
 
     // Include ALL fields your frontend sends (safe even if unused)
     const {
+      interest,
       name,
       company,
       propertyAddress,
@@ -58,6 +59,7 @@ export default async function handler(req, res) {
     }
 
     const safeName = escapeHtml(String(name).trim()).slice(0, 120);
+    const safeInterest = escapeHtml(String(interest || "General inquiry").trim()).slice(0, 120);
     const safeCompany = escapeHtml(String(company || "").trim()).slice(0, 200);
     const safeEmail = escapeHtml(String(email).trim()).slice(0, 200);
     const safePhone = escapeHtml(String(phone || "").trim()).slice(0, 40);
@@ -82,6 +84,7 @@ html: `
     <h2>New Contact Form Submission</h2>
 
     <p><strong>Name:</strong> ${safeName}</p>
+    <p><strong>Interest:</strong> ${safeInterest}</p>
     <p><strong>Email:</strong> ${safeEmail}</p>
     ${safePhone ? `<p><strong>Phone:</strong> ${safePhone}</p>` : ""}
     ${safeCompany ? `<p><strong>Company / HOA:</strong> ${safeCompany}</p>` : ""}
