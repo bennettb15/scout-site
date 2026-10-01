@@ -1,0 +1,175 @@
+.terms-page {
+  min-height: 100vh;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.terms-page a {
+  color: #1e40af;
+  text-decoration: none;
+}
+
+.terms-page a:hover {
+  text-decoration: underline;
+}
+
+.terms-header {
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.terms-header-inner {
+  display: flex;
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 1rem 1.25rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.terms-logo {
+  display: block;
+  width: auto;
+  height: 2.5rem;
+}
+
+.terms-link {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.terms-main {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 3.5rem;
+}
+
+.terms-kicker {
+  margin: 0;
+  color: #1e40af;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.terms-title {
+  margin: 0.5rem 0 0;
+  font-size: clamp(2.25rem, 5vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.terms-date {
+  margin: 0.75rem 0 0;
+  color: #475569;
+  font-size: 0.875rem;
+}
+
+.terms-draft {
+  margin-top: 2rem;
+  padding: 1.25rem;
+  border: 1px solid #fcd34d;
+  border-radius: 1rem;
+  background: #fffbeb;
+  color: #78350f;
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+}
+
+.terms-intro,
+.terms-section p,
+.terms-related p {
+  color: #334155;
+  font-size: 1rem;
+  line-height: 1.75rem;
+}
+
+.terms-intro {
+  margin: 1.75rem 0 0;
+}
+
+.terms-toc {
+  margin-top: 2rem;
+  padding: 1.25rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #fff;
+}
+
+.terms-toc h2 {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.terms-toc ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+}
+
+.terms-sections {
+  display: grid;
+  gap: 2.5rem;
+  margin-top: 2.25rem;
+}
+
+.terms-section {
+  scroll-margin-top: 2rem;
+}
+
+.terms-section h2 {
+  margin: 0 0 1rem;
+  font-size: 1.5rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.terms-section p {
+  margin: 0;
+}
+
+.terms-section p + p {
+  margin-top: 1rem;
+}
+
+.terms-related {
+  margin-top: 3rem;
+  padding: 1.25rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 1rem;
+  background: #eff6ff;
+}
+
+.terms-related h2 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 650;
+}
+
+.terms-related p {
+  margin: 0.5rem 0 0;
+}
+
+.terms-footer {
+  padding: 1.5rem 1.25rem;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .terms-toc ul {
+    grid-template-columns: 1fr;
+  }
+}

@@ -7,6 +7,9 @@ const ScoutReportsPortalPage = lazy(() => import("./ScoutReportsPortalPage"));
 const ScoutPunchListPage = lazy(() => import("./ScoutPunchListPage"));
 const PortalAccessAdminPage = lazy(() => import("./PortalAccessAdminPage"));
 const ForgotPasswordPage = lazy(() => import("./ForgotPasswordPage"));
+const TermsPage = lazy(() => import("./TermsPage"));
+const ServiceTermsPage = () => <TermsPage kind="service" />;
+const SoftwareTermsPage = () => <TermsPage kind="software" />;
 
 export default function App() {
   const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
@@ -18,6 +21,10 @@ export default function App() {
     Page = ResetPasswordPage;
   } else if (pathname === "/forgot-password") {
     Page = ForgotPasswordPage;
+  } else if (pathname === "/terms/service") {
+    Page = ServiceTermsPage;
+  } else if (pathname === "/terms/software") {
+    Page = SoftwareTermsPage;
   } else if (pathname === "/reports") {
     Page = ScoutReportsPortalPage;
   } else if (pathname === "/punch-list") {

@@ -23,6 +23,14 @@
       "destination": "/index.html"
     },
     {
+      "source": "/terms/service",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/terms/software",
+      "destination": "/index.html"
+    },
+    {
       "source": "/reports",
       "destination": "/index.html"
     },
