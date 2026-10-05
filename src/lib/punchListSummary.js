@@ -99,6 +99,14 @@ export function filterPunchListRowsForOverdue(rows = [], todayDate = todayDateOn
   );
 }
 
+export function isPendingReviewPunchListRow(row = {}) {
+  return row.status === "pending_review";
+}
+
+export function filterPunchListRowsForPendingReview(rows = []) {
+  return (Array.isArray(rows) ? rows : []).filter(isPendingReviewPunchListRow);
+}
+
 export function nextPunchListTradeFilter(currentTradeId, clickedTradeId, allValue = "all") {
   const current = textValue(currentTradeId) || allValue;
   const clicked = textValue(clickedTradeId) || allValue;
@@ -113,8 +121,10 @@ export function buildPunchListSummary(rows = [], { tradeOptions = [], todayDate 
   const visibleOpenRows = (Array.isArray(rows) ? rows : []).filter(isOpenPunchListRow);
   const tradeCountsByKey = new Map();
   const overdueItems = [];
+  let pendingReviewCount = 0;
 
   for (const row of visibleOpenRows) {
+    if (isPendingReviewPunchListRow(row)) pendingReviewCount += 1;
     const key = tradeKey(row.trade) || "unassigned";
     const label = key === "unassigned" ? "Unassigned" : tradeLabel(key, tradeOptions);
     const current = tradeCountsByKey.get(key) || { id: key, label, count: 0 };
@@ -148,5 +158,6 @@ export function buildPunchListSummary(rows = [], { tradeOptions = [], todayDate 
     tradeCounts,
     overdueCount: overdueItems.length,
     overdueItems,
+    pendingReviewCount,
   };
 }

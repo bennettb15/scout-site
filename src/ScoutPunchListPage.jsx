@@ -24,6 +24,7 @@ import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
   buildPunchListSummary,
   filterPunchListRowsForOverdue,
+  filterPunchListRowsForPendingReview,
   nextPunchListOverdueFilter,
   nextPunchListTradeFilter,
 } from "./lib/punchListSummary";
@@ -1135,7 +1136,7 @@ const PUNCH_LIST_STYLES = `
 
   .punch-summary-band {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+    grid-template-columns: minmax(0, 1fr) max-content max-content;
     gap: 12px;
     border-radius: 8px;
     border: 1px solid rgb(226 232 240);
@@ -1226,7 +1227,8 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-summary-count,
-  .punch-summary-overdue-count {
+  .punch-summary-overdue-count,
+  .punch-summary-pending-count {
     display: inline-flex;
     min-width: 22px;
     height: 20px;
@@ -1244,6 +1246,10 @@ const PUNCH_LIST_STYLES = `
 
   .punch-summary-overdue-count {
     background: rgb(220 38 38);
+  }
+
+  .punch-summary-pending-count {
+    background: rgb(234 88 12);
   }
 
   .punch-summary-overdue-chip {
@@ -1295,6 +1301,49 @@ const PUNCH_LIST_STYLES = `
     color: rgb(100 116 139);
     cursor: default;
     opacity: 1;
+  }
+
+  .punch-summary-pending-chip {
+    display: inline-flex;
+    min-width: 0;
+    max-width: 100%;
+    height: 28px;
+    align-items: center;
+    gap: 7px;
+    justify-content: center;
+    margin-top: 9px;
+    border-radius: 999px;
+    border: 1px solid rgb(254 215 170);
+    background: rgb(255 247 237);
+    padding: 0 8px 0 10px;
+    color: rgb(194 65 12);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 850;
+    line-height: 1;
+    cursor: pointer;
+    transition:
+      background 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .punch-summary-pending-chip:hover {
+    border-color: rgb(253 186 116);
+    background: rgb(255 237 213);
+    color: rgb(154 52 18);
+  }
+
+  .punch-summary-pending-chip.is-active {
+    border-color: rgb(234 88 12);
+    background: rgb(234 88 12);
+    color: white;
+    box-shadow: 0 1px 2px rgba(234, 88, 12, 0.18);
+  }
+
+  .punch-summary-pending-chip.is-active .punch-summary-pending-count {
+    background: white;
+    color: rgb(234 88 12);
   }
 
   .punch-summary-empty {
@@ -4286,8 +4335,10 @@ function PunchListSummaryBand({
   summary,
   selectedTrade,
   overdueOnly,
+  pendingReviewOnly,
   onTradeFilter,
   onToggleOverdue,
+  onTogglePendingReview,
 }) {
   if (!summary) return null;
   const tradeItems = summary.tradeCounts.slice(0, 8);
@@ -4344,6 +4395,25 @@ function PunchListSummaryBand({
           </button>
         ) : (
           <div className="punch-summary-empty">No overdue open items.</div>
+        )}
+      </section>
+      <section className="punch-summary-section punch-summary-pending">
+        <div className="punch-summary-heading">Pending Review</div>
+        {summary.pendingReviewCount > 0 || pendingReviewOnly ? (
+          <button
+            type="button"
+            className={`punch-summary-pending-chip ${pendingReviewOnly ? "is-active" : ""}`}
+            onClick={onTogglePendingReview}
+            aria-pressed={pendingReviewOnly}
+            title={pendingReviewOnly ? "Show all open items" : "Show pending review items"}
+          >
+            <span className="punch-summary-trade-label">Items Pending Review</span>
+            <span className="punch-summary-pending-count">
+              {summary.pendingReviewCount}
+            </span>
+          </button>
+        ) : (
+          <div className="punch-summary-empty">No pending review items.</div>
         )}
       </section>
     </div>
@@ -4955,6 +5025,7 @@ export default function ScoutPunchListPage() {
   const [selectedElevation, setSelectedElevation] = useState(ALL);
   const [selectedDetail, setSelectedDetail] = useState(ALL);
   const [overdueOnly, setOverdueOnly] = useState(false);
+  const [pendingReviewOnly, setPendingReviewOnly] = useState(false);
   const [selectedRowId, setSelectedRowId] = useState("");
   const [downloadId, setDownloadId] = useState("");
   const [previewRow, setPreviewRow] = useState(null);
@@ -6136,10 +6207,10 @@ export default function ScoutPunchListPage() {
   }, [orgFilteredRows, selectedTab]);
 
   useEffect(() => {
-    if (selectedTab === TAB_RESOLVED && overdueOnly) {
-      setOverdueOnly(false);
-    }
-  }, [overdueOnly, selectedTab]);
+    if (selectedTab !== TAB_RESOLVED) return;
+    if (overdueOnly) setOverdueOnly(false);
+    if (pendingReviewOnly) setPendingReviewOnly(false);
+  }, [overdueOnly, pendingReviewOnly, selectedTab]);
 
   const baseFilteredRows = useMemo(() => {
     return tabRows.filter((row) => {
@@ -6153,9 +6224,13 @@ export default function ScoutPunchListPage() {
   }, [displayedPropertyId, selectedDetail, selectedElevation, selectedPriority, selectedTrade, tabRows]);
 
   const filteredRows = useMemo(() => {
-    if (!overdueOnly) return baseFilteredRows;
-    return filterPunchListRowsForOverdue(baseFilteredRows, todayDateOnly());
-  }, [baseFilteredRows, overdueOnly]);
+    const dueDateRows = overdueOnly
+      ? filterPunchListRowsForOverdue(baseFilteredRows, todayDateOnly())
+      : baseFilteredRows;
+    return pendingReviewOnly
+      ? filterPunchListRowsForPendingReview(dueDateRows)
+      : dueDateRows;
+  }, [baseFilteredRows, overdueOnly, pendingReviewOnly]);
 
   useEffect(() => {
     if (filteredRows.length === 0) {
@@ -6601,6 +6676,7 @@ export default function ScoutPunchListPage() {
                 summary={punchListSummary}
                 selectedTrade={selectedTrade}
                 overdueOnly={overdueOnly}
+                pendingReviewOnly={pendingReviewOnly}
                 onTradeFilter={(tradeId) =>
                   setSelectedTrade((currentTradeId) =>
                     nextPunchListTradeFilter(currentTradeId, tradeId, ALL)
@@ -6613,6 +6689,9 @@ export default function ScoutPunchListPage() {
                       punchListSummary?.overdueCount || 0
                     )
                   )
+                }
+                onTogglePendingReview={() =>
+                  setPendingReviewOnly((currentPendingReviewOnly) => !currentPendingReviewOnly)
                 }
               />
             )}
@@ -6647,9 +6726,13 @@ export default function ScoutPunchListPage() {
               !noPunchListProperties &&
               filteredRows.length === 0 && (
                 <div className="rounded-lg border border-border bg-background p-6 text-sm text-foreground/70 shadow-sm">
-                  {overdueOnly
-                    ? "No overdue punch list items match the selected filters."
-                    : "No punch list items match the selected filters."}
+                  {pendingReviewOnly && overdueOnly
+                    ? "No overdue pending review items match the selected filters."
+                    : pendingReviewOnly
+                      ? "No pending review items match the selected filters."
+                      : overdueOnly
+                        ? "No overdue punch list items match the selected filters."
+                        : "No punch list items match the selected filters."}
                 </div>
               )}
 
