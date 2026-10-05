@@ -1332,6 +1332,7 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-row-left {
+    position: relative;
     display: flex;
     align-items: stretch;
     justify-content: stretch;
@@ -1344,6 +1345,13 @@ const PUNCH_LIST_STYLES = `
   .punch-row.has-review-actions .punch-row-left {
     align-self: stretch;
     height: auto;
+  }
+
+  @media (min-width: 768px) {
+    .punch-row.has-review-actions .punch-row-left {
+      align-self: start;
+      height: 156px;
+    }
   }
 
   .punch-thumbnail {
@@ -2244,6 +2252,38 @@ const PUNCH_LIST_STYLES = `
     display: none;
   }
 
+  .punch-row-review-actions-thumbnail {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+
+  .punch-row-review-actions-thumbnail .punch-thumbnail-review-button {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border: 2px solid white;
+    border-radius: 50%;
+    padding: 0;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
+    pointer-events: auto;
+  }
+
+  .punch-row-review-actions-thumbnail .punch-thumbnail-review-button svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .punch-row-review-actions-thumbnail .punch-thumbnail-review-button:focus-visible {
+    outline: 3px solid rgb(30 64 175);
+    outline-offset: 2px;
+  }
+
   .punch-row-controls > .punch-row-review-actions {
     grid-column: 1 / -1;
     width: 100%;
@@ -3075,6 +3115,10 @@ const PUNCH_LIST_STYLES = `
     }
 
     .punch-row-review-actions-desktop {
+      display: none;
+    }
+
+    .punch-row-review-actions-thumbnail {
       display: none;
     }
 
@@ -4108,6 +4152,7 @@ function CompletionReviewActions({
   completionReviewSavingKey,
   action = "both",
   className = "",
+  iconOnly = false,
 }) {
   if (!canReviewCompletionForRow(row)) return null;
   const showReject = action === "both" || action === "reject";
@@ -4118,7 +4163,9 @@ function CompletionReviewActions({
       {showReject && (
         <button
           type="button"
-          className="punch-completion-reject"
+          className={`punch-completion-reject ${iconOnly ? "punch-thumbnail-review-button" : ""}`}
+          aria-label={iconOnly ? (completionReviewSavingKey === `${row.id}:reject` ? "Rejecting..." : "Reject") : undefined}
+          title={iconOnly ? "Reject" : undefined}
           onClick={(event) => {
             event.stopPropagation();
             onReviewCompletion(row, "reject");
@@ -4126,13 +4173,15 @@ function CompletionReviewActions({
           disabled={Boolean(completionReviewSavingKey)}
         >
           <X className="h-4 w-4" />
-          {completionReviewSavingKey === `${row.id}:reject` ? "Rejecting..." : "Reject"}
+          {!iconOnly && (completionReviewSavingKey === `${row.id}:reject` ? "Rejecting..." : "Reject")}
         </button>
       )}
       {showApprove && (
         <button
           type="button"
-          className="punch-completion-approve"
+          className={`punch-completion-approve ${iconOnly ? "punch-thumbnail-review-button" : ""}`}
+          aria-label={iconOnly ? (completionReviewSavingKey === `${row.id}:approve` ? "Approving..." : "Approve") : undefined}
+          title={iconOnly ? "Approve" : undefined}
           onClick={(event) => {
             event.stopPropagation();
             onReviewCompletion(row, "approve");
@@ -4140,7 +4189,7 @@ function CompletionReviewActions({
           disabled={Boolean(completionReviewSavingKey)}
         >
           <Check className="h-4 w-4" />
-          {completionReviewSavingKey === `${row.id}:approve` ? "Approving..." : "Approve"}
+          {!iconOnly && (completionReviewSavingKey === `${row.id}:approve` ? "Approving..." : "Approve")}
         </button>
       )}
     </div>
@@ -4380,6 +4429,15 @@ function IssueRow({
       >
         <div className="punch-row-left">
           <IssueThumbnail row={row} onPreview={onPreview} />
+          {canReviewCompletion && (
+            <CompletionReviewActions
+              row={row}
+              onReviewCompletion={onReviewCompletion}
+              completionReviewSavingKey={completionReviewSavingKey}
+              className="punch-row-review-actions-thumbnail"
+              iconOnly
+            />
+          )}
         </div>
         <div className="punch-row-main">
           <PunchMetadataHeader row={row} />
@@ -4457,13 +4515,6 @@ function IssueRow({
           )}
           {canReviewCompletion && (
             <div className="punch-review-control-row">
-              <CompletionReviewActions
-                row={row}
-                onReviewCompletion={onReviewCompletion}
-                completionReviewSavingKey={completionReviewSavingKey}
-                action="reject"
-                className="punch-row-review-actions-desktop"
-              />
               <WorkflowControl
                 row={row}
                 field="status"
@@ -4494,13 +4545,6 @@ function IssueRow({
           )}
           {canReviewCompletion ? (
             <div className="punch-review-control-row">
-              <CompletionReviewActions
-                row={row}
-                onReviewCompletion={onReviewCompletion}
-                completionReviewSavingKey={completionReviewSavingKey}
-                action="approve"
-                className="punch-row-review-actions-desktop"
-              />
               <WorkflowControl
                 row={row}
                 field="priority"
