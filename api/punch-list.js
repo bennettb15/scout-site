@@ -27,6 +27,7 @@ import {
 } from "./_reportPortalShared.js";
 import { latestStatusOverride, normalizedExplicitStatus, packageTimestamp } from "../api-lib/punchListStatus.js";
 import { mapWithConcurrency } from "../api-lib/mapWithConcurrency.js";
+import { loadActiveAttributionEmails } from "../api-lib/activeAttributionEmails.js";
 import { startPortalRequestTiming } from "../api-lib/portalRequestTiming.js";
 import {
   portalAccessCanReviewCompletion,
@@ -479,6 +480,15 @@ async function safePunchListActivityRows(buildQuery) {
   const { data: fallbackData, error: fallbackError } = await buildQuery(PUNCHLIST_ACTIVITY_BASE_SELECT);
   if (fallbackError) return [];
   return fallbackData || [];
+}
+
+export function reviewStatusSyncTargetFromSubmission(submission, observation = null) {
+  const observationId = observation?.id || submission?.observation_id || null;
+  if (!observationId) return null;
+  return {
+    id: observationId,
+    shot_id: observation?.shot_id || submission?.shot_id || null,
+  };
 }
 
 async function maybeServiceClient() {
@@ -2335,6 +2345,11 @@ async function handleReviewCompletion(req, res, body = null) {
       return sendJson(res, 500, { error: "Unable to review completion submission." });
     }
 
+    const reviewSyncTarget = reviewStatusSyncTargetFromSubmission(submission);
+    if (reviewSyncTarget) {
+      await syncObservationReviewStatus(service, reviewSyncTarget, nextStatus, auth.user.id);
+    }
+
     return sendJson(res, 200, {
       reviewed: true,
       status: nextStatus,
@@ -2806,6 +2821,8 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     service,
     actorIdsFromVisibleAttributionRows([
       ...punchListActivity,
+      ...Array.from(snapshotMetadataByPackageId.values())
+        .map((metadata) => ({ created_by: metadata.firstPhotoActorId })),
       ...visiblePackageRows.map((row) => ({ created_by: reportPackageActorId(row) })),
       ...(sessionRows || []).map((row) => ({ created_by: reportSessionActorId(row) })),
     ])
@@ -2815,6 +2832,30 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     actorEmail: auditSafeAttribution(() => activityActorEmail(row, profileEmailById)) || SYSTEM_ACTOR_LABEL,
   }));
   const rawSessionById = new Map((sessionRows || []).map((row) => [row.id, row]));
+  const rawReportAttribution = visiblePackageRows.map((reportPackage) =>
+    capturedByEmailForReportPackage({
+      packageRow: reportPackage,
+      sessionRow: rawSessionById.get(reportPackage.session_id) || null,
+      snapshotMetadata: snapshotMetadataByPackageId.get(reportPackage.id) || null,
+      profileEmailById,
+    })
+  );
+  const activeProfileEmails = service
+    ? await loadActiveAttributionEmails(service, [
+        ...rawReportAttribution,
+        ...Array.from(shotsById.values()).flatMap((shot) => [
+          shot.captured_by_email, shot.uploaded_by_email, shot.actor_email,
+        ]),
+      ])
+    : null;
+  if (activeProfileEmails) {
+    for (const shot of shotsById.values()) {
+      for (const field of ["captured_by_email", "uploaded_by_email", "actor_email"]) {
+        const email = normalizeAuditEmail(shot[field]);
+        if (email && !activeProfileEmails.has(email)) shot[field] = "Deleted user";
+      }
+    }
+  }
   for (const reportPackage of visiblePackageRows) {
     const snapshotMetadata = snapshotMetadataByPackageId.get(reportPackage.id) || null;
     reportPackage.captured_by_email = capturedByEmailForReportPackage({
@@ -2822,6 +2863,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       sessionRow: rawSessionById.get(reportPackage.session_id) || null,
       snapshotMetadata,
       profileEmailById,
+      activeProfileEmails,
     });
   }
 

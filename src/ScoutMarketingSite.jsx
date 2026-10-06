@@ -892,7 +892,7 @@ async function handleContactSubmit(e) {
                 Deliverables are visual records intended for reference and comparison, not evaluation.
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <a
   href="/scout-sample-report.pdf"
   target="_blank"
@@ -1327,6 +1327,9 @@ onChange={(e) => {
                   {n.label}
                 </a>
               ))}
+              <a href="/privacy" className="text-sm font-medium text-foreground/70 hover:text-[var(--brand)]">
+                Privacy Policy
+              </a>
             </div>
           </div>
 

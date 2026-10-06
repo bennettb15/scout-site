@@ -3,6 +3,12 @@
   "functions": {
     "api/punch-list.js": {
       "includeFiles": "{node_modules/pdfkit/js/standard-fonts/**,public/Scout Only Logo Navy Dark NEW.png}"
+    },
+    "api/cron/account-deletion.js": {
+      "maxDuration": 300
+    },
+    "api/account-deletion.js": {
+      "maxDuration": 300
     }
   },
   "rewrites": [
@@ -20,6 +26,14 @@
     },
     {
       "source": "/forgot-password",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/account",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/privacy",
       "destination": "/index.html"
     },
     {
@@ -53,6 +67,12 @@
     {
       "source": "/admin/portal-access",
       "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/account-deletion",
+      "schedule": "0 3 * * *"
     }
   ]
 }

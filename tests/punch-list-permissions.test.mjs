@@ -5,7 +5,10 @@ import {
   portalAccessCanReviewCompletion,
   portalRoleCanReviewCompletionAction,
 } from "../api-lib/punchListPermissions.js";
-import { publicObservationRow } from "../api/punch-list.js";
+import {
+  publicObservationRow,
+  reviewStatusSyncTargetFromSubmission,
+} from "../api/punch-list.js";
 
 const orgId = "11111111-1111-4111-8111-111111111111";
 const propertyId = "22222222-2222-4222-8222-222222222222";
@@ -85,6 +88,36 @@ test("Field does not receive or render review permission", () => {
   assert.equal(row.permissions.canEditWorkflow, true);
   assert.equal(row.permissions.canReviewCompletion, false);
   assert.equal(canReviewCompletionForPunchListRow(row), false);
+});
+
+test("Submission review keeps observation and linked shot available for status sync", () => {
+  assert.deepEqual(
+    reviewStatusSyncTargetFromSubmission({
+      observation_id: observationId,
+      shot_id: shotId,
+    }),
+    {
+      id: observationId,
+      shot_id: shotId,
+    }
+  );
+
+  assert.deepEqual(
+    reviewStatusSyncTargetFromSubmission(
+      {
+        observation_id: observationId,
+        shot_id: null,
+      },
+      {
+        id: observationId,
+        shot_id: shotId,
+      }
+    ),
+    {
+      id: observationId,
+      shot_id: shotId,
+    }
+  );
 });
 
 for (const role of ["viewer", "manager", "owner"]) {

@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { mapWithConcurrency } from "../api-lib/mapWithConcurrency.js";
+import { deletionEnabledFor } from "../api-lib/accountDeletionFeature.js";
 import {
   PORTAL_ACCESS_ROLES,
   isApprovedAdminEmail,
@@ -101,7 +102,7 @@ export function createServiceClient() {
   });
 }
 
-export async function authenticateRequest(req) {
+export async function authenticateRequest(req, { allowDeletionPending = false } = {}) {
   const token = getBearerToken(req);
   if (!token) {
     return { error: "Authentication required." };
@@ -111,6 +112,18 @@ export async function authenticateRequest(req) {
   const { data, error } = await client.auth.getUser(token);
   if (error || !data?.user?.id) {
     return { error: "Authentication required." };
+  }
+
+  if (!allowDeletionPending && deletionEnabledFor(data.user.email)) {
+    const service = createServiceClient();
+    const { data: deletion, error: deletionError } = await service
+      .from("account_deletion_requests")
+      .select("id")
+      .eq("user_id", data.user.id)
+      .in("status", ["pending", "processing", "failed"])
+      .maybeSingle();
+    if (deletionError) return { error: "Account access is temporarily unavailable." };
+    if (deletion) return { error: "Account deletion is in progress." };
   }
 
   return { client, user: data.user };

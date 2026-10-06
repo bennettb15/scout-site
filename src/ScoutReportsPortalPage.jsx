@@ -9,12 +9,12 @@ import {
   Download,
   Flag,
   FileText,
-  LogOut,
   RefreshCw,
   ShieldCheck,
   X,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
+import AccountMenu from "./components/AccountMenu";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
   reportPackageTypeLabel,
@@ -1252,14 +1252,7 @@ export default function ScoutReportsPortalPage() {
                   Admin
                 </a>
               )}
-              <button
-                type="button"
-                onClick={handleSignOut}
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
-              >
-                <LogOut className="h-4 w-4" />
-                Sign Out
-              </button>
+              <AccountMenu onSignOut={handleSignOut} />
               </>
             )}
           </div>
@@ -1302,7 +1295,7 @@ export default function ScoutReportsPortalPage() {
                     </select>
                   </label>
                 )}
-                <label className="grid gap-1 text-xs font-semibold text-foreground/60">
+                <label className="grid w-full gap-1 text-xs font-semibold text-foreground/60 sm:w-[520px] sm:max-w-full">
                   Property
                   <select
                     value={selectedPropertyId}
@@ -1314,7 +1307,7 @@ export default function ScoutReportsPortalPage() {
                       });
                     }}
                     disabled={propertyOptions.length === 0}
-                    className="h-9 max-w-[280px] rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                    className="h-9 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
                   >
                     <option value={ALL_PROPERTIES}>All Properties</option>
                     {propertyOptions.map((property) => (

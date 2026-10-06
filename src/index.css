@@ -2,6 +2,9 @@
 
 @source "../index.html";
 @source "./App.jsx";
+@source "./AccountPage.jsx";
+@source "./PrivacyPage.jsx";
+@source "./components/AccountMenu.jsx";
 @source "./ForgotPasswordPage.jsx";
 @source "./PortalAccessAdminPage.jsx";
 @source "./ResetPasswordPage.jsx";
@@ -139,5 +142,18 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@media (min-width: 1150px) {
+  .add-client-fields {
+    grid-template-columns: minmax(220px, 1fr) 150px 190px auto;
+    align-items: start;
+  }
+
+  .add-client-actions {
+    grid-column: span 1 / span 1;
+    flex-wrap: nowrap;
+    padding-top: 1.5rem;
   }
 }
