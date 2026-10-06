@@ -12,7 +12,6 @@ import {
   Flag,
   ImageUp,
   Info,
-  LogOut,
   Pencil,
   RefreshCw,
   ShieldCheck,
@@ -20,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
+import AccountMenu from "./components/AccountMenu";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
   buildPunchListSummary,
@@ -4422,8 +4422,6 @@ function PunchListSummaryBand({
 
 function IssueRow({
   row,
-  selected,
-  onSelect,
   onPreview,
   tradeOptions,
   canAddTradeOption,
@@ -4480,23 +4478,9 @@ function IssueRow({
 
   return (
     <article
-      className={`punch-row ${canReviewCompletion ? "has-review-actions" : ""} rounded-lg border bg-background p-3 shadow-sm transition ${
-        selected ? "border-[var(--brand)] ring-2 ring-[var(--brand)]/10" : "border-border"
-      }`}
+      className={`punch-row ${canReviewCompletion ? "has-review-actions" : ""} rounded-lg border border-border bg-background p-3 shadow-sm`}
     >
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={onSelect}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onSelect();
-          }
-        }}
-        className="punch-row-body text-left outline-none"
-        aria-expanded={selected}
-      >
+      <div className="punch-row-body text-left">
         <div className="punch-row-left">
           <IssueThumbnail row={row} onPreview={onPreview} />
           {canReviewCompletion && (
@@ -5026,7 +5010,6 @@ export default function ScoutPunchListPage() {
   const [selectedDetail, setSelectedDetail] = useState(ALL);
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [pendingReviewOnly, setPendingReviewOnly] = useState(false);
-  const [selectedRowId, setSelectedRowId] = useState("");
   const [downloadId, setDownloadId] = useState("");
   const [previewRow, setPreviewRow] = useState(null);
   const [loadedRowsScope, setLoadedRowsScope] = useState({ orgId: "", propertyId: "" });
@@ -5330,7 +5313,6 @@ export default function ScoutPunchListPage() {
         setSelectedPropertyId("");
         setSelectedElevation(ALL);
         setSelectedDetail(ALL);
-        setSelectedRowId("");
         setLoadedRowsScope({ orgId: "", propertyId: "" });
         setLastRefreshedAt(null);
         setPunchListError("");
@@ -5569,7 +5551,6 @@ export default function ScoutPunchListPage() {
   }
 
   function handleToggleCompletionPanel(rowId) {
-    setSelectedRowId(rowId);
     setActiveCompletionRowId((current) => (current === rowId ? "" : rowId));
     setActiveNoteRowId("");
     setActiveHistoryRowId("");
@@ -5582,7 +5563,6 @@ export default function ScoutPunchListPage() {
   }
 
   function handleToggleNotePanel(rowId) {
-    setSelectedRowId(rowId);
     const isClosing = activeNoteRowId === rowId;
     setActiveNoteRowId(isClosing ? "" : rowId);
     setActiveCompletionRowId("");
@@ -5594,7 +5574,6 @@ export default function ScoutPunchListPage() {
   }
 
   function handleToggleHistoryPanel(rowId) {
-    setSelectedRowId(rowId);
     setActiveHistoryRowId((current) => (current === rowId ? "" : rowId));
     setActiveCompletionRowId("");
     setActiveNoteRowId("");
@@ -5677,7 +5656,6 @@ export default function ScoutPunchListPage() {
       if (field === "status") {
         clearPunchListCaches();
         setSelectedTab(nextPatch.status === "resolved" ? TAB_RESOLVED : TAB_OPEN);
-        setSelectedRowId(row.id);
         await loadPunchList(session, { force: true });
       }
     } catch (error) {
@@ -6074,14 +6052,12 @@ export default function ScoutPunchListPage() {
     if (!orgId || !propertyId) {
       setRows([]);
       setLoadedRowsScope({ orgId: "", propertyId: "" });
-      setSelectedRowId("");
       setPunchListLoading(false);
       return;
     }
     if (hasCachedRowsForScope(orgId, propertyId)) return;
     setRows([]);
     setLoadedRowsScope({ orgId: "", propertyId: "" });
-    setSelectedRowId("");
     setPunchListLoading(true);
   }
 
@@ -6234,14 +6210,10 @@ export default function ScoutPunchListPage() {
 
   useEffect(() => {
     if (filteredRows.length === 0) {
-      if (selectedRowId) setSelectedRowId("");
       if (activeNoteRowId) setActiveNoteRowId("");
       if (activeCompletionRowId) setActiveCompletionRowId("");
       if (activeHistoryRowId) setActiveHistoryRowId("");
       return;
-    }
-    if (!selectedRowId || !filteredRows.some((row) => row.id === selectedRowId)) {
-      setSelectedRowId(filteredRows[0].id);
     }
     if (activeNoteRowId && !filteredRows.some((row) => row.id === activeNoteRowId)) {
       setActiveNoteRowId("");
@@ -6252,12 +6224,7 @@ export default function ScoutPunchListPage() {
     if (activeHistoryRowId && !filteredRows.some((row) => row.id === activeHistoryRowId)) {
       setActiveHistoryRowId("");
     }
-  }, [activeCompletionRowId, activeHistoryRowId, activeNoteRowId, filteredRows, selectedRowId]);
-
-  const selectedRow = useMemo(
-    () => filteredRows.find((row) => row.id === selectedRowId) || null,
-    [filteredRows, selectedRowId]
-  );
+  }, [activeCompletionRowId, activeHistoryRowId, activeNoteRowId, filteredRows]);
 
   const punchListSummary = useMemo(() => {
     if (selectedTab === TAB_RESOLVED) return null;
@@ -6364,14 +6331,7 @@ export default function ScoutPunchListPage() {
                   Admin
                 </a>
               )}
-              <button
-                type="button"
-                onClick={handleSignOut}
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
-              >
-                <LogOut className="h-4 w-4" />
-                Sign Out
-              </button>
+              <AccountMenu onSignOut={handleSignOut} />
             </div>
           )}
         </div>
@@ -6737,14 +6697,12 @@ export default function ScoutPunchListPage() {
               )}
 
             {filteredRows.length > 0 && (
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="grid gap-2">
                 <div className="grid gap-2">
                   {filteredRows.map((row) => (
                     <IssueRow
                       key={row.id}
                       row={row}
-                      selected={row.id === selectedRowId}
-                      onSelect={() => setSelectedRowId(row.id)}
                       onPreview={handleOpenPreview}
                       tradeOptions={tradeOptions}
                       canAddTradeOption={canAddTradeOption}
@@ -6781,17 +6739,6 @@ export default function ScoutPunchListPage() {
                       completionReviewSavingKey={completionReviewSavingKey}
                     />
                   ))}
-                </div>
-                <div className="hidden lg:block">
-                  <div className="sticky top-4">
-                    <RowDetail
-                      row={selectedRow}
-                      tradeOptions={tradeOptions}
-                      onDownloadOriginal={handleDownloadOriginal}
-                      downloadId={downloadId}
-                      onPreview={handleOpenPreview}
-                    />
-                  </div>
                 </div>
               </div>
             )}

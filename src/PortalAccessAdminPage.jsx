@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
+  ChevronDown,
   ClipboardList,
   FileText,
   KeyRound,
-  LogOut,
   Mail,
   Plus,
   RefreshCw,
@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
+import AccountMenu from "./components/AccountMenu";
 import {
   canEditPortalPropertyScope,
   checkedPropertyIdsForScopeSelection,
@@ -1163,14 +1164,7 @@ export default function PortalAccessAdminPage() {
                 <ClipboardList className="h-4 w-4" />
                 Punch List
               </a>
-              <button
-                type="button"
-                onClick={handleSignOut}
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
-              >
-                <LogOut className="h-4 w-4" />
-                Sign Out
-              </button>
+              <AccountMenu onSignOut={handleSignOut} />
             </div>
           )}
         </div>
@@ -1323,8 +1317,8 @@ export default function PortalAccessAdminPage() {
               <h2 className="mb-4 text-base font-semibold text-foreground">
                 Add Client
               </h2>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_190px_260px_auto] lg:items-start">
-                <label className="grid gap-1.5 text-sm font-medium text-foreground">
+              <div className="add-client-fields grid gap-4 md:grid-cols-2">
+                <label className="grid min-w-0 gap-1.5 text-sm font-medium text-foreground">
                   Client Email
                   <input
                     type="email"
@@ -1338,13 +1332,13 @@ export default function PortalAccessAdminPage() {
                     className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
                   />
                 </label>
-                <label className="grid gap-1.5 text-sm font-medium text-foreground">
+                <label className="grid min-w-0 gap-1.5 text-sm font-medium text-foreground">
                   Access Type
                   <select
                     value={selectedAccessRole}
                     onChange={(event) => setSelectedAccessRole(event.target.value)}
                     disabled={!inviteRoleOptions.length}
-                    className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                    className="h-11 min-w-0 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
                   >
                     {inviteRoleOptions.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -1353,21 +1347,33 @@ export default function PortalAccessAdminPage() {
                     ))}
                   </select>
                 </label>
-                <div className="grid gap-1.5 text-sm font-medium text-foreground">
+                <div className="grid min-w-0 gap-1.5 text-sm font-medium text-foreground">
                   Property Scope
-                  <PropertyScopeEditor
-                    role={selectedAccessRole}
-                    accessScope={selectedAccessScope}
-                    propertyIds={selectedPropertyIds}
-                    properties={selectedOrgProperties}
-                    disabled={submitting || setupSubmitting}
-                    onChange={(nextScope, nextPropertyIds) => {
-                      setSelectedAccessScope(nextScope);
-                      setSelectedPropertyIds(nextPropertyIds);
-                    }}
-                  />
+                  <details className="group relative min-w-0">
+                    <summary className="flex h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-input bg-background px-3 text-sm font-medium text-foreground outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 [&::-webkit-details-marker]:hidden">
+                      <span className="truncate">
+                        {selectedAccessScope === "property"
+                          ? `${selectedPropertyIds.length} selected`
+                          : "All properties"}
+                      </span>
+                      <ChevronDown className="h-4 w-4 shrink-0 text-foreground/50 transition-transform group-open:rotate-180" />
+                    </summary>
+                    <div className="absolute left-0 top-full z-30 mt-2 w-[min(22rem,calc(100vw-3rem))] rounded-xl border border-border bg-background p-3 shadow-xl">
+                      <PropertyScopeEditor
+                        role={selectedAccessRole}
+                        accessScope={selectedAccessScope}
+                        propertyIds={selectedPropertyIds}
+                        properties={selectedOrgProperties}
+                        disabled={submitting || setupSubmitting}
+                        onChange={(nextScope, nextPropertyIds) => {
+                          setSelectedAccessScope(nextScope);
+                          setSelectedPropertyIds(nextPropertyIds);
+                        }}
+                      />
+                    </div>
+                  </details>
                 </div>
-                <div className="flex flex-col gap-2 pt-6 sm:flex-row md:col-span-2 lg:col-span-1">
+                <div className="add-client-actions flex flex-wrap gap-2 md:col-span-2">
                   <button
                     type="button"
                     onClick={() => handleAccessSubmit("grantExisting")}
@@ -1379,7 +1385,7 @@ export default function PortalAccessAdminPage() {
                       !inviteRoleOptions.length ||
                       inviteScopeIncomplete
                     }
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-semibold text-foreground/75 shadow-sm hover:text-foreground disabled:opacity-60"
+                    className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-foreground disabled:opacity-60"
                   >
                     <ShieldCheck className="h-4 w-4" />
                     Grant Access
@@ -1395,7 +1401,7 @@ export default function PortalAccessAdminPage() {
                       !inviteRoleOptions.length ||
                       inviteScopeIncomplete
                     }
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+                    className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[var(--brand)] px-3 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
                   >
                     <UserPlus className="h-4 w-4" />
                     Invite User
@@ -1411,7 +1417,7 @@ export default function PortalAccessAdminPage() {
                       !inviteRoleOptions.length ||
                       inviteScopeIncomplete
                     }
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-100 disabled:opacity-60"
+                    className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-amber-200 bg-amber-50 px-3 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-100 disabled:opacity-60"
                   >
                     <KeyRound className="h-4 w-4" />
                     {setupSubmitting ? "Creating..." : "Fallback Setup Link"}

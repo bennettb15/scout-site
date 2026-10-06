@@ -39,6 +39,13 @@ export const Building2 = createIcon(
     <path d="M10 6h4M10 10h4M10 14h4M10 18h4" />
   </>
 );
+export const CircleUserRound = createIcon(
+  <>
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="8.5" r="3" />
+    <path d="M5.8 18.5a7 7 0 0 1 12.4 0" />
+  </>
+);
 export const Camera = createIcon(
   <>
     <path d="M14.5 4 16 6h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z" />

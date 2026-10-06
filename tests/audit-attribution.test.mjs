@@ -5,6 +5,7 @@ import {
 } from "../api/_reportPortalShared.js";
 import {
   actorIdsFromVisibleAttributionRows,
+  activityActorEmail,
   attributionForAction,
   capturedByEmailForReportPackage,
   capturedAttributionForPunchListRow,
@@ -304,4 +305,51 @@ test("property-scoped users do not gain unrelated actor data", () => {
   );
 
   assert.deepEqual(actorIdsFromVisibleAttributionRows(visibleRows), ["actor-visible"]);
+});
+
+test("anonymized activity shows Deleted user without a profile lookup", () => {
+  const row = { created_by: null, activity_type: "note_added" };
+  assert.equal(activityActorEmail(row, new Map()), "Deleted user");
+  assert.equal(publicActivityAttributionFields(row).actorEmail, "Deleted user");
+});
+
+test("Reports tab hides a deleted account email without changing the snapshot", () => {
+  const snapshotMetadata = { capturedByEmail: "former@example.com" };
+  const label = capturedByEmailForReportPackage({
+    snapshotMetadata,
+    activeProfileEmails: new Set(),
+  });
+  assert.equal(label, "Deleted user");
+  assert.equal(snapshotMetadata.capturedByEmail, "former@example.com");
+});
+
+test("Reports tab keeps an active account email", () => {
+  assert.equal(capturedByEmailForReportPackage({
+    snapshotMetadata: { capturedByEmail: "active@example.com" },
+    activeProfileEmails: new Set(["active@example.com"]),
+  }), "active@example.com");
+});
+
+test("Punch List shows Deleted user after snapshot email is suppressed", () => {
+  const attribution = capturedAttributionForPunchListRow({
+    shot: { captured_by_email: "Deleted user" },
+    reportPackage: { captured_by_email: "Deleted user" },
+  });
+  assert.equal(attribution.label, "Captured by Deleted user");
+});
+
+test("Reports tab prefers the current profile email over an old sealed snapshot email", () => {
+  assert.equal(capturedByEmailForReportPackage({
+    snapshotMetadata: { firstPhotoActorId: actorId, firstPhotoCapturedByEmail: "old@example.com" },
+    profileEmailById: new Map([[actorId, "current@example.com"]]),
+    activeProfileEmails: new Set(["current@example.com"]),
+  }), "current@example.com");
+});
+
+test("Reports tab marks a deleted snapshot actor even when sealed metadata retains an email", () => {
+  assert.equal(capturedByEmailForReportPackage({
+    snapshotMetadata: { firstPhotoActorId: actorId, firstPhotoCapturedByEmail: "former@example.com" },
+    profileEmailById: new Map(),
+    activeProfileEmails: new Set(),
+  }), "Deleted user");
 });

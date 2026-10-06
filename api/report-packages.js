@@ -26,6 +26,7 @@ import {
   reportPackageSessionTypeFromSources,
 } from "../api-lib/reportPackageSession.js";
 import { mapWithConcurrency } from "../api-lib/mapWithConcurrency.js";
+import { loadActiveAttributionEmails } from "../api-lib/activeAttributionEmails.js";
 import { startPortalRequestTiming } from "../api-lib/portalRequestTiming.js";
 
 const REPORT_PACKAGE_BASE_SELECT =
@@ -468,9 +469,25 @@ export default async function handler(req, res) {
       service,
       actorIdsFromVisibleAttributionRows([
         ...Array.from(firstPhotoByPackageId.values()),
+        ...Array.from(snapshotMetadataByPackageId.values())
+          .map((metadata) => ({ created_by: metadata.firstPhotoActorId })),
         ...packageRows.map((row) => ({ created_by: reportPackageActorId(row) })),
         ...(sessionRows || []).map((row) => ({ created_by: reportSessionActorId(row) })),
       ])
+    );
+    const rawAttributionByPackageId = new Map(packageRows.map((row) => {
+      const snapshotMetadata = snapshotMetadataByPackageId.get(row.id) || null;
+      const sessionRow = sessionRows.find((item) => item.id === row.session_id) || null;
+      return [row.id, capturedByEmailForReportPackage({
+        packageRow: row,
+        sessionRow,
+        firstPhotoRow: firstPhotoByPackageId.get(row.id) || null,
+        snapshotMetadata,
+        profileEmailById,
+      })];
+    }));
+    const activeProfileEmails = await loadActiveAttributionEmails(
+      service, [...rawAttributionByPackageId.values()]
     );
     timing.mark("profiles");
     const filesByPackageId = new Map();
@@ -523,6 +540,7 @@ export default async function handler(req, res) {
           firstPhotoRow,
           snapshotMetadata,
           profileEmailById,
+          activeProfileEmails,
         }),
         originalPhotoCount: photoCountsByPackageId.get(row.id) || 0,
         files: filesByPackageId.get(row.id) || [],

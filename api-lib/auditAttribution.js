@@ -154,9 +154,12 @@ export function attributionForAction(action, actorLabel) {
 }
 
 export function capturedAttributionForPunchListRow({ shot, reportPackage } = {}) {
-  const actorEmail = normalizeAuditEmail(shot?.captured_by_email) ||
-    normalizeAuditEmail(reportPackage?.captured_by_email) ||
-    SYSTEM_ACTOR_LABEL;
+  const actorEmail = shot?.captured_by_email === "Deleted user" ||
+    reportPackage?.captured_by_email === "Deleted user"
+    ? "Deleted user"
+    : normalizeAuditEmail(shot?.captured_by_email) ||
+      normalizeAuditEmail(reportPackage?.captured_by_email) ||
+      SYSTEM_ACTOR_LABEL;
   return {
     action: "captured",
     actorEmail,
@@ -165,6 +168,9 @@ export function capturedAttributionForPunchListRow({ shot, reportPackage } = {})
 }
 
 export function activityActorEmail(row, profileEmailById, fallbackEmail = "") {
+  if (row && Object.hasOwn(row, "created_by") && row.created_by === null) {
+    return "Deleted user";
+  }
   return auditActorLabel({
     email: fallbackEmail,
     userId: row?.created_by || row?.createdBy,
@@ -176,7 +182,8 @@ export function publicActivityAttributionFields(row, options = {}) {
   const actorEmail = normalizeAuditEmail(options.actorEmail) ||
     normalizeAuditEmail(row?.actorEmail) ||
     normalizeAuditEmail(row?.actor_email) ||
-    SYSTEM_ACTOR_LABEL;
+    (row && Object.hasOwn(row, "created_by") && row.created_by === null
+      ? "Deleted user" : SYSTEM_ACTOR_LABEL);
   return {
     createdBy: row?.created_by || row?.createdBy || null,
     actorEmail,
@@ -309,13 +316,21 @@ export function capturedByEmailForReportPackage({
   firstPhotoRow,
   snapshotMetadata,
   profileEmailById,
+  activeProfileEmails,
 } = {}) {
   const firstPhotoActorId = snapshotMetadata?.firstPhotoActorId || actorIdFromAuditRow(firstPhotoRow);
+  if (activeProfileEmails && firstPhotoActorId) {
+    return actorEmailFromProfileMap(firstPhotoActorId, profileEmailById) || "Deleted user";
+  }
+  const packageActorId = reportPackageActorId(packageRow) || reportSessionActorId(sessionRow);
+  if (activeProfileEmails && packageActorId) {
+    return actorEmailFromProfileMap(packageActorId, profileEmailById) || "Deleted user";
+  }
   const firstPhotoEmail = firstEmail(
     snapshotMetadata?.firstPhotoCapturedByEmail,
     actorEmailFromAuditRow(firstPhotoRow)
   );
-  return firstPhotoEmail ||
+  const label = firstPhotoEmail ||
     actorEmailFromProfileMap(firstPhotoActorId, profileEmailById) ||
     auditActorLabel({
       email: firstEmail(
@@ -323,7 +338,12 @@ export function capturedByEmailForReportPackage({
         actorEmailFromAuditRow(packageRow),
         actorEmailFromAuditRow(sessionRow)
       ),
-      userId: reportPackageActorId(packageRow) || reportSessionActorId(sessionRow),
+      userId: packageActorId,
       profileEmailById,
     });
+  const email = normalizeAuditEmail(label);
+  if (activeProfileEmails && email && !activeProfileEmails.has(email)) {
+    return "Deleted user";
+  }
+  return label;
 }

@@ -1,0 +1,5 @@
+.env*
+*.local
+docs/
+supabase/
+tests/
