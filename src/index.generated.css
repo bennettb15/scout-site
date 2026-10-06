@@ -581,9 +581,6 @@
   .min-w-52 {
     min-width: calc(var(--spacing) * 52);
   }
-  .min-w-\[2\.25rem\] {
-    min-width: 2.25rem;
-  }
   .min-w-\[1180px\] {
     min-width: 1180px;
   }
@@ -633,9 +630,6 @@
   }
   .list-none {
     list-style-type: none;
-  }
-  .grid-cols-2 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .flex-col {
     flex-direction: column;
@@ -835,12 +829,6 @@
     border-color: color-mix(in srgb, #fff 20%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
       border-color: color-mix(in oklab, var(--color-white) 20%, transparent);
-    }
-  }
-  .border-white\/40 {
-    border-color: color-mix(in srgb, #fff 40%, transparent);
-    @supports (color: color-mix(in lab, red, red)) {
-      border-color: color-mix(in oklab, var(--color-white) 40%, transparent);
     }
   }
   .bg-\[var\(--brand\)\] {
@@ -1668,26 +1656,6 @@
       }
     }
   }
-  .hover\:bg-white\/10 {
-    &:hover {
-      @media (hover: hover) {
-        background-color: color-mix(in srgb, #fff 10%, transparent);
-        @supports (color: color-mix(in lab, red, red)) {
-          background-color: color-mix(in oklab, var(--color-white) 10%, transparent);
-        }
-      }
-    }
-  }
-  .hover\:bg-white\/90 {
-    &:hover {
-      @media (hover: hover) {
-        background-color: color-mix(in srgb, #fff 90%, transparent);
-        @supports (color: color-mix(in lab, red, red)) {
-          background-color: color-mix(in oklab, var(--color-white) 90%, transparent);
-        }
-      }
-    }
-  }
   .hover\:text-\[var\(--brand\)\] {
     &:hover {
       @media (hover: hover) {
@@ -1977,19 +1945,9 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
-  .sm\:grid-cols-3 {
-    @media (width >= 40rem) {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-  }
   .sm\:flex-row {
     @media (width >= 40rem) {
       flex-direction: row;
-    }
-  }
-  .sm\:items-center {
-    @media (width >= 40rem) {
-      align-items: center;
     }
   }
   .sm\:justify-end {
@@ -2047,14 +2005,9 @@
       margin-top: calc(var(--spacing) * 0);
     }
   }
-  .md\:mt-6 {
+  .md\:mt-8 {
     @media (width >= 48rem) {
-      margin-top: calc(var(--spacing) * 6);
-    }
-  }
-  .md\:mt-7 {
-    @media (width >= 48rem) {
-      margin-top: calc(var(--spacing) * 7);
+      margin-top: calc(var(--spacing) * 8);
     }
   }
   .md\:mb-6 {
@@ -2092,6 +2045,11 @@
       height: calc(var(--spacing) * 12);
     }
   }
+  .md\:w-fit {
+    @media (width >= 48rem) {
+      width: fit-content;
+    }
+  }
   .md\:grid-cols-2 {
     @media (width >= 48rem) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2110,11 +2068,6 @@
   .md\:grid-cols-\[1\.2fr_0\.8fr\] {
     @media (width >= 48rem) {
       grid-template-columns: 1.2fr 0.8fr;
-    }
-  }
-  .md\:grid-cols-\[minmax\(0\,1fr\)_320px\] {
-    @media (width >= 48rem) {
-      grid-template-columns: minmax(0,1fr) 320px;
     }
   }
   .md\:flex-row {
@@ -2147,9 +2100,9 @@
       gap: calc(var(--spacing) * 6);
     }
   }
-  .md\:justify-self-end {
+  .md\:p-5 {
     @media (width >= 48rem) {
-      justify-self: flex-end;
+      padding: calc(var(--spacing) * 5);
     }
   }
   .md\:p-7 {
@@ -2225,6 +2178,12 @@
     @media (width >= 48rem) {
       font-size: var(--text-sm);
       line-height: var(--tw-leading, var(--text-sm--line-height));
+    }
+  }
+  .md\:text-xl {
+    @media (width >= 48rem) {
+      font-size: var(--text-xl);
+      line-height: var(--tw-leading, var(--text-xl--line-height));
     }
   }
   .lg\:grid-cols-1 {

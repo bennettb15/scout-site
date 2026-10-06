@@ -5,7 +5,6 @@ import {
   ShieldCheck,
   ClipboardList,
   MapPin,
-  Clock,
   CheckCircle2,
   ArrowRight,
   FileText,
@@ -16,9 +15,7 @@ import {
   Phone,
   Mail,
   Download,
-  Sparkles,
   Menu,
-  Zap,
 } from "lucide-react";
 
 // If your project has shadcn/ui, these imports will work.
@@ -69,8 +66,6 @@ const BRAND = {
   email: "hello@scoutclear.com",
   ctaPrimary: "Contact SCOUT",
   ctaSecondary: "See How It Works",
-  sampleReportLabel: "Download sample report (PDF)",
-  sampleReportHref: "/scout-sample-report.pdf",
 
 };
 
@@ -151,13 +146,6 @@ const NavLink = ({ href, children, onClick }) => (
   >
     {children}
   </a>
-);
-
-const Stat = ({ label, value }) => (
-  <div className="rounded-2xl border border-border bg-background p-5 shadow-sm">
-    <div className="text-2xl font-semibold tracking-tight">{value}</div>
-    <div className="mt-1 text-sm text-foreground/70">{label}</div>
-  </div>
 );
 
 const Feature = ({ icon: Icon, title, desc }) => (
@@ -332,7 +320,7 @@ async function handleContactSubmit(e) {
   { label: "Options", href: "#options" },
   { label: "Ohio service", href: "#services" },
   { label: "Software", href: "#software" },
-  { label: "How it works", href: "#how" },
+  { label: "Ohio process", href: "#how" },
   { label: "FAQ", href: "#faq" },
   { label: "Contact", href: "#contact" },
 ];
@@ -500,206 +488,36 @@ async function handleContactSubmit(e) {
                 Hire SCOUT for photographic documentation in Ohio, or use Scout Capture and the Reports Portal to create and share records with your own team across the U.S.
               </p>
 
-              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center md:mt-7">
-                <Button
-                  className="rounded-2xl bg-white text-[var(--brand)] hover:bg-white/90"
-                  onClick={() => scrollToSection("#options")}
-
-                >
-                  Explore your options
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-
-                {/*<Button
-                  variant="outline"
-                  className="rounded-2xl hover:border-[var(--brand)]"
-                  onClick={() => {
-                    const el = document.querySelector("#services");
-                    el?.scrollIntoView({ behavior: "smooth" });
-                  }}
-                >
-                  Explore services
-                </Button>*/}
-
-                <a
-                  href={BRAND.sampleReportHref}
-                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/40 bg-transparent px-4 py-2 text-sm font-medium text-white/90 shadow-sm hover:bg-white/10"
->
-  <Download className="h-4 w-4 text-white/90" />
-                  {BRAND.sampleReportLabel}
-                </a>
-                <button
-                  type="button"
-                  onClick={() => scrollToSection("#software")}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/40 bg-transparent px-4 py-2 text-sm font-medium text-white/90 shadow-sm hover:bg-white/10"
-                >
-                  Explore Scout Capture
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/*<div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <Stat label="Typical turnaround" value="24-72 hrs" />
-                <Stat label="Deliverables" value="PDF + photo set" />
-              </div>*/}
-
-
-            </div>
-
-            <div className="hidden w-full md:mt-6 md:block md:justify-self-end">
-  <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px] md:items-start">
-
-              <Card className="rounded-3xl shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-xl">What the Ohio service delivers</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-start gap-3">
-<div className="mt-0.5 inline-flex h-9 w-9 min-w-[2.25rem] flex-shrink-0 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
-                      <FileText className="h-4 w-4 text-[var(--brand)]" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold">Structured visual record (PDF)</div>
-                      <div className="text-sm text-foreground/70">
-                        Property details, scope, timestamps, photo index, and
-                        observable-condition notes.
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-<div className="mt-0.5 inline-flex h-9 w-9 min-w-[2.25rem] flex-shrink-0 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
-                      <Camera className="h-4 w-4 text-[var(--brand)]" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold">Time-stamped photos</div>
-                      <div className="text-sm text-foreground/70">
-                        Wide + detail coverage of elevations, common areas, and
-                        key assets.
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-<div className="mt-0.5 inline-flex h-9 w-9 min-w-[2.25rem] flex-shrink-0 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
-  <ShieldCheck className="h-4 w-4 text-[var(--brand)]" />
-</div>
-
-                    <div>
-                      <div className="text-sm font-semibold">Clear boundaries</div>
-                      <div className="text-sm text-foreground/70">
-                        Documentation is limited to visual observation only. 
-                        No testing, measurements, or professional judgments are performed.
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-border bg-[var(--brand)]/5 p-4">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-[var(--brand)]" />
-                      <div className="text-sm font-semibold">Best use cases</div>
-                    </div>
-                    <ul className="mt-2 space-y-1 text-sm text-foreground/70">
-                      <li>• Ongoing quarterly or monthly condition tracking</li>
-                      <li>• Pre-tenant / move-in baseline</li>
-                      <li>• Post-storm / claim documentation</li>
-                      <li>• Vendor work verification support</li>
-                      
-                    </ul>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      className="w-full rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
-                     onClick={() => openContactFor(CONTACT_INTEREST_OHIO)}
-
-                    >
-                      Get started
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full rounded-2xl hover:border-[var(--brand)]"
-                      onClick={() => scrollToSection("#faq")}
-
-                    >
-                      Read FAQ
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-<div className="grid gap-4">
-  {/* Service area */}
-  <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
-    <div className="flex items-center gap-2">
-      <MapPin className="h-4 w-4 text-[var(--brand)]" />
-      <div className="text-base font-medium text-foreground">Service area</div>
-    </div>
-    <div className="mt-1 text-sm text-foreground/70">
-      {BRAND.serviceArea}
-    </div>
-  </div>
-
-  {/* Scheduling (moved above stats) */}
-  <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
-    <div className="flex items-center gap-2">
-      <Clock className="h-4 w-4 text-[var(--brand)]" />
-      <div className="text-base font-medium text-foreground">Scheduling</div>
-    </div>
-    <div className="mt-1 text-sm text-foreground/70">
-      Weekdays + flexible windows
-    </div>
-  </div>
-
-  {/* Stat bubbles */}
-  <div className="grid gap-3">
-    {/* Turnaround */}
-    <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
-      <div className="flex items-center gap-2">
-        <Zap className="h-4 w-4 text-[var(--brand)]" />
-        <div className="text-base font-medium text-foreground">24-72 hrs</div>
-      </div>
-      <div className="mt-1 text-sm text-foreground/70">
-        Typical turnaround
-      </div>
-    </div>
-
-    {/* Deliverables */}
-    <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
-      <div className="flex items-center gap-2">
-        <FileText className="h-4 w-4 text-[var(--brand)]" />
-        <div className="text-base font-medium text-foreground">
-          PDF + photo set
-        </div>
-      </div>
-      <div className="mt-1 text-sm text-foreground/70">
-        Deliverables
-      </div>
-    </div>
-  </div>
-</div>
-
-              <div className="mt-6 flex flex-wrap gap-2">
-                {[
-                  "Property Management",
-                  "HOAs / Condos",
-                  "Retail / Office",
-                  "Multifamily",
-                  "Insurance claim support",
-                ].map((x) => (
-                  <Badge
-                    key={x}
-                    variant="secondary"
-                    className="rounded-full border border-white/20 bg-white/85 text-[#23243A] backdrop-blur-sm"
+              <div className="mt-6 grid gap-3 md:mt-8 md:grid-cols-2">
+                <div className="flex flex-col rounded-2xl border border-white/20 bg-white p-4 text-foreground shadow-sm md:p-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">On-site service · Ohio</p>
+                  <h2 className="mt-2 text-lg font-semibold tracking-tight md:text-xl">SCOUT documents your property</h2>
+                  <p className="mt-2 hidden flex-1 text-sm leading-relaxed text-foreground/70 md:block">
+                    Our team photographs agreed, accessible areas and delivers an organized, time-stamped visual record.
+                  </p>
+                  <Button
+                    className="mt-4 w-full rounded-2xl bg-[var(--brand)] text-white hover:opacity-90 md:w-fit"
+                    onClick={() => scrollToSection("#services")}
                   >
-                    {x}
-                  </Badge>
-                ))}
+                    Explore the Ohio service
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex flex-col rounded-2xl border border-white/20 bg-white p-4 text-foreground shadow-sm md:p-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Scout Capture software · U.S.</p>
+                  <h2 className="mt-2 text-lg font-semibold tracking-tight md:text-xl">Your team documents the property</h2>
+                  <p className="mt-2 hidden flex-1 text-sm leading-relaxed text-foreground/70 md:block">
+                    Use Scout Capture for full documentation, punch list visits, or both, then review the records in the Reports Portal.
+                  </p>
+                  <Button
+                    className="mt-4 w-full rounded-2xl bg-[var(--brand)] text-white hover:opacity-90 md:w-fit"
+                    onClick={() => scrollToSection("#software")}
+                  >
+                    Explore Scout Capture
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-
-
-</div>
             </div>
           </motion.div>
         </div>
@@ -708,24 +526,50 @@ async function handleContactSubmit(e) {
       <Section
         id="options"
         eyebrow="Two ways to use SCOUT"
-        title="Choose the service or use the software with your own team"
-        subtitle="The two offerings have different roles: SCOUT performs an Ohio visit, while software customers perform their own work."
+        title="Choose the path that fits your team"
+        subtitle="Use the guide below to choose by location and who will do the fieldwork."
       >
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="rounded-3xl shadow-sm">
-            <CardHeader><CardTitle className="text-xl">SCOUT documents your property</CardTitle></CardHeader>
+            <CardHeader>
+              <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">On-site service · Ohio</p>
+              <CardTitle className="text-xl">Choose SCOUT for an on-site visit</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4 text-sm leading-relaxed text-foreground/70">
-              <p>For Ohio properties, SCOUT photographs agreed, accessible areas and may add factual flags for visible conditions. You receive an organized, time-stamped visual record.</p>
-              <p>On-site service currently focuses on Columbus and surrounding areas.</p>
+              <ul className="space-y-2">
+                {[
+                  "The property is in Columbus or a surrounding area.",
+                  "You want SCOUT to photograph the site and deliver a structured visual record.",
+                  "You need a single visit or a recurring record to compare over time.",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-2">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand)]" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
               <Button className="rounded-2xl bg-[var(--brand)] text-white hover:opacity-90" onClick={() => scrollToSection("#services")}>Explore the Ohio service</Button>
             </CardContent>
           </Card>
           <Card className="rounded-3xl shadow-sm">
-            <CardHeader><CardTitle className="text-xl">Your team uses Scout Capture</CardTitle></CardHeader>
+            <CardHeader>
+              <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Scout Capture software · U.S.</p>
+              <CardTitle className="text-xl">Choose Scout Capture for your team</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4 text-sm leading-relaxed text-foreground/70">
-              <p>Organizations in the U.S. can request access to Scout Capture and the Reports Portal to create, organize, and share their own property records.</p>
-              <p>Your organization controls its fieldwork, observations, reports, and customer relationship.</p>
-              <Button variant="outline" className="rounded-2xl hover:border-[var(--brand)]" onClick={() => scrollToSection("#software")}>Explore the software</Button>
+              <ul className="space-y-2">
+                {[
+                  "Your own team will do the fieldwork.",
+                  "You need full documentation, punch lists, or both.",
+                  "You want to organize and share the records in the Reports Portal.",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-2">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand)]" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <Button className="rounded-2xl bg-[var(--brand)] text-white hover:opacity-90" onClick={() => scrollToSection("#software")}>Explore Scout Capture</Button>
             </CardContent>
           </Card>
         </div>
@@ -733,9 +577,9 @@ async function handleContactSubmit(e) {
 
       <Section
         id="services"
-        eyebrow="Ohio documentation service"
-        title="Visual record packages built for repeatability"
-        subtitle="Choose a one-time visit or a recurring cadence. Every deliverable is organized, time-stamped, and easy to file, share, and compare over time."
+        eyebrow="On-site service · Ohio"
+        title="Visual documentation handled by SCOUT"
+        subtitle="Choose a one-time visit or a recurring cadence. We capture agreed, accessible areas and deliver a time-stamped record your team can file, share, and compare over time."
         /*className="py-10 md:py-14"*/
       >
         <div className="grid gap-4 md:grid-cols-3">
@@ -813,14 +657,21 @@ async function handleContactSubmit(e) {
             </CardContent>
           </Card>
         </div>
+        <div className="mt-6 rounded-3xl border border-border bg-[var(--brand)]/5 p-6 shadow-sm md:flex md:items-center md:justify-between md:gap-6">
+          <div>
+            <h3 className="text-lg font-semibold">Ask about on-site documentation</h3>
+            <p className="mt-1 text-sm leading-relaxed text-foreground/70">Tell us about the Ohio property and the record you need.</p>
+          </div>
+          <Button className="mt-4 shrink-0 rounded-2xl bg-[var(--brand)] text-white hover:opacity-90 md:mt-0" onClick={() => openContactFor(CONTACT_INTEREST_OHIO)}>Ask about the Ohio service</Button>
+        </div>
       </Section>
 
 
       <Section
         id="software"
-        eyebrow="Software for U.S. organizations"
-        title="Full documentation, a punch list, or both"
-        subtitle="Choose the scope that fits the visit. Scout Capture supports a guided Full Documentation session, a focused Punchlist Visit without guided photos, or both for the same property."
+        eyebrow="Scout Capture software · U.S."
+        title="Property documentation handled by your team"
+        subtitle="Choose a guided Full Documentation session, a focused Punchlist Visit without guided photos, or both for the same property."
       >
         <div className="rounded-3xl bg-[var(--brand)] p-6 text-white shadow-sm md:p-8">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-sm font-semibold">
@@ -850,9 +701,13 @@ async function handleContactSubmit(e) {
           <Feature icon={FileText} title="Use both together" desc="Create a full record, then use Punchlist Visits to document or follow up on specific issues at the same property." />
         </div>
         <div className="mt-6 rounded-3xl border border-border bg-[var(--brand)]/5 p-6 shadow-sm md:flex md:items-center md:justify-between md:gap-6">
-          <p className="max-w-3xl text-sm leading-relaxed text-foreground/70">Organizations may use the software for documentation or other work they are authorized to perform, including inspections. Each organization is responsible for its work, licenses, and customer agreements. Software access does not include an on-site SCOUT visit.</p>
+          <div>
+            <h3 className="text-lg font-semibold">Ask about Scout Capture</h3>
+            <p className="mt-1 text-sm leading-relaxed text-foreground/70">Tell us how your team would use the app and Reports Portal.</p>
+          </div>
           <Button className="mt-4 shrink-0 rounded-2xl bg-[var(--brand)] text-white hover:opacity-90 md:mt-0" onClick={() => openContactFor(CONTACT_INTEREST_SOFTWARE)}>Ask about software access</Button>
         </div>
+        <p className="mt-4 text-sm leading-relaxed text-foreground/70">Organizations may use the software for documentation or other work they are authorized to perform, including inspections. Each organization is responsible for its work, licenses, and customer agreements. Software access does not include an on-site SCOUT visit.</p>
       </Section>
 
       <Section
@@ -980,9 +835,9 @@ async function handleContactSubmit(e) {
   </p>
 
   <p>
-    SCOUT creates consistent, time-stamped visual records that establish a reliable baseline and make observable changes 
-    easy to reference over time. Each visit follows the same structure, creating a durable visual record that remains 
-    usable and comparable over time, even as people, vendors, or conditions change.
+    An organized set of dated photos and notes makes prior conditions and open issues easier to reference.
+    That value applies whether SCOUT makes the record during an Ohio visit or your team uses Scout Capture,
+    even as people, vendors, or conditions change.
 
   </p>
 </div>
