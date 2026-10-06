@@ -317,7 +317,6 @@ async function handleContactSubmit(e) {
 
 
    const nav = [
-  { label: "Options", href: "#options" },
   { label: "Ohio service", href: "#services" },
   { label: "Software", href: "#software" },
   { label: "Ohio process", href: "#how" },
@@ -488,13 +487,22 @@ async function handleContactSubmit(e) {
                 Hire SCOUT for photographic documentation in Ohio, or use Scout Capture and the Reports Portal to create and share records with your own team across the U.S.
               </p>
 
-              <div className="mt-6 grid gap-3 md:mt-8 md:grid-cols-2">
+              <div id="options" className="mt-6 grid scroll-mt-24 gap-3 md:mt-8 md:grid-cols-2">
                 <div className="flex flex-col rounded-2xl border border-white/20 bg-white p-4 text-foreground shadow-sm md:p-5">
                   <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">On-site service · Ohio</p>
                   <h2 className="mt-2 text-lg font-semibold tracking-tight md:text-xl">SCOUT documents your property</h2>
-                  <p className="mt-2 hidden flex-1 text-sm leading-relaxed text-foreground/70 md:block">
-                    Our team photographs agreed, accessible areas and delivers an organized, time-stamped visual record.
-                  </p>
+                  <ul className="mt-3 flex-1 space-y-2 text-sm leading-relaxed text-foreground/70">
+                    {[
+                      "Columbus and surrounding areas",
+                      "SCOUT captures the photos and delivers the visual record",
+                      "One-time or recurring visits",
+                    ].map((item) => (
+                      <li key={item} className="flex items-start gap-2">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand)]" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
                   <Button
                     className="mt-4 w-full rounded-2xl bg-[var(--brand)] text-white hover:opacity-90 md:w-fit"
                     onClick={() => scrollToSection("#services")}
@@ -506,9 +514,18 @@ async function handleContactSubmit(e) {
                 <div className="flex flex-col rounded-2xl border border-white/20 bg-white p-4 text-foreground shadow-sm md:p-5">
                   <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Scout Capture software · U.S.</p>
                   <h2 className="mt-2 text-lg font-semibold tracking-tight md:text-xl">Your team documents the property</h2>
-                  <p className="mt-2 hidden flex-1 text-sm leading-relaxed text-foreground/70 md:block">
-                    Use Scout Capture for full documentation, punch list visits, or both, then review the records in the Reports Portal.
-                  </p>
+                  <ul className="mt-3 flex-1 space-y-2 text-sm leading-relaxed text-foreground/70">
+                    {[
+                      "Your team captures the property on site",
+                      "Full documentation, punch lists, or both",
+                      "Reports Portal to organize and share records",
+                    ].map((item) => (
+                      <li key={item} className="flex items-start gap-2">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand)]" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
                   <Button
                     className="mt-4 w-full rounded-2xl bg-[var(--brand)] text-white hover:opacity-90 md:w-fit"
                     onClick={() => scrollToSection("#software")}
@@ -522,58 +539,6 @@ async function handleContactSubmit(e) {
           </motion.div>
         </div>
       </header>
-
-      <Section
-        id="options"
-        eyebrow="Two ways to use SCOUT"
-        title="Choose the path that fits your team"
-        subtitle="Use the guide below to choose by location and who will do the fieldwork."
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card className="rounded-3xl shadow-sm">
-            <CardHeader>
-              <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">On-site service · Ohio</p>
-              <CardTitle className="text-xl">Choose SCOUT for an on-site visit</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm leading-relaxed text-foreground/70">
-              <ul className="space-y-2">
-                {[
-                  "The property is in Columbus or a surrounding area.",
-                  "You want SCOUT to photograph the site and deliver a structured visual record.",
-                  "You need a single visit or a recurring record to compare over time.",
-                ].map((item) => (
-                  <li key={item} className="flex items-start gap-2">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand)]" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-              <Button className="rounded-2xl bg-[var(--brand)] text-white hover:opacity-90" onClick={() => scrollToSection("#services")}>Explore the Ohio service</Button>
-            </CardContent>
-          </Card>
-          <Card className="rounded-3xl shadow-sm">
-            <CardHeader>
-              <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Scout Capture software · U.S.</p>
-              <CardTitle className="text-xl">Choose Scout Capture for your team</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm leading-relaxed text-foreground/70">
-              <ul className="space-y-2">
-                {[
-                  "Your own team will do the fieldwork.",
-                  "You need full documentation, punch lists, or both.",
-                  "You want to organize and share the records in the Reports Portal.",
-                ].map((item) => (
-                  <li key={item} className="flex items-start gap-2">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand)]" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-              <Button className="rounded-2xl bg-[var(--brand)] text-white hover:opacity-90" onClick={() => scrollToSection("#software")}>Explore Scout Capture</Button>
-            </CardContent>
-          </Card>
-        </div>
-      </Section>
 
       <Section
         id="services"
