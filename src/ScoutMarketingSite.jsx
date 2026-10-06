@@ -799,13 +799,35 @@ async function handleContactSubmit(e) {
       <Section
         id="software"
         eyebrow="Software for U.S. organizations"
-        title="Put the visual record workflow in your team's hands"
-        subtitle="Scout Capture and the Reports Portal help your organization collect photos and notes, organize records, and share reports. Your team decides what work to perform and what conclusions to make."
+        title="Full documentation, a punch list, or both"
+        subtitle="Choose the scope that fits the visit. Scout Capture supports a guided Full Documentation session, a focused Punchlist Visit without guided photos, or both for the same property."
       >
-        <div className="grid gap-4 md:grid-cols-3">
-          <Feature icon={Camera} title="Capture in the field" desc="Collect property photos, timestamps, metadata, and descriptive notes with Scout Capture." />
-          <Feature icon={ClipboardList} title="Organize the record" desc="Keep photos and visible-condition flags together in a consistent property record." />
-          <Feature icon={FileText} title="Share reports" desc="Generate report files and make them available to authorized users through the Reports Portal." />
+        <div className="rounded-3xl bg-[var(--brand)] p-6 text-white shadow-sm md:p-8">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-sm font-semibold">
+            <ClipboardList className="h-4 w-4" aria-hidden="true" />
+            Punch list workflow
+          </div>
+          <h3 className="mt-5 max-w-3xl text-2xl font-semibold tracking-tight md:text-3xl">
+            Capture issues on site. Give the team a list they can use.
+          </h3>
+          <p className="mt-3 max-w-3xl text-base leading-relaxed text-white/85">
+            Flag an issue, take a photo, and add a note while you are at the property. In the Reports Portal, authorized users can review the property punch list, see open and resolved items, and organize the work by priority and trade.
+          </p>
+          <div className="mt-6 grid gap-3 border-t border-white/20 pt-5 sm:grid-cols-2">
+            <div>
+              <p className="text-sm font-semibold">On site</p>
+              <p className="mt-1 text-sm leading-relaxed text-white/80">Record what needs attention while the details are in front of you.</p>
+            </div>
+            <div>
+              <p className="text-sm font-semibold">With the team</p>
+              <p className="mt-1 text-sm leading-relaxed text-white/80">Work from one organized list of issues, photos, and notes.</p>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <Feature icon={Camera} title="Full property documentation" desc="Follow the guided photo workflow to build a structured visual record of the property." />
+          <Feature icon={ClipboardList} title="Punch list only" desc="Start a Punchlist Visit to focus on flagged issues, photos, and notes without a guided photo walkthrough." />
+          <Feature icon={FileText} title="Use both together" desc="Create a full record, then use Punchlist Visits to document or follow up on specific issues at the same property." />
         </div>
         <div className="mt-6 rounded-3xl border border-border bg-[var(--brand)]/5 p-6 shadow-sm md:flex md:items-center md:justify-between md:gap-6">
           <p className="max-w-3xl text-sm leading-relaxed text-foreground/70">Organizations may use the software for documentation or other work they are authorized to perform, including inspections. Each organization is responsible for its work, licenses, and customer agreements. Software access does not include an on-site SCOUT visit.</p>
