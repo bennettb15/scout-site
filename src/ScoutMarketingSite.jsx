@@ -74,6 +74,9 @@ const BRAND = {
 
 };
 
+const CONTACT_INTEREST_OHIO = "Ohio documentation service";
+const CONTACT_INTEREST_SOFTWARE = "Scout Capture software";
+
 const fadeUp = {
   hidden: { opacity: 0, y: 14 },
   show: { opacity: 1, y: 0 },
@@ -251,7 +254,7 @@ useEffect(() => {
   };
 
   const [form, setForm] = useState({
-  interest: "Ohio documentation service",
+  interest: [],
   name: "",
   company: "",
   email: "",
@@ -262,17 +265,34 @@ useEffect(() => {
 });
 
 const [status, setStatus] = useState("idle");
+const [interestError, setInterestError] = useState(false);
 // idle | sending | success | error
+
+function openContactFor(interest) {
+  setInterestError(false);
+  setStatus("idle");
+  setForm((p) => ({
+    ...p,
+    interest: [interest],
+    propertyAddress: interest === CONTACT_INTEREST_OHIO ? p.propertyAddress : "",
+  }));
+  scrollToSection("#contact");
+}
 
 // ✅ THIS IS 15C — PUT IT RIGHT HERE
 async function handleContactSubmit(e) {
   e.preventDefault();
   if (status === "sending") return;
-    setStatus("sending");
+  if (form.interest.length === 0) {
+    setInterestError(true);
+    return;
+  }
+  setInterestError(false);
+  setStatus("sending");
 
   try {
     const payload = {
-      interest: form.interest,
+      interest: form.interest.join(", "),
       name: form.name,
       company: form.company,
       email: form.email,
@@ -292,7 +312,7 @@ async function handleContactSubmit(e) {
 
     setStatus("success");
     setForm({
-      interest: "Ohio documentation service",
+      interest: [],
       name: "",
       company: "",
       email: "",
@@ -435,7 +455,7 @@ async function handleContactSubmit(e) {
 </div>
 
 
-        <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pt-14 pb-8 md:px-6 md:pt-20 md:pb-10">
+        <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pt-8 pb-6 md:px-6 md:pt-20 md:pb-10">
 
 
           <motion.div
@@ -443,10 +463,10 @@ async function handleContactSubmit(e) {
             initial="hidden"
             animate="show"
             transition={{ duration: 0.5 }}
-            className="rounded-3xl bg-black/20 backdrop-blur-sm p-6 md:p-7 border border-white/10"
+            className="rounded-3xl bg-black/20 backdrop-blur-sm p-5 md:p-7 border border-white/10"
           >
             <div>
-              <div className="mb-4 flex flex-wrap gap-2">
+              <div className="mb-4 hidden flex-wrap gap-2 md:flex">
   <Pill icon={Camera} className="bg-white/85 text-[#23243A] border-white/20 backdrop-blur-sm"
 >
     Time-stamped photo documentation
@@ -460,7 +480,7 @@ async function handleContactSubmit(e) {
   </Pill>
 </div>
 
-              <div className="mb-5">
+              <div className="mb-5 hidden md:block">
                 <img
                   src={BRAND.logos.wordmarkWhite}
                   alt="SCOUT"
@@ -480,7 +500,7 @@ async function handleContactSubmit(e) {
                 Hire SCOUT for photographic documentation in Ohio, or use Scout Capture and the Reports Portal to create and share records with your own team across the U.S.
               </p>
 
-              <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center md:mt-7">
                 <Button
                   className="rounded-2xl bg-white text-[var(--brand)] hover:bg-white/90"
                   onClick={() => scrollToSection("#options")}
@@ -526,7 +546,7 @@ async function handleContactSubmit(e) {
 
             </div>
 
-            <div className="w-full md:justify-self-end mt-6">
+            <div className="hidden w-full md:mt-6 md:block md:justify-self-end">
   <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px] md:items-start">
 
               <Card className="rounded-3xl shadow-sm">
@@ -591,7 +611,7 @@ async function handleContactSubmit(e) {
                   <div className="flex gap-2">
                     <Button
                       className="w-full rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
-                     onClick={() => scrollToSection("#contact")}
+                     onClick={() => openContactFor(CONTACT_INTEREST_OHIO)}
 
                     >
                       Get started
@@ -831,7 +851,7 @@ async function handleContactSubmit(e) {
         </div>
         <div className="mt-6 rounded-3xl border border-border bg-[var(--brand)]/5 p-6 shadow-sm md:flex md:items-center md:justify-between md:gap-6">
           <p className="max-w-3xl text-sm leading-relaxed text-foreground/70">Organizations may use the software for documentation or other work they are authorized to perform, including inspections. Each organization is responsible for its work, licenses, and customer agreements. Software access does not include an on-site SCOUT visit.</p>
-          <Button className="mt-4 shrink-0 rounded-2xl bg-[var(--brand)] text-white hover:opacity-90 md:mt-0" onClick={() => { setForm((p) => ({ ...p, interest: "Scout Capture software" })); scrollToSection("#contact"); }}>Ask about software access</Button>
+          <Button className="mt-4 shrink-0 rounded-2xl bg-[var(--brand)] text-white hover:opacity-90 md:mt-0" onClick={() => openContactFor(CONTACT_INTEREST_SOFTWARE)}>Ask about software access</Button>
         </div>
       </Section>
 
@@ -925,7 +945,7 @@ async function handleContactSubmit(e) {
   Download sample report (PDF)
 </a>
               <Button className="h-11 rounded-2xl bg-[var(--brand)] text-white hover:opacity-90"
-                onClick={() => scrollToSection("#contact")}
+                onClick={() => openContactFor(CONTACT_INTEREST_OHIO)}
 
               >
                 Get a quote
@@ -1088,18 +1108,39 @@ onChange={(e) => {
     />
 
     <div className="grid gap-3 md:grid-cols-2">
-      <div className="space-y-1 md:col-span-2">
-        <label htmlFor="scout-interest" className="text-xs font-medium text-foreground/70">I’m interested in</label>
-        <select
-          id="scout-interest"
-          value={form.interest}
-          onChange={(e) => setForm((p) => ({ ...p, interest: e.target.value }))}
-          className="flex h-10 w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm text-foreground"
-        >
-          <option>Ohio documentation service</option>
-          <option>Scout Capture software</option>
-        </select>
-      </div>
+      <fieldset className="space-y-2 md:col-span-2" aria-invalid={interestError}>
+        <legend className="text-xs font-medium text-foreground/70">I’m interested in (select one or both)</legend>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {[CONTACT_INTEREST_OHIO, CONTACT_INTEREST_SOFTWARE].map((interest) => (
+            <label key={interest} className="flex min-h-11 items-center gap-3 rounded-2xl border border-input bg-background px-3 py-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                name="interest"
+                value={interest}
+                checked={form.interest.includes(interest)}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setInterestError(false);
+                  if (status === "success" || status === "error") setStatus("idle");
+                  setForm((p) => {
+                    const selected = checked
+                      ? [...p.interest, interest]
+                      : p.interest.filter((item) => item !== interest);
+                    return {
+                      ...p,
+                      interest: selected,
+                      propertyAddress: selected.includes(CONTACT_INTEREST_OHIO) ? p.propertyAddress : "",
+                    };
+                  });
+                }}
+                className="h-4 w-4 shrink-0 accent-[var(--brand)]"
+              />
+              <span>{interest}</span>
+            </label>
+          ))}
+        </div>
+        {interestError && <p className="text-xs text-red-700" role="alert">Select at least one option.</p>}
+      </fieldset>
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground/70">Name</label>
         <Input
@@ -1178,22 +1219,24 @@ onChange={(e) => {
 
       </div>
 
-      <div className="space-y-1 md:col-span-2">
-        <label className="text-xs font-medium text-foreground/70">
-          Property address (Ohio service only)
-        </label>
-        <Input
-  value={form.propertyAddress}
-  onChange={(e) => {
-    if (status === "success" || status === "error") setStatus("idle");
-    setForm((p) => ({ ...p, propertyAddress: e.target.value }));
-  }}
-  placeholder="Street, City, State"
-  autoComplete="street-address"
-  className="rounded-2xl"
-/>
-
-      </div>
+      {form.interest.includes(CONTACT_INTEREST_OHIO) && (
+        <div className="space-y-1 md:col-span-2">
+          <label htmlFor="scout-property-address" className="text-xs font-medium text-foreground/70">
+            Property address (Ohio service only)
+          </label>
+          <Input
+            id="scout-property-address"
+            value={form.propertyAddress}
+            onChange={(e) => {
+              if (status === "success" || status === "error") setStatus("idle");
+              setForm((p) => ({ ...p, propertyAddress: e.target.value }));
+            }}
+            placeholder="Street, City, State"
+            autoComplete="street-address"
+            className="rounded-2xl"
+          />
+        </div>
+      )}
 
       <div className="space-y-1 md:col-span-2">
         <label className="text-xs font-medium text-foreground/70">
