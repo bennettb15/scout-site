@@ -147,46 +147,33 @@ export default function ScoutMarketingSite() {
           </div>
         </section>
 
-        <div className="sc-offerings" aria-label="Two ways to work with SCOUT">
-          <div className="sc-container sc-offerings-inner">
-            <a href="#software"><span>01 / Your team</span><strong>Capture and organize with Scout Capture</strong><ArrowRight size={18} aria-hidden="true" /></a>
-            <a href="#services"><span>02 / Our team</span><strong>Book an Ohio documentation visit</strong><ArrowRight size={18} aria-hidden="true" /></a>
-          </div>
-        </div>
-
         <section className="sc-section sc-software" id="software" aria-labelledby="sc-software-title">
           <div className="sc-container">
-            <div className="sc-section-heading">
-              <p className="sc-eyebrow">Scout Capture software · U.S.</p>
-              <h2 id="sc-software-title">Built for the walk-through.<br />Ready for the team.</h2>
-              <p>Capture what matters on site and deliver an organized record without sorting through a camera roll later.</p>
+            <div className="sc-software-main">
+              <div className="sc-software-story">
+                <div className="sc-product-mark">
+                  <img src="/scout-capture-app-icon.png" alt="" />
+                  <span>SCOUT CAPTURE <small>THE FIELD APP</small></span>
+                </div>
+                <p className="sc-eyebrow sc-eyebrow-light">Scout Capture software · U.S.</p>
+                <h2 id="sc-software-title">One walk-through.<br /><em>A clearer way forward.</em></h2>
+                <p className="sc-software-lead">Take the photos, flag the issues, and leave with more than a camera roll. Scout Capture keeps every observation in context for the people who need it next.</p>
+                <div className="sc-product-actions">
+                  <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" aria-label="Download Scout Capture on the App Store"><img className="sc-app-store-badge" src="/download-on-the-app-store.svg" alt="Download on the App Store" /></a>
+                  <button className="sc-text-link sc-text-link-light" type="button" onClick={() => openContactFor(SOFTWARE_INTEREST)}>Ask about access <ArrowRight size={17} aria-hidden="true" /></button>
+                </div>
+                <p className="sc-product-invite">An invitation from your organization is required to sign in.</p>
+              </div>
+              <div className="sc-product-visual" aria-label="Scout Capture app screens">
+                <div className="sc-product-glow" />
+                <figure className="sc-phone sc-phone-back"><img src="/scout-app-guided.jpg" alt="Scout Capture guided checklist showing captured and pending photos" loading="lazy" /><figcaption>Guided coverage</figcaption></figure>
+                <figure className="sc-phone sc-phone-front"><img src="/scout-app-camera.jpg" alt="Scout Capture camera labeling a sample property's exterior" loading="lazy" /><figcaption>Capture in context</figcaption></figure>
+              </div>
             </div>
-            <div className="sc-software-grid">
-              <div className="sc-feature-list">
-                <div className="sc-feature"><span>01</span><div><h3>Cover the property consistently</h3><p>Guided interior and exterior photos help your team build a clear visual record.</p></div></div>
-                <div className="sc-feature"><span>02</span><div><h3>Flag what needs attention</h3><p>Add photos and notes to punch list items, then organize them by priority and trade.</p></div></div>
-                <div className="sc-feature"><span>03</span><div><h3>Share the full picture</h3><p>Authorized users can review completed reports, photos, and issues in the Reports Portal.</p></div></div>
-              </div>
-              <div className="sc-app-panel">
-                <div className="sc-app-panel-top">
-                  <img src="/scout-capture-app-icon.png" alt="Scout Capture app icon" />
-                  <div><span>Available on the App Store</span><h3>Scout Capture for iPhone</h3></div>
-                </div>
-                <p>Take the field workflow with you. Save captures while working, then upload completed sessions for your team to review.</p>
-                <div className="sc-app-panel-bottom">
-                  <div>
-                    <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" aria-label="Download Scout Capture on the App Store">
-                      <img className="sc-app-store-badge" src="/download-on-the-app-store.svg" alt="Download on the App Store" />
-                    </a>
-                    <button className="sc-text-link sc-access-link" type="button" onClick={() => openContactFor(SOFTWARE_INTEREST)}>Ask about access <ArrowRight size={16} aria-hidden="true" /></button>
-                  </div>
-                  <a className="sc-app-qr" href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" aria-label="Open Scout Capture on the App Store">
-                    <img src="/scout-capture-app-store-qr.jpg" alt="QR code for Scout Capture on the App Store" />
-                    <span>Scan to get the app</span>
-                  </a>
-                </div>
-                <small>An invitation from your organization is required to sign in.</small>
-              </div>
+            <div className="sc-product-features">
+              <div><span>01 / CAPTURE</span><h3>Stay organized on site.</h3><p>Guided interior and exterior photos create a consistent visual record as you move through a property.</p></div>
+              <div><span>02 / FLAG</span><h3>Make issues visible.</h3><p>Attach photos and notes to punch list items so details are clear after the visit.</p></div>
+              <div><span>03 / SHARE</span><h3>Keep the team aligned.</h3><p>Authorized users review completed reports, photos, and issues in the Reports Portal.</p></div>
             </div>
             <p className="sc-software-note">Organizations may use the software for documentation or other work they are authorized to perform, including inspections. Each organization is responsible for its work, licenses, and customer agreements. Software access does not include an on-site SCOUT visit.</p>
           </div>
@@ -210,22 +197,20 @@ export default function ScoutMarketingSite() {
         </section>
 
         <section className="sc-section sc-process" id="how" aria-labelledby="sc-process-title">
-          <div className="sc-container">
-            <div className="sc-section-heading sc-process-heading">
+          <div className="sc-container sc-process-layout">
+            <div className="sc-process-intro">
               <p className="sc-eyebrow">Ohio service process</p>
-              <h2 id="sc-process-title">From visit to useful record.</h2>
-              <p>One clear approach each time makes the documentation easier to review and compare.</p>
-            </div>
-            <div className="sc-process-steps">
-              <div><span>01</span><h3>Scope the visit</h3><p>We agree on access, coverage, and timing before arriving.</p></div>
-              <div><span>02</span><h3>Document on site</h3><p>We capture wide and detailed photos of observable conditions.</p></div>
-              <div><span>03</span><h3>Deliver the record</h3><p>You receive an organized PDF and photo set for your team.</p></div>
-            </div>
-            <div className="sc-process-footer">
-              <p>SCOUT documents observable features as they appear at the time of service. Deliverables are visual records for reference and comparison, not evaluation.</p>
+              <h2 id="sc-process-title">A visit you can put to work.</h2>
+              <p>Agree on the scope. We document what is accessible. Your team receives a dated record to file, share, and revisit.</p>
               <a className="sc-text-link" href="/scout-sample-report.pdf" target="_blank" rel="noopener noreferrer"><Download size={17} aria-hidden="true" /> View a sample report</a>
             </div>
+            <div className="sc-process-steps">
+              <div><span>01</span><div><h3>Scope</h3><p>We agree on access, coverage, and timing before the visit.</p></div></div>
+              <div><span>02</span><div><h3>Capture</h3><p>We document observable conditions with wide and detailed photos.</p></div></div>
+              <div><span>03</span><div><h3>Deliver</h3><p>You receive an organized PDF and photo set for your team.</p></div></div>
+            </div>
           </div>
+          <p className="sc-container sc-process-disclaimer">SCOUT documents observable features as they appear at the time of service. Deliverables are visual records for reference and comparison, not evaluation.</p>
         </section>
 
         <section className="sc-section sc-faq" id="faq" aria-labelledby="sc-faq-title">

@@ -181,3 +181,136 @@
   .sc-footer-bottom span:last-child { text-align: left; }
 }
 @media (prefers-reduced-motion: reduce) { .sc-site *, .sc-site *::before, .sc-site *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+
+/* Product-led editorial layout */
+.sc-software {
+  position: relative;
+  overflow: hidden;
+  padding-block: 100px 52px;
+  background: radial-gradient(circle at 81% 35%, #27456c 0%, #1c2c49 33%, #111b2e 74%);
+  color: #fff;
+}
+.sc-software-main { display: grid; grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr); gap: 55px; min-height: 720px; align-items: center; }
+.sc-software-story { position: relative; z-index: 2; padding-block: 30px 50px; }
+.sc-product-mark { display: flex; align-items: center; gap: 15px; margin-bottom: 66px; }
+.sc-product-mark img { display: block; width: 68px; height: 68px; border-radius: 17px; box-shadow: 0 10px 28px #0005; }
+.sc-product-mark span { display: flex; flex-direction: column; gap: 3px; color: #fff; font-size: 18px; font-weight: 800; letter-spacing: .075em; }
+.sc-product-mark small { color: #a9c0e0; font-size: 10px; letter-spacing: .18em; }
+.sc-software h2 { color: #fff; font-size: clamp(44px, 4.6vw, 66px); line-height: 1.07; letter-spacing: -.055em; }
+.sc-software h2 em { color: #9bc8f8; font-style: normal; }
+.sc-software-lead { max-width: 510px; margin: 28px 0 0; color: #d6e0ee; font-size: 18px; line-height: 1.65; }
+.sc-product-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 29px; margin-top: 34px; }
+.sc-product-actions > a { display: inline-block; padding: 5px; border-radius: 12px; background: #fff; }
+.sc-product-actions .sc-app-store-badge { width: 170px; }
+.sc-product-invite { margin: 17px 0 0; color: #aebdd1; font-size: 12px; }
+.sc-product-visual { position: relative; height: 690px; }
+.sc-product-glow { position: absolute; inset: 100px 0 65px 40px; border-radius: 50%; background: #6faef636; filter: blur(70px); }
+.sc-phone { position: absolute; margin: 0; border: 8px solid #0a0e16; border-radius: 32px; overflow: hidden; background: #0a0e16; box-shadow: 0 32px 65px #0007, 0 0 0 1px #ffffff24; }
+.sc-phone img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.sc-phone-front { z-index: 2; width: 290px; height: 628px; left: 10%; bottom: 0; transform: rotate(-5deg); }
+.sc-phone-back { width: 256px; height: 555px; right: 4%; top: 10px; transform: rotate(8deg); }
+.sc-phone figcaption { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); padding: 7px 12px; border: 1px solid #ffffff4a; border-radius: 999px; background: #101b2dc9; backdrop-filter: blur(8px); color: #fff; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.sc-product-features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 48px; padding: 46px 0 34px; border-top: 1px solid #ffffff42; }
+.sc-product-features span { color: #9bc8f8; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.sc-product-features h3 { margin: 13px 0 9px; color: #fff; font-size: 20px; letter-spacing: -.025em; }
+.sc-product-features p { max-width: 315px; margin: 0; color: #c4d1e0; font-size: 14px; line-height: 1.6; }
+.sc-software-note { max-width: 100%; margin: 22px 0 0; padding-top: 20px; border-top: 1px solid #ffffff24; color: #9eafc5; font-size: 11px; }
+.sc-service { padding-block: 110px; background: #f4f2ec; }
+.sc-service-grid { grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 80px; }
+.sc-service-photo-wrap { height: 610px; border-radius: 0 130px 0 0; box-shadow: 0 24px 55px #1c274225; }
+.sc-service-photo-wrap img { object-position: 52% 50%; }
+.sc-service-content h2 { font-size: clamp(38px, 3.8vw, 54px); }
+.sc-service-intro { margin-block: 25px 35px; }
+.sc-service-uses { border-top-color: #c9cbd0; }
+.sc-service-uses > div { grid-template-columns: 1fr; gap: 4px; padding: 14px 0; border-color: #c9cbd0; }
+.sc-service-uses h3 { font-size: 16px; }
+.sc-service-uses p { font-size: 14px; }
+.sc-process { background: #fff; padding-block: 105px 62px; }
+.sc-process-layout { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 100px; align-items: start; }
+.sc-process-intro > p:not(.sc-eyebrow) { max-width: 440px; margin: 24px 0 26px; color: var(--sc-muted); font-size: 17px; line-height: 1.65; }
+.sc-process-intro .sc-text-link { font-size: 14px; }
+.sc-process-steps { display: block; border-top: 1px solid #b9c4d1; }
+.sc-process-steps > div { display: grid; grid-template-columns: 100px 1fr; gap: 20px; align-items: start; padding: 24px 0; border-bottom: 1px solid #d6dde4; }
+.sc-process-steps span { display: block; width: auto; height: auto; border: 0; border-radius: 0; color: #8baace; font-size: 49px; font-weight: 700; line-height: 1; letter-spacing: -.06em; }
+.sc-process-steps h3 { margin: 1px 0 5px; font-size: 20px; }
+.sc-process-steps p { max-width: 430px; }
+.sc-process-disclaimer { margin-top: 55px; padding-top: 18px; border-top: 1px solid var(--sc-line); color: #7b8592; font-size: 12px; line-height: 1.6; }
+.sc-faq { background: #edf1f5; }
+.sc-faq-grid { gap: 90px; }
+
+@media (max-width: 1050px) {
+  .sc-software-main { gap: 20px; }
+  .sc-product-visual { transform: scale(.86); transform-origin: center center; }
+  .sc-product-features { gap: 26px; }
+  .sc-service-grid { gap: 45px; }
+}
+@media (max-width: 700px) {
+  .sc-software { padding-block: 70px 36px; }
+  .sc-software-main { display: flex; flex-direction: column; gap: 20px; min-height: 0; align-items: stretch; }
+  .sc-software-story { padding: 0; }
+  .sc-product-mark { margin-bottom: 42px; }
+  .sc-product-mark img { width: 55px; height: 55px; border-radius: 14px; }
+  .sc-product-mark span { font-size: 15px; }
+  .sc-software h2 { font-size: clamp(40px, 10vw, 52px); }
+  .sc-software-lead { font-size: 16px; }
+  .sc-product-visual { width: min(100%, 490px); height: 515px; margin: 5px auto 0; transform: none; }
+  .sc-phone-front { width: 215px; height: 465px; left: 2%; }
+  .sc-phone-back { width: 190px; height: 412px; right: 2%; top: 20px; }
+  .sc-product-features { grid-template-columns: 1fr; gap: 0; padding-top: 22px; }
+  .sc-product-features > div { padding-block: 18px; border-bottom: 1px solid #ffffff30; }
+  .sc-product-features p { max-width: 100%; }
+  .sc-service { padding-block: 72px; }
+  .sc-service-photo-wrap { height: 380px; border-top-right-radius: 80px; }
+  .sc-process { padding-block: 72px 42px; }
+  .sc-process-layout { grid-template-columns: 1fr; gap: 35px; }
+  .sc-process-steps > div { grid-template-columns: 75px 1fr; }
+  .sc-process-steps span { font-size: 40px; }
+  .sc-process-steps p { grid-column: auto; }
+  .sc-process-disclaimer { margin-top: 30px; }
+}
+
+/* Make the service sequence read as a full editorial chapter. */
+.sc-process {
+  position: relative;
+  overflow: hidden;
+  padding-block: 115px 70px;
+  background: linear-gradient(125deg, #dce9f5 0%, #edf3f9 48%, #d1e1f0 100%);
+}
+.sc-process::before {
+  content: "";
+  position: absolute;
+  width: 650px;
+  height: 650px;
+  right: -210px;
+  bottom: -420px;
+  border: 1px solid #aec7df;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.sc-process::after {
+  content: "";
+  position: absolute;
+  width: 920px;
+  height: 920px;
+  right: -350px;
+  bottom: -560px;
+  border: 1px solid #aec7df;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.sc-process-layout { position: relative; z-index: 1; align-items: center; }
+.sc-process-intro h2 { max-width: 460px; font-size: clamp(42px, 4.1vw, 59px); }
+.sc-process-steps { border-top-color: #b0c5d9; }
+.sc-process-steps > div { grid-template-columns: 110px 1fr; padding: 27px 0; border-bottom-color: #b0c5d9; }
+.sc-process-steps span { color: #7a9fc4; font-size: 57px; }
+.sc-process-steps h3 { margin-top: 6px; font-size: 22px; }
+.sc-process-steps p { font-size: 15px; }
+.sc-process-disclaimer { position: relative; z-index: 1; margin-top: 70px; border-top-color: #b0c5d9; }
+@media (max-width: 700px) {
+  .sc-process { padding-block: 74px 44px; }
+  .sc-process-layout { gap: 38px; }
+  .sc-process-steps > div { grid-template-columns: 78px 1fr; padding: 20px 0; }
+  .sc-process-steps span { font-size: 43px; }
+  .sc-process-steps h3 { font-size: 20px; }
+  .sc-process-disclaimer { margin-top: 35px; }
+}
