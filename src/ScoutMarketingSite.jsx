@@ -22,7 +22,6 @@ import {
 // If not, replace with your own components or simple div/button elements.
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -71,6 +70,7 @@ const BRAND = {
 
 const CONTACT_INTEREST_OHIO = "Ohio documentation service";
 const CONTACT_INTEREST_SOFTWARE = "Scout Capture software";
+const SCOUT_CAPTURE_APP_STORE_URL = "https://apps.apple.com/us/app/scout-capture-by-scout/id6761496506";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 14 },
@@ -146,20 +146,6 @@ const NavLink = ({ href, children, onClick }) => (
   >
     {children}
   </a>
-);
-
-const Feature = ({ icon: Icon, title, desc }) => (
-  <Card className="rounded-2xl shadow-sm">
-    <CardHeader className="space-y-2">
-      <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-[var(--brand)]/5">
-        <Icon className="h-5 w-5 text-[var(--brand)]" />
-      </div>
-      <CardTitle className="text-lg">{title}</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <p className="text-sm leading-relaxed text-foreground/70">{desc}</p>
-    </CardContent>
-  </Card>
 );
 
 const FAQItem = ({ q, a }) => (
@@ -317,8 +303,9 @@ async function handleContactSubmit(e) {
 
 
    const nav = [
+  { label: "Scout Capture", href: "#software" },
+  { label: "Value", href: "#value" },
   { label: "Ohio service", href: "#services" },
-  { label: "Software", href: "#software" },
   { label: "Ohio process", href: "#how" },
   { label: "FAQ", href: "#faq" },
   { label: "Contact", href: "#contact" },
@@ -478,16 +465,48 @@ async function handleContactSubmit(e) {
 
               <h1 className="text-3xl font-semibold tracking-tight text-white md:text-6xl">
 
-                Property records, created by SCOUT or your team.
+                Property records, created by your team or SCOUT.
               </h1>
 
               <p className="mt-4 max-w-xl text-base font-medium leading-relaxed text-white/90">
 
 
-                Hire SCOUT for photographic documentation in Ohio, or use Scout Capture and the Reports Portal to create and share records with your own team across the U.S.
+                Use Scout Capture and the Reports Portal to create and share records with your own team across the U.S., or hire SCOUT for photographic documentation in Ohio.
               </p>
 
               <div id="options" className="mt-6 grid scroll-mt-24 gap-3 md:mt-8 md:grid-cols-2">
+                <div className="flex flex-col rounded-2xl border border-white/20 bg-white p-4 text-foreground shadow-sm md:p-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Scout Capture software · U.S.</p>
+                  <h2 className="mt-2 text-lg font-semibold tracking-tight md:text-xl">Your team documents the property</h2>
+                  <ul className="mt-3 flex-1 space-y-2 text-sm leading-relaxed text-foreground/70">
+                    {[
+                      "Your team captures the property on site",
+                      "Full documentation, punch lists, or both",
+                      "Reports Portal to organize and share records",
+                    ].map((item) => (
+                      <li key={item} className="flex items-start gap-2">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand)]" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    className="mt-4 w-full rounded-2xl bg-[var(--brand)] text-white hover:opacity-90 md:w-fit"
+                    onClick={() => scrollToSection("#software")}
+                  >
+                    Explore Scout Capture
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                  <a
+                    href={SCOUT_CAPTURE_APP_STORE_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-[var(--brand)] hover:underline"
+                  >
+                    Get the iPhone app
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </a>
+                </div>
                 <div className="flex flex-col rounded-2xl border border-white/20 bg-white p-4 text-foreground shadow-sm md:p-5">
                   <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">On-site service · Ohio</p>
                   <h2 className="mt-2 text-lg font-semibold tracking-tight md:text-xl">SCOUT documents your property</h2>
@@ -511,29 +530,6 @@ async function handleContactSubmit(e) {
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </div>
-                <div className="flex flex-col rounded-2xl border border-white/20 bg-white p-4 text-foreground shadow-sm md:p-5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Scout Capture software · U.S.</p>
-                  <h2 className="mt-2 text-lg font-semibold tracking-tight md:text-xl">Your team documents the property</h2>
-                  <ul className="mt-3 flex-1 space-y-2 text-sm leading-relaxed text-foreground/70">
-                    {[
-                      "Your team captures the property on site",
-                      "Full documentation, punch lists, or both",
-                      "Reports Portal to organize and share records",
-                    ].map((item) => (
-                      <li key={item} className="flex items-start gap-2">
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand)]" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Button
-                    className="mt-4 w-full rounded-2xl bg-[var(--brand)] text-white hover:opacity-90 md:w-fit"
-                    onClick={() => scrollToSection("#software")}
-                  >
-                    Explore Scout Capture
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
               </div>
             </div>
           </motion.div>
@@ -541,139 +537,138 @@ async function handleContactSubmit(e) {
       </header>
 
       <Section
-        id="services"
-        eyebrow="On-site service · Ohio"
-        title="Visual documentation handled by SCOUT"
-        subtitle="Choose a one-time visit or a recurring cadence. We capture agreed, accessible areas and deliver a time-stamped record your team can file, share, and compare over time."
-        /*className="py-10 md:py-14"*/
-      >
-        <div className="grid gap-4 md:grid-cols-3">
-          <Feature
-            icon={Building2}
-            title="Commercial exteriors"
-            desc="Elevations, entries, roofs from ground vantage points, gutters and downspouts, masonry, windows and doors, hardscape, and key site features, where accessible."
-          />
-          <Feature
-            icon={Home}
-            title="Multifamily & HOA"
-            desc="Common areas, building envelopes, amenities, signage, fencing, and recurring condition tracking to reduce ambiguity across seasons and vendors."
-          />
-          <Feature
-            icon={KeyRound}
-            title="Pre / post tenancy baseline"
-            desc="Establish a consistent visual baseline for move-in/move-out cycles and tenant turnover, using a standardized photo index and notes."
-          />
-        </div>
-
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <Card className="rounded-3xl shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg">Deliverables</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2 text-sm text-foreground/70">
-                {[
-                  "Time-stamped photo set (wide + detail coverage)",
-                  "PDF report with photo index and observable notes",
-                  "Clear scope & limitations language",
-                  "Optional comparison notes to prior documentation (visual change / no visible change)",
-                  "Optional labeled photos for key items (e.g., north elevation, main entry)",
-                ].map((x) => (
-                  <li key={x} className="flex items-start gap-2">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand)]" />
-                    <span>{x}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg">Common add-ons</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  "Monthly cadence",
-                  "Quarterly cadence",
-                  "After-storm documentation",
-                  "Vendor work verification support",
-                  "Priority turnaround",
-                  "Expanded photo index",
-                  "Interior common areas",
-                  "Client-Provided Document Indexing",
-                ].map((x) => (
-                  <Badge
-                    key={x}
-                    variant="secondary"
-                    className="rounded-full border border-border bg-[var(--brand)]/5 text-foreground"
-                  >
-                    {x}
-                  </Badge>
-                ))}
-              </div>
-              <p className="mt-3 text-sm leading-relaxed text-foreground/70">
-                If a property has complex transitions (multiple gutters, rooflines, 
-                entrances, or elevations), we scale photo count responsibly using a
-                 consistent indexing system, with wide context first 
-                 and detail coverage only where needed.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-        <div className="mt-6 rounded-3xl border border-border bg-[var(--brand)]/5 p-6 shadow-sm md:flex md:items-center md:justify-between md:gap-6">
-          <div>
-            <h3 className="text-lg font-semibold">Ask about on-site documentation</h3>
-            <p className="mt-1 text-sm leading-relaxed text-foreground/70">Tell us about the Ohio property and the record you need.</p>
-          </div>
-          <Button className="mt-4 shrink-0 rounded-2xl bg-[var(--brand)] text-white hover:opacity-90 md:mt-0" onClick={() => openContactFor(CONTACT_INTEREST_OHIO)}>Ask about the Ohio service</Button>
-        </div>
-      </Section>
-
-
-      <Section
         id="software"
         eyebrow="Scout Capture software · U.S."
         title="Property documentation handled by your team"
-        subtitle="Choose a guided Full Documentation session, a focused Punchlist Visit without guided photos, or both for the same property."
+        subtitle="Capture site conditions, keep field photos organized, and give your team a clear record to work from."
       >
-        <div className="rounded-3xl bg-[var(--brand)] p-6 text-white shadow-sm md:p-8">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-sm font-semibold">
-            <ClipboardList className="h-4 w-4" aria-hidden="true" />
-            Punch list workflow
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-3xl bg-[var(--brand)] p-6 text-white shadow-sm">
+            <Camera className="h-6 w-6 text-white" aria-hidden="true" />
+            <h3 className="mt-3 font-semibold">Full documentation</h3>
+            <p className="mt-2 text-sm leading-relaxed text-white/80">Follow guided interior and exterior photos for a consistent property record.</p>
           </div>
-          <h3 className="mt-5 max-w-3xl text-2xl font-semibold tracking-tight md:text-3xl">
-            Capture issues on site. Give the team a list they can use.
-          </h3>
-          <p className="mt-3 max-w-3xl text-base leading-relaxed text-white/85">
-            Flag an issue, take a photo, and add a note while you are at the property. In the Reports Portal, authorized users can review the property punch list, see open and resolved items, and organize the work by priority and trade.
-          </p>
-          <div className="mt-6 grid gap-3 border-t border-white/20 pt-5 sm:grid-cols-2">
-            <div>
-              <p className="text-sm font-semibold">On site</p>
-              <p className="mt-1 text-sm leading-relaxed text-white/80">Record what needs attention while the details are in front of you.</p>
-            </div>
-            <div>
-              <p className="text-sm font-semibold">With the team</p>
-              <p className="mt-1 text-sm leading-relaxed text-white/80">Work from one organized list of issues, photos, and notes.</p>
-            </div>
+          <div className="rounded-3xl bg-[var(--brand)] p-6 text-white shadow-sm">
+            <ClipboardList className="h-6 w-6 text-white" aria-hidden="true" />
+            <h3 className="mt-3 font-semibold">Punch list visits</h3>
+            <p className="mt-2 text-sm leading-relaxed text-white/80">Flag issues with photos and notes, then organize them by priority and trade.</p>
+          </div>
+          <div className="rounded-3xl bg-[var(--brand)] p-6 text-white shadow-sm">
+            <FileText className="h-6 w-6 text-white" aria-hidden="true" />
+            <h3 className="mt-3 font-semibold">Reports for the team</h3>
+            <p className="mt-2 text-sm leading-relaxed text-white/80">Share completed reports, photos, and punch list items through the Reports Portal.</p>
           </div>
         </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
-          <Feature icon={Camera} title="Full property documentation" desc="Follow the guided photo workflow to build a structured visual record of the property." />
-          <Feature icon={ClipboardList} title="Punch list only" desc="Start a Punchlist Visit to focus on flagged issues, photos, and notes without a guided photo walkthrough." />
-          <Feature icon={FileText} title="Use both together" desc="Create a full record, then use Punchlist Visits to document or follow up on specific issues at the same property." />
-        </div>
-        <div className="mt-6 rounded-3xl border border-border bg-[var(--brand)]/5 p-6 shadow-sm md:flex md:items-center md:justify-between md:gap-6">
-          <div>
-            <h3 className="text-lg font-semibold">Ask about Scout Capture</h3>
-            <p className="mt-1 text-sm leading-relaxed text-foreground/70">Tell us how your team would use the app and Reports Portal.</p>
+        <div className="mt-6 rounded-3xl border border-border bg-white p-6 shadow-sm md:p-8">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="max-w-2xl">
+              <div className="flex items-center gap-4">
+                <img
+                  src="/scout-capture-app-icon.png"
+                  alt="Scout Capture app icon"
+                  className="h-16 w-16 rounded-2xl shadow-sm"
+                  loading="lazy"
+                />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Available on the App Store</p>
+                  <h3 className="mt-1 text-xl font-semibold tracking-tight">Scout Capture for iPhone</h3>
+                </div>
+              </div>
+              <p className="mt-4 text-sm leading-relaxed text-foreground/70">
+                Take the field workflow with you, then upload completed sessions for your team to review.
+              </p>
+              <div className="mt-5 flex flex-wrap items-center gap-4">
+                <a
+                  href={SCOUT_CAPTURE_APP_STORE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Download Scout Capture on the App Store"
+                  className="inline-flex min-h-11 items-center"
+                >
+                  <img src="/download-on-the-app-store.svg" alt="Download on the App Store" width="150" height="50" />
+                </a>
+                <Button variant="outline" className="min-h-11 rounded-2xl" onClick={() => openContactFor(CONTACT_INTEREST_SOFTWARE)}>Ask about access</Button>
+              </div>
+              <p className="mt-3 text-sm text-foreground/60">An invitation from your organization is required to sign in.</p>
+            </div>
+            <a
+              href={SCOUT_CAPTURE_APP_STORE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden shrink-0 text-center sm:block"
+              aria-label="Open Scout Capture on the App Store"
+            >
+              <img
+                src="/scout-capture-app-store-qr.jpg"
+                alt="QR code for Scout Capture on the App Store"
+                className="mx-auto h-32 w-32 rounded-xl border border-border"
+                loading="lazy"
+              />
+              <span className="mt-2 block text-xs font-medium text-foreground/60">Scan to get the app</span>
+            </a>
           </div>
-          <Button className="mt-4 shrink-0 rounded-2xl bg-[var(--brand)] text-white hover:opacity-90 md:mt-0" onClick={() => openContactFor(CONTACT_INTEREST_SOFTWARE)}>Ask about software access</Button>
         </div>
         <p className="mt-4 text-sm leading-relaxed text-foreground/70">Organizations may use the software for documentation or other work they are authorized to perform, including inspections. Each organization is responsible for its work, licenses, and customer agreements. Software access does not include an on-site SCOUT visit.</p>
       </Section>
+
+      <section id="value" className="scroll-mt-32 border-y border-border bg-[var(--brand)]/5 py-12 md:py-16">
+        <div className="mx-auto max-w-6xl px-4 md:px-6">
+          <p className="text-sm font-medium tracking-wide text-foreground/60">Why the record matters</p>
+          <div className="mt-4 grid gap-5 md:grid-cols-2 md:items-end md:gap-12">
+            <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">When questions come up, the record is ready.</h2>
+            <p className="max-w-md text-base leading-relaxed text-foreground/70">
+              Dated photos and notes make prior conditions easier to reference and share—whether your team uses Scout Capture or SCOUT documents an Ohio property.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <Section
+        id="services"
+        eyebrow="On-site service · Ohio"
+        title="Visual documentation handled by SCOUT"
+        subtitle="We document agreed, accessible areas in Ohio and deliver a time-stamped record your team can share or compare over time."
+        /*className="py-10 md:py-14"*/
+      >
+        <div className="grid gap-10 lg:grid-cols-2 lg:items-stretch lg:gap-16">
+          <div className="flex flex-col rounded-3xl bg-[var(--brand)]/5 p-6 md:p-8">
+            <h3 className="text-xl font-semibold">What you receive</h3>
+            <p className="mt-3 text-sm leading-relaxed text-foreground/70">
+              Time-stamped photos and an indexed PDF report with observations, scope, and limitations—ready for your team to file, share, and revisit.
+            </p>
+            <p className="mt-3 text-sm leading-relaxed text-foreground/70">
+              Schedule one visit or a recurring series. Ask about comparisons, after-storm documentation, or other property-specific needs.
+            </p>
+            <div className="mt-auto pt-6">
+              <Button className="rounded-2xl bg-[var(--brand)] text-white hover:opacity-90" onClick={() => openContactFor(CONTACT_INTEREST_OHIO)}>Discuss an Ohio visit</Button>
+            </div>
+          </div>
+          <div className="divide-y divide-border border-y border-border">
+            <div className="flex gap-4 py-5">
+              <Building2 className="mt-1 h-6 w-6 shrink-0 text-[var(--brand)]" aria-hidden="true" />
+              <div>
+                <h3 className="font-semibold">Commercial exteriors</h3>
+                <p className="mt-1 text-sm leading-relaxed text-foreground/70">Elevations, entries, rooflines, and key site features from accessible vantage points.</p>
+              </div>
+            </div>
+            <div className="flex gap-4 py-5">
+              <Home className="mt-1 h-6 w-6 shrink-0 text-[var(--brand)]" aria-hidden="true" />
+              <div>
+                <h3 className="font-semibold">Multifamily & HOA</h3>
+                <p className="mt-1 text-sm leading-relaxed text-foreground/70">Common areas, exteriors, and amenities documented consistently across visits.</p>
+              </div>
+            </div>
+            <div className="flex gap-4 py-5">
+              <KeyRound className="mt-1 h-6 w-6 shrink-0 text-[var(--brand)]" aria-hidden="true" />
+              <div>
+                <h3 className="font-semibold">Tenant turnovers</h3>
+                <p className="mt-1 text-sm leading-relaxed text-foreground/70">A visual baseline for move-in, move-out, and follow-up.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Section>
+
 
       <Section
         id="how"
@@ -776,84 +771,6 @@ async function handleContactSubmit(e) {
       </Section>
 
 
-<Section
-  id="value"
-  eyebrow="Value of records"
-  title="Clear records lead to clearer decisions and lower unnecessary costs."
->
-  <p className="mt-4 mb-2 max-w-2xl text-sm leading-relaxed text-foreground/70">
-  Clear documentation helps teams make decisions based on records, not assumptions.
-</p>
-
-
-  <div className="grid gap-6 md:grid-cols-[1.2fr_0.8fr] md:items-start">
-
-
-
-    {/* Left: narrative */}
-    <div className="space-y-4 text-sm leading-relaxed text-foreground/75">
-
-  <p>
-    Across many properties, unnecessary costs rarely come from the repair itself. They come from decisions made without a 
-    clear record of prior conditions, turning routine questions into extra site visits, expanded scopes, or conservative 
-    “just-in-case” solutions.
-  </p>
-
-  <p>
-    An organized set of dated photos and notes makes prior conditions and open issues easier to reference.
-    That value applies whether SCOUT makes the record during an Ohio visit or your team uses Scout Capture,
-    even as people, vendors, or conditions change.
-
-  </p>
-</div>
-
-
-    {/* Right: bullets */}
-<div className="rounded-3xl border border-border bg-[var(--brand)]/5 p-5 md:-mt-8">
-
-
-
-
-  <div className="text-sm font-semibold text-foreground">
-    With that context in place, you can:
-  </div>
-
-  <ul className="mt-3 space-y-2 text-sm text-foreground/75">
-
-    {[
-      "Avoid duplicate investigations and re-scoping",
-      "Support more targeted repairs instead of blanket fixes",
-      "Resolve questions faster with vendors, tenants, or insurers",
-      "Retain visual history even as staff or vendors change",
-    ].map((x) => (
-      <li key={x} className="flex items-start gap-2">
-        <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[var(--brand)]" />
-        <span>{x}</span>
-      </li>
-    ))}
-  </ul>
-
-  <p className="mt-4 text-sm text-foreground/70">
-
-    The goal isn’t to reduce necessary work but to prevent unnecessary costs before they happen.
-  </p>
-</div>
-
-  </div>
-
-  {/* Bottom line callout */}
-  <div className="mt-6 rounded-3xl border border-border bg-[var(--brand)]/5 px-5 py-4">
-  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-    <div className="text-sm text-foreground/80">
-
-      <span className="font-semibold text-foreground">Bottom line:</span>{" "}
-      A single unnecessary site visit or over-scoped repair can easily exceed the cost of ongoing documentation.
-    </div>
-  </div>
-</div>
-
-</Section>
-
       <Section
         id="faq"
         eyebrow="FAQ"
@@ -901,8 +818,8 @@ async function handleContactSubmit(e) {
 
     className="py-16 md:py-20"
     eyebrow="Contact"
-    title="Ask about the Ohio service or Scout Capture"
-    subtitle="Tell us which offering interests you. For on-site documentation, we’ll reply with scope and scheduling details."
+    title="Ask about Scout Capture or the Ohio service"
+    subtitle="Tell us how your team would use the app, or what Ohio property you need documented."
       >
         <div className="grid gap-4 md:grid-cols-5">
           <Card className="rounded-3xl shadow-sm md:col-span-3">
@@ -931,7 +848,7 @@ onChange={(e) => {
       <fieldset className="space-y-2 md:col-span-2" aria-invalid={interestError}>
         <legend className="text-xs font-medium text-foreground/70">I’m interested in (select one or both)</legend>
         <div className="grid gap-2 sm:grid-cols-2">
-          {[CONTACT_INTEREST_OHIO, CONTACT_INTEREST_SOFTWARE].map((interest) => (
+          {[CONTACT_INTEREST_SOFTWARE, CONTACT_INTEREST_OHIO].map((interest) => (
             <label key={interest} className="flex min-h-11 items-center gap-3 rounded-2xl border border-input bg-background px-3 py-2 text-sm text-foreground">
               <input
                 type="checkbox"
