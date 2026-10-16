@@ -31,6 +31,7 @@ function createIcon(paths, options = {}) {
 }
 
 export const ArrowRight = createIcon(<path d="M5 12h14M13 5l7 7-7 7" />);
+export const ArrowUpRight = createIcon(<path d="M7 17 17 7M8 7h9v9" />);
 export const Building2 = createIcon(
   <>
     <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18" />
