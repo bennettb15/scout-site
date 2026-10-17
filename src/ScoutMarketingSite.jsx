@@ -22,8 +22,8 @@ const questions = [
     answer: "Scout Capture software is for organizations in the United States. SCOUT's on-site documentation service is offered in Ohio, currently focused on the Columbus area.",
   },
   {
-    question: "Can you compare this visit to a prior report?",
-    answer: "For recurring Ohio service clients, we can note visible changes from prior documentation based on the photos and reasonably accessible areas.",
+    question: "Can I compare reports and track flagged items?",
+    answer: "Yes. In the Reports Portal, you can compare visit reports and use the separate punch list report to follow flagged items over time. For recurring Ohio service, SCOUT can also note visible changes from earlier documentation.",
   },
   {
     question: "Do you go on roofs or enter restricted areas?",
@@ -99,7 +99,6 @@ export default function ScoutMarketingSite() {
   const navigation = [
     ["Scout Capture", "#software"],
     ["Ohio service", "#services"],
-    ["How it works", "#how"],
     ["FAQ", "#faq"],
   ];
 
@@ -139,10 +138,24 @@ export default function ScoutMarketingSite() {
           <div className="sc-container sc-hero-content">
             <p className="sc-eyebrow sc-eyebrow-light">Property documentation, made useful</p>
             <h1 id="sc-hero-title">Document the property.<br />Move the work forward.</h1>
-            <p>Scout Capture turns field photos, notes, and punch list items into a clear record your team can use. In Ohio, SCOUT can handle the site visit for you.</p>
+            <p>Use Scout Capture and the Reports Portal with your team across the U.S., or have SCOUT document an Ohio property for you.</p>
             <div className="sc-hero-actions">
               <a className="sc-button sc-button-white" href="#software">Explore Scout Capture <ArrowRight size={17} aria-hidden="true" /></a>
               <a className="sc-text-link sc-text-link-light" href="#services">Explore Ohio service <ArrowRight size={17} aria-hidden="true" /></a>
+            </div>
+          </div>
+        </section>
+
+        <section className="sc-bridge" aria-labelledby="sc-bridge-title">
+          <div className="sc-container sc-bridge-grid">
+            <div>
+              <p className="sc-eyebrow">Why the record matters</p>
+              <h2 id="sc-bridge-title">A clear record of conditions and issues, visit after visit.</h2>
+            </div>
+            <div className="sc-bridge-content">
+              <p>Scout Capture organizes each visit’s photos by location, detail, and angle. Flagged issues keep their photos and notes together, giving your team a consistent record to review as conditions change.</p>
+              <div><strong>Property managers</strong><span>Document conditions across maintenance visits, routine property monitoring, and tenant turnovers, with organized photos your team can use for follow-up.</span></div>
+              <div><strong>General contractors</strong><span>Flag punch list items on site with photos and notes, then review what remains open with the team.</span></div>
             </div>
           </div>
         </section>
@@ -157,7 +170,7 @@ export default function ScoutMarketingSite() {
                 </div>
                 <p className="sc-eyebrow sc-eyebrow-light">Scout Capture software · U.S.</p>
                 <h2 id="sc-software-title">One walk-through.<br /><em>A clearer way forward.</em></h2>
-                <p className="sc-software-lead">Take the photos, flag the issues, and leave with more than a camera roll. Scout Capture keeps every observation in context for the people who need it next.</p>
+                <p className="sc-software-lead">Choose a Full Documentation session, a focused Punchlist Visit, or both for the same property. Photos stay organized, and flagged issues keep their notes for the team that follows.</p>
                 <div className="sc-product-actions">
                   <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" aria-label="Download Scout Capture on the App Store"><img className="sc-app-store-badge" src="/download-on-the-app-store.svg" alt="Download on the App Store" /></a>
                   <button className="sc-text-link sc-text-link-light" type="button" onClick={() => openContactFor(SOFTWARE_INTEREST)}>Ask about access <ArrowRight size={17} aria-hidden="true" /></button>
@@ -166,51 +179,48 @@ export default function ScoutMarketingSite() {
               </div>
               <div className="sc-product-visual" aria-label="Scout Capture app screens">
                 <div className="sc-product-glow" />
-                <figure className="sc-phone sc-phone-back"><img src="/scout-app-guided.jpg" alt="Scout Capture guided checklist showing captured and pending photos" loading="lazy" /><figcaption>Guided coverage</figcaption></figure>
-                <figure className="sc-phone sc-phone-front"><img src="/scout-app-camera.jpg" alt="Scout Capture camera labeling a sample property's exterior" loading="lazy" /><figcaption>Capture in context</figcaption></figure>
+                <figure className="sc-phone sc-phone-back"><img src="/scout-app-guided.jpg" alt="Scout Capture guided checklist showing captured and pending photos" loading="lazy" /></figure>
+                <figure className="sc-phone sc-phone-front"><img src="/scout-app-camera.jpg" alt="Scout Capture camera labeling a sample property's exterior" loading="lazy" /></figure>
               </div>
             </div>
             <div className="sc-product-features">
-              <div><span>01 / CAPTURE</span><h3>Stay organized on site.</h3><p>Guided interior and exterior photos create a consistent visual record as you move through a property.</p></div>
-              <div><span>02 / FLAG</span><h3>Make issues visible.</h3><p>Attach photos and notes to punch list items so details are clear after the visit.</p></div>
-              <div><span>03 / SHARE</span><h3>Keep the team aligned.</h3><p>Authorized users review completed reports, photos, and issues in the Reports Portal.</p></div>
+              <div><span>FULL DOCUMENTATION</span><h3>Cover the whole property.</h3><p>Document interior and exterior conditions on the first walk-through. Use that photo record to keep follow-up visits consistent and show what changed.</p></div>
+              <div><span>PUNCHLIST VISIT</span><h3>Focus on the issues.</h3><p>Flag specific items with photos and notes without documenting the whole property.</p></div>
+              <div><span>REPORTS PORTAL</span><h3>Give the team the record.</h3><p>Compare visit reports and follow flagged items over time in their separate punch list report.</p></div>
             </div>
             <p className="sc-software-note">Organizations may use the software for documentation or other work they are authorized to perform, including inspections. Each organization is responsible for its work, licenses, and customer agreements. Software access does not include an on-site SCOUT visit.</p>
           </div>
         </section>
 
         <section className="sc-section sc-service" id="services" aria-labelledby="sc-service-title">
-          <div className="sc-container sc-service-grid">
-            <div className="sc-service-photo-wrap"><img src="/process-document.jpg" alt="Documenting a property on site" loading="lazy" /></div>
-            <div className="sc-service-content">
-              <p className="sc-eyebrow">On-site documentation · Ohio</p>
-              <h2 id="sc-service-title">Need the visit handled?<br />We’ll be there.</h2>
-              <p className="sc-service-intro">SCOUT documents agreed, accessible areas and delivers time-stamped photos with an indexed PDF report your team can file, share, and revisit.</p>
-              <div className="sc-service-uses">
-                <div><h3>Commercial exteriors</h3><p>Elevations, entries, rooflines, and key site features from accessible vantage points.</p></div>
-                <div><h3>Multifamily & HOA</h3><p>Common areas, exteriors, and amenities documented consistently across visits.</p></div>
-                <div><h3>Tenant turnovers</h3><p>A visual baseline for move-in, move-out, and follow-up.</p></div>
+          <div className="sc-container">
+            <div className="sc-service-grid">
+              <div className="sc-service-photo-wrap"><img src="/process-document.jpg" alt="Documenting a property on site" loading="lazy" /></div>
+              <div className="sc-service-content">
+                <p className="sc-eyebrow">SCOUT’s Ohio field service</p>
+                <h2 id="sc-service-title">Our team visits the property.<br />Your team gets the record.</h2>
+                <p className="sc-service-intro">Book a one-time or recurring visit in Columbus and surrounding areas. Our field team photographs agreed, accessible areas so your team has a visual record to revisit.</p>
+                <div className="sc-service-uses">
+                  <div><h3>Commercial exteriors</h3><p>Elevations, entries, rooflines from ground vantage points, windows, drainage, and key site features.</p></div>
+                  <div><h3>Multifamily &amp; HOA</h3><p>Common areas, building envelopes, amenities, and recurring condition tracking across visits.</p></div>
+                  <div><h3>Tenant turnovers</h3><p>A consistent visual baseline for move-in, move-out, and follow-up, with indexed photos and notes.</p></div>
+                </div>
+                <button className="sc-button sc-button-navy" type="button" onClick={() => openContactFor(OHIO_INTEREST)}>Discuss an Ohio visit <ArrowRight size={16} aria-hidden="true" /></button>
               </div>
-              <button className="sc-button sc-button-navy" type="button" onClick={() => openContactFor(OHIO_INTEREST)}>Discuss an Ohio visit <ArrowRight size={16} aria-hidden="true" /></button>
             </div>
+            <div className="sc-service-journey">
+              <div className="sc-service-journey-head">
+                <p className="sc-eyebrow">How the visit works</p>
+                <a className="sc-text-link" href="/scout-sample-report.pdf" target="_blank" rel="noopener noreferrer"><Download size={17} aria-hidden="true" /> View a sample report</a>
+              </div>
+              <div className="sc-service-journey-steps">
+                <div><span>01</span><div><h4>Plan the scope</h4><p>Tell us which areas and details matter. We confirm access, coverage, and timing.</p></div></div>
+                <div><span>02</span><div><h4>Document on site</h4><p>Our field team captures wide context and closer detail in agreed, accessible areas.</p></div></div>
+                <div><span>03</span><div><h4>Receive the record</h4><p>Get time-stamped photos, an indexed PDF with observations, and the visit scope for reference.</p></div></div>
+              </div>
+            </div>
+            <p className="sc-service-disclaimer">SCOUT documents observable features as they appear at the time of service. Deliverables are visual records for reference and comparison, not evaluation.</p>
           </div>
-        </section>
-
-        <section className="sc-section sc-process" id="how" aria-labelledby="sc-process-title">
-          <div className="sc-container sc-process-layout">
-            <div className="sc-process-intro">
-              <p className="sc-eyebrow">Ohio service process</p>
-              <h2 id="sc-process-title">A visit you can put to work.</h2>
-              <p>Agree on the scope. We document what is accessible. Your team receives a dated record to file, share, and revisit.</p>
-              <a className="sc-text-link" href="/scout-sample-report.pdf" target="_blank" rel="noopener noreferrer"><Download size={17} aria-hidden="true" /> View a sample report</a>
-            </div>
-            <div className="sc-process-steps">
-              <div><span>01</span><div><h3>Scope</h3><p>We agree on access, coverage, and timing before the visit.</p></div></div>
-              <div><span>02</span><div><h3>Capture</h3><p>We document observable conditions with wide and detailed photos.</p></div></div>
-              <div><span>03</span><div><h3>Deliver</h3><p>You receive an organized PDF and photo set for your team.</p></div></div>
-            </div>
-          </div>
-          <p className="sc-container sc-process-disclaimer">SCOUT documents observable features as they appear at the time of service. Deliverables are visual records for reference and comparison, not evaluation.</p>
         </section>
 
         <section className="sc-section sc-faq" id="faq" aria-labelledby="sc-faq-title">
