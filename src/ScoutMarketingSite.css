@@ -368,3 +368,7 @@
   .sc-service-journey-steps p { grid-column: 2; }
   .sc-faq { padding-block: 60px; }
 }
+
+@media (max-width: 500px) {
+  .sc-hero-photo { object-position: 53% center; }
+}
