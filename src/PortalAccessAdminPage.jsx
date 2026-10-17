@@ -206,7 +206,7 @@ function RoleSelect({ row, disabled, onChange }) {
         value={row.role || "viewer"}
         disabled={disabled}
         onChange={(event) => onChange(row, event.target.value)}
-        className="h-10 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
+              className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60 xl:h-10"
       >
         {ROLE_CHANGE_OPTIONS.filter((option) => allowedRoles.has(option.value)).map(
           (option) => (
@@ -267,7 +267,7 @@ function PropertyScopeSummary({
         <button
           type="button"
           onClick={onEdit}
-          className="inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background px-2.5 text-xs font-semibold text-foreground/75 shadow-sm hover:text-[var(--brand)]"
+          className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground/75 shadow-sm hover:text-[var(--brand)] xl:h-8 xl:px-2.5"
         >
           Edit
         </button>
@@ -459,7 +459,7 @@ function PropertyScopeEditor({
               type="button"
               onClick={handleCancel}
               disabled={disabled}
-              className="inline-flex h-8 items-center justify-center rounded-lg border border-border bg-background px-2.5 text-xs font-semibold text-foreground/60 shadow-sm disabled:opacity-45"
+              className="inline-flex h-11 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground/60 shadow-sm disabled:opacity-45 xl:h-8 xl:px-2.5"
             >
               Cancel
             </button>
@@ -467,7 +467,7 @@ function PropertyScopeEditor({
               type="button"
               onClick={handleSave}
               disabled={disabled || !draftCanSave}
-              className="inline-flex h-8 items-center justify-center rounded-lg bg-[var(--brand)] px-2.5 text-xs font-semibold text-white shadow-sm disabled:opacity-45"
+              className="inline-flex h-11 items-center justify-center rounded-lg bg-[var(--brand)] px-3 text-xs font-semibold text-white shadow-sm disabled:opacity-45 xl:h-8 xl:px-2.5"
               title={
                 zeroSelected
                   ? "At least one property is required"
@@ -1139,7 +1139,7 @@ export default function PortalAccessAdminPage() {
       className="min-h-screen bg-slate-50 text-foreground"
     >
       <header className="border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 md:px-6">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6">
           <a href="/" className="inline-flex items-center">
             <img
               src={BRAND.logos.wordmarkOnly}
@@ -1149,28 +1149,30 @@ export default function PortalAccessAdminPage() {
             />
           </a>
           {session && (
-            <div className="flex items-center gap-2">
+            <nav aria-label="Portal navigation" className="order-3 flex w-full gap-2 sm:order-none sm:ml-auto sm:w-auto">
               <a
                 href="/reports"
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
+                className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground sm:h-10 sm:flex-none"
               >
                 <FileText className="h-4 w-4" />
                 Reports
               </a>
               <a
                 href="/punch-list"
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
+                className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground sm:h-10 sm:flex-none"
               >
                 <ClipboardList className="h-4 w-4" />
                 Punch List
               </a>
-              <AccountMenu onSignOut={handleSignOut} />
-            </div>
+            </nav>
+          )}
+          {session && (
+            <AccountMenu onSignOut={handleSignOut} />
           )}
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-8 md:px-6">
+      <main className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6 md:py-8">
         <div className="mb-6 flex flex-col justify-between gap-3 md:flex-row md:items-end">
           <div>
             <div className="text-sm font-medium text-[var(--brand)]">
@@ -1185,7 +1187,7 @@ export default function PortalAccessAdminPage() {
               type="button"
               onClick={() => loadAccess(session)}
               disabled={loading}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center gap-2 self-start rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm disabled:opacity-60 md:h-10"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               Refresh
@@ -1257,7 +1259,7 @@ export default function PortalAccessAdminPage() {
 
         {session && adminStatus === "authorized" && (
           <div className="grid gap-4">
-            <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm text-foreground/70 shadow-sm">
+            <div className="break-words rounded-lg border border-border bg-background px-4 py-3 text-sm text-foreground/70 shadow-sm">
               Signed in as{" "}
               <span className="font-semibold text-foreground">
                 {session.user?.email || "authenticated user"}
@@ -1265,15 +1267,15 @@ export default function PortalAccessAdminPage() {
               .
             </div>
 
-            <section className="rounded-lg border border-border bg-background p-5 shadow-sm">
+            <section className="rounded-lg border border-border bg-background p-4 shadow-sm sm:p-5">
               <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                <label className="grid flex-1 gap-1.5 text-sm font-medium text-foreground">
+                <label className="grid min-w-0 flex-1 gap-1.5 text-sm font-medium text-foreground">
                   Organization
                   <select
                     value={selectedOrgId}
                     onChange={(event) => setSelectedOrgId(event.target.value)}
                     disabled={!orgs.length}
-                    className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
+                    className="h-11 min-w-0 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
                   >
                     {orgs.length ? (
                       orgs.map((org) => (
@@ -1293,7 +1295,7 @@ export default function PortalAccessAdminPage() {
                       setNewOrgName("");
                       setIsCreateOrgOpen(true);
                     }}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm"
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm md:w-auto"
                   >
                     <Plus className="h-4 w-4" />
                     Create Organization
@@ -1313,7 +1315,7 @@ export default function PortalAccessAdminPage() {
               </div>
             )}
 
-            <section className="rounded-lg border border-border bg-background p-5 shadow-sm">
+            <section className="rounded-lg border border-border bg-background p-4 shadow-sm sm:p-5">
               <h2 className="mb-4 text-base font-semibold text-foreground">
                 Add Client
               </h2>
@@ -1358,7 +1360,7 @@ export default function PortalAccessAdminPage() {
                       </span>
                       <ChevronDown className="h-4 w-4 shrink-0 text-foreground/50 transition-transform group-open:rotate-180" />
                     </summary>
-                    <div className="absolute left-0 top-full z-30 mt-2 w-[min(22rem,calc(100vw-3rem))] rounded-xl border border-border bg-background p-3 shadow-xl">
+                    <div className="absolute left-0 top-full z-30 mt-2 w-full rounded-xl border border-border bg-background p-3 shadow-xl md:w-[min(22rem,calc(100vw-3rem))]">
                       <PropertyScopeEditor
                         role={selectedAccessRole}
                         accessScope={selectedAccessScope}
@@ -1373,7 +1375,7 @@ export default function PortalAccessAdminPage() {
                     </div>
                   </details>
                 </div>
-                <div className="add-client-actions flex flex-wrap gap-2 md:col-span-2">
+                <div className="add-client-actions grid gap-2 sm:flex sm:flex-wrap md:col-span-2">
                   <button
                     type="button"
                     onClick={() => handleAccessSubmit("grantExisting")}
@@ -1468,9 +1470,9 @@ export default function PortalAccessAdminPage() {
             </section>
 
             <section className="rounded-lg border border-border bg-background shadow-sm">
-              <div className="flex flex-col justify-between gap-3 border-b border-border px-5 py-4 md:flex-row md:items-center">
-                <div>
-                  <h2 className="text-base font-semibold text-foreground">
+              <div className="flex flex-col justify-between gap-3 border-b border-border px-4 py-4 sm:px-5 md:flex-row md:items-center">
+                <div className="min-w-0">
+                  <h2 className="break-words text-base font-semibold text-foreground">
                     {selectedOrg?.name || "Organization"} - Active Access
                   </h2>
                   <p className="mt-1 text-sm text-foreground/60">
@@ -1480,7 +1482,7 @@ export default function PortalAccessAdminPage() {
                     {visiblePendingInvites.length === 1 ? "" : "s"}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex min-w-0 flex-wrap gap-2">
                   {selectedOrg && (
                     <label className="inline-flex items-center gap-2 rounded-lg border border-border bg-slate-50 px-3 py-2 text-xs font-semibold text-foreground/75">
                       <Mail className="h-4 w-4 text-[var(--brand)]" />
@@ -1503,7 +1505,7 @@ export default function PortalAccessAdminPage() {
                   {activeAdminRows.map((adminRow) => (
                     <span
                       key={adminRow.id}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-slate-50 px-2.5 py-1 text-xs font-semibold text-foreground/70"
+                      className="inline-flex min-w-0 items-center gap-1.5 break-all rounded-lg border border-border bg-slate-50 px-2.5 py-1 text-xs font-semibold text-foreground/70"
                     >
                       <ShieldCheck className="h-3.5 w-3.5 text-[var(--brand)]" />
                       {adminRow.email}
@@ -1512,9 +1514,9 @@ export default function PortalAccessAdminPage() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1180px] text-left text-sm">
-                  <thead className="border-b border-border bg-slate-50 text-xs uppercase text-foreground/55">
+              <div className="xl:overflow-x-auto">
+                <table className="block w-full text-left text-sm xl:table xl:min-w-[1180px]">
+                  <thead className="hidden border-b border-border bg-slate-50 text-xs uppercase text-foreground/55 xl:table-header-group">
                     <tr>
                       <th className="px-5 py-3 font-semibold">Email</th>
                       <th className="px-5 py-3 font-semibold">Status</th>
@@ -1525,7 +1527,7 @@ export default function PortalAccessAdminPage() {
                       <th className="px-5 py-3 text-right font-semibold">Action</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="grid gap-3 bg-slate-50 p-3 xl:table-row-group xl:bg-transparent xl:p-0">
                     {unifiedAccessRows.map((row) => {
                       const canEditScope =
                         row.rowType === "active" && canEditPortalPropertyScope(row);
@@ -1533,18 +1535,21 @@ export default function PortalAccessAdminPage() {
 
                       return (
                         <Fragment key={`${row.rowType}:${row.id}`}>
-                          <tr className="border-b border-border last:border-b-0">
-                            <td className="px-5 py-3 font-medium text-foreground">
+                          <tr className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-4 rounded-lg border border-border bg-background p-4 shadow-sm xl:table-row xl:rounded-none xl:border-x-0 xl:border-t-0 xl:p-0 xl:shadow-none">
+                            <td className="col-span-2 min-w-0 break-all font-medium text-foreground xl:table-cell xl:px-5 xl:py-3">
+                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Email</span>
                               {row.email || row.userId}
                             </td>
-                            <td className="px-5 py-3">
+                            <td className="col-span-2 min-w-0 xl:table-cell xl:px-5 xl:py-3">
+                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Status</span>
                               {row.rowType === "invite" ? (
                                 <InviteStatus row={row} />
                               ) : (
                                 <AccountStatus status={row.accountStatus} />
                               )}
                             </td>
-                            <td className="px-5 py-3 text-foreground/70">
+                            <td className="col-span-2 min-w-0 text-foreground/70 xl:table-cell xl:px-5 xl:py-3">
+                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Role</span>
                               {row.rowType === "invite" ? (
                                 <span className="font-medium text-foreground/75">
                                   {selectedAccessTypeLabel(row.role)}
@@ -1557,7 +1562,8 @@ export default function PortalAccessAdminPage() {
                                 />
                               )}
                             </td>
-                            <td className="px-5 py-3 text-foreground/70">
+                            <td className="col-span-2 min-w-0 text-foreground/70 xl:table-cell xl:px-5 xl:py-3">
+                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Properties</span>
                               <PropertyScopeSummary
                                 role={row.role}
                                 accessScope={row.accessScope}
@@ -1572,7 +1578,8 @@ export default function PortalAccessAdminPage() {
                                 onEdit={() => setScopeEditRowId(row.id)}
                               />
                             </td>
-                            <td className="px-5 py-3 text-foreground/70">
+                            <td className="min-w-0 text-foreground/70 xl:table-cell xl:px-5 xl:py-3">
+                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Report Emails</span>
                               {row.rowType === "invite" ? (
                                 <span className="text-xs text-foreground/45">
                                   After activation
@@ -1608,16 +1615,17 @@ export default function PortalAccessAdminPage() {
                                 </label>
                               )}
                             </td>
-                            <td className="px-5 py-3 text-foreground/70">
+                            <td className="min-w-0 text-foreground/70 xl:table-cell xl:px-5 xl:py-3">
+                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Created</span>
                               {formatDate(row.createdAt)}
                             </td>
-                            <td className="px-5 py-3 text-right">
+                            <td className="col-span-2 min-w-0 border-t border-border pt-3 text-right xl:table-cell xl:border-0 xl:px-5 xl:py-3">
                               {row.rowType === "invite" ? (
                                 <button
                                   type="button"
                                   onClick={() => handleCancelInvite(row)}
                                   disabled={!row.canCancel || cancelInviteId === row.id}
-                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-red-700 disabled:opacity-45"
+                                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-red-700 disabled:opacity-45 xl:h-9 xl:w-auto"
                                   title={
                                     row.canCancel
                                       ? "Cancel pending invite"
@@ -1632,7 +1640,7 @@ export default function PortalAccessAdminPage() {
                                   type="button"
                                   onClick={() => handleRevoke(row)}
                                   disabled={!row.canRevoke || revokeId === row.id}
-                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-red-700 disabled:opacity-45"
+                                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-red-700 disabled:opacity-45 xl:h-9 xl:w-auto"
                                   title={
                                     row.canRevoke
                                       ? "Revoke access"
@@ -1646,8 +1654,8 @@ export default function PortalAccessAdminPage() {
                             </td>
                           </tr>
                           {isScopeEditing && (
-                            <tr className="border-b border-border bg-slate-50/70">
-                              <td colSpan={7} className="px-5 py-4">
+                            <tr className="block rounded-lg border border-border bg-background xl:table-row xl:rounded-none xl:border-x-0 xl:border-t-0 xl:bg-slate-50/70">
+                              <td colSpan={7} className="block min-w-0 p-4 xl:table-cell xl:px-5 xl:py-4">
                                 <PropertyScopeEditor
                                   row={row}
                                   role={row.role}
@@ -1669,10 +1677,10 @@ export default function PortalAccessAdminPage() {
                       );
                     })}
                     {unifiedAccessRows.length === 0 && (
-                      <tr>
+                      <tr className="block rounded-lg border border-border bg-background xl:table-row xl:rounded-none xl:border-0">
                         <td
                           colSpan={7}
-                          className="px-5 py-8 text-center text-sm text-foreground/60"
+                          className="block px-5 py-8 text-center text-sm text-foreground/60 xl:table-cell"
                         >
                           No access rows or pending invites.
                         </td>
