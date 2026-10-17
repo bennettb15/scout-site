@@ -147,7 +147,7 @@
   .sc-portal-link { font-size: 12px; }
   .sc-header-actions { gap: 14px; }
   .sc-hero { min-height: 610px; align-items: end; }
-  .sc-hero-photo { object-position: 66% center; }
+  .sc-hero-photo { object-position: 30% center; }
   .sc-hero-shade { background: linear-gradient(0deg, rgba(5,12,22,.9), rgba(5,12,22,.66) 55%, rgba(5,12,22,.12)); }
   .sc-hero-content { padding-block: 170px 51px; }
   .sc-hero h1 { font-size: clamp(38px, 10vw, 55px); }
