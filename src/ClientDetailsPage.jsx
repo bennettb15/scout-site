@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { ClipboardList, FileText, RefreshCw } from "lucide-react";
+import { ChevronDown, ClipboardList, FileText, RefreshCw } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import AccountMenu from "./components/AccountMenu";
@@ -17,6 +17,7 @@ function ClientRow({ property, session, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [showDestinations, setShowDestinations] = useState(false);
   const formId = `client-contact-${property.id}`;
   const changed = email.trim() !== property.clientEmail || phone.trim() !== property.clientPhone;
 
@@ -59,13 +60,26 @@ function ClientRow({ property, session, onSaved }) {
     }
   }
 
+  function selectShortcutProperty() {
+    writePortalContext(session, { orgId: property.orgId, propertyId: property.id });
+  }
+
   return (
     <Fragment>
       <tr className="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">
         <th scope="row" className="sticky left-0 z-10 min-w-[170px] border-r border-slate-200 bg-white px-3 py-2 text-left text-sm font-semibold text-foreground">
-          {property.clientName || <span className="font-normal text-foreground/45">No name</span>}
+          <button
+            type="button"
+            aria-expanded={showDestinations}
+            aria-controls={`client-destinations-${property.id}`}
+            onClick={() => setShowDestinations((current) => !current)}
+            className="inline-flex items-center gap-1 text-left font-semibold text-[var(--brand)] underline underline-offset-2 hover:text-blue-700"
+          >
+            {property.propertyName || "Property"}
+            <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${showDestinations ? "rotate-180" : ""}`} />
+          </button>
         </th>
-        <td className="min-w-[160px] border-r border-slate-200 px-3 py-2 text-sm text-foreground/75">{property.propertyName || "Property"}</td>
+        <td className="min-w-[160px] border-r border-slate-200 px-3 py-2 text-sm text-foreground/75">{property.clientName || <span className="text-foreground/45">No name</span>}</td>
         <td className="min-w-[245px] max-w-[340px] border-r border-slate-200 px-3 py-2 text-sm text-foreground/75" title={propertyAddress(property)}>
           <div className="truncate">{propertyAddress(property) || <span className="text-foreground/45">No address</span>}</div>
         </td>
@@ -97,18 +111,32 @@ function ClientRow({ property, session, onSaved }) {
             />
           ) : <span className="px-2 text-foreground/75">{property.clientPhone || "—"}</span>}
         </td>
-        <td className="min-w-[90px] px-3 py-1.5 text-right text-xs">
+        <td className="min-w-[100px] px-3 py-1.5 text-right text-xs">
           {property.canEdit ? (
             <form id={formId} onSubmit={handleSave}>
-              {changed || saving ? (
-                <button type="submit" disabled={saving} className="h-8 rounded-md bg-[var(--brand)] px-3 font-semibold text-white disabled:opacity-60">
-                  {saving ? "Saving…" : "Save"}
-                </button>
-              ) : saved ? <span className="font-semibold text-green-700">Saved</span> : null}
+              <button
+                type="submit"
+                disabled={!changed || saving}
+                className="h-8 min-w-[62px] rounded-md border border-[var(--brand)] bg-[var(--brand)] px-3 font-semibold text-white disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-500"
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+              {saved && <span role="status" className="ml-1 font-semibold text-green-700">Saved</span>}
             </form>
           ) : <span className="text-foreground/45">View only</span>}
         </td>
       </tr>
+      {showDestinations && (
+        <tr id={`client-destinations-${property.id}`} className="border-b border-slate-200 bg-slate-50">
+          <td colSpan={6} className="px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="mr-1 text-foreground/60">Open {property.propertyName || "property"} in:</span>
+              <a href="/reports" onClick={selectShortcutProperty} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 font-medium text-[var(--brand)] hover:border-[var(--brand)]">Reports</a>
+              <a href="/punch-list" onClick={selectShortcutProperty} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 font-medium text-[var(--brand)] hover:border-[var(--brand)]">Punch List</a>
+            </div>
+          </td>
+        </tr>
+      )}
       {error && (
         <tr className="border-b border-slate-200 bg-red-50">
           <td colSpan={6} role="alert" className="px-3 py-2 text-sm font-medium text-red-700">{error}</td>
@@ -270,12 +298,12 @@ export default function ClientDetailsPage() {
               <table className="w-full min-w-[1040px] border-collapse text-left">
                 <thead className="bg-slate-100 text-xs font-semibold uppercase tracking-wide text-foreground/60">
                   <tr>
-                    <th scope="col" className="sticky left-0 z-20 border-r border-slate-200 bg-slate-100 px-3 py-2.5">Client</th>
-                    <th scope="col" className="border-r border-slate-200 px-3 py-2.5">Property</th>
+                    <th scope="col" className="sticky left-0 z-20 border-r border-slate-200 bg-slate-100 px-3 py-2.5">Property</th>
+                    <th scope="col" className="border-r border-slate-200 px-3 py-2.5">Client name</th>
                     <th scope="col" className="border-r border-slate-200 px-3 py-2.5">Address</th>
                     <th scope="col" className="border-r border-slate-200 px-3 py-2.5">Email</th>
                     <th scope="col" className="border-r border-slate-200 px-3 py-2.5">Phone</th>
-                    <th scope="col" className="px-3 py-2.5 text-right"> </th>
+                    <th scope="col" className="px-3 py-2.5 text-right">Save</th>
                   </tr>
                 </thead>
                 <tbody>

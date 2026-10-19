@@ -5107,11 +5107,13 @@ export default function ScoutPunchListPage() {
       nextOrgId,
       savedContext.propertyId
     );
-    const nextPropertyId = selectedPropertyStillAvailable
+    const nextPropertyId = selectedPropertyStillAvailable && selectedPropertyId !== ALL
       ? selectedPropertyId
       : savedPropertyStillAvailable
         ? savedContext.propertyId
-      : defaultPropertyIdForOrg(nextPropertyOptions, nextOrgId);
+        : selectedPropertyStillAvailable
+          ? selectedPropertyId
+          : defaultPropertyIdForOrg(nextPropertyOptions, nextOrgId);
 
     setOrgOptions(nextOrgOptions);
     setAllPropertyOptions(nextPropertyOptions);
