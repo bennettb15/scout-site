@@ -2,6 +2,12 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ClipboardList, FileText, RefreshCw } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
+import {
+  changedClientProperties,
+  contactDraftForProperty,
+  formatClientPhone,
+  saveClientContactChanges,
+} from "./lib/clientContactChanges";
 import AccountMenu from "./components/AccountMenu";
 
 const BRAND_NAVY = "#1C2742";
@@ -11,54 +17,8 @@ function propertyAddress(property) {
   return [property.addressLine1, property.addressLine2, locality].filter(Boolean).join(", ");
 }
 
-function ClientRow({ property, session, onSaved }) {
-  const [email, setEmail] = useState(property.clientEmail);
-  const [phone, setPhone] = useState(property.clientPhone);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
+function ClientRow({ property, session, draft, saving, onDraftChange }) {
   const [showDestinations, setShowDestinations] = useState(false);
-  const formId = `client-contact-${property.id}`;
-  const changed = email.trim() !== property.clientEmail || phone.trim() !== property.clientPhone;
-
-  useEffect(() => {
-    setEmail(property.clientEmail);
-    setPhone(property.clientPhone);
-    setError("");
-  }, [property.clientEmail, property.clientPhone]);
-
-  async function handleSave(event) {
-    event.preventDefault();
-    if (!property.canEdit || !changed) return;
-    setSaving(true);
-    setError("");
-    setSaved(false);
-    try {
-      const response = await fetch("/api/client-details", {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          propertyId: property.id,
-          revision: property.revision,
-          clientEmail: email,
-          clientPhone: phone,
-        }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok || !body.property) {
-        throw new Error(body.error || "Unable to save contact details.");
-      }
-      onSaved(body.property);
-      setSaved(true);
-    } catch (saveError) {
-      setError(saveError.message || "Unable to save contact details.");
-    } finally {
-      setSaving(false);
-    }
-  }
 
   function selectShortcutProperty() {
     writePortalContext(session, { orgId: property.orgId, propertyId: property.id });
@@ -86,60 +46,42 @@ function ClientRow({ property, session, onSaved }) {
         <td className="min-w-[220px] border-r border-slate-200 px-2 py-1.5 text-sm">
           {property.canEdit ? (
             <input
-              form={formId}
               type="email"
               aria-label={`Email for ${property.clientName || property.propertyName || "client"}`}
-              value={email}
+              value={draft.clientEmail}
               maxLength={254}
-              onChange={(event) => { setEmail(event.target.value); setSaved(false); }}
+              disabled={saving}
+              onChange={(event) => onDraftChange(property, "clientEmail", event.target.value)}
               placeholder="Add email"
-              className="h-9 w-full rounded border border-slate-200 bg-white px-2 outline-none hover:border-slate-400 focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+              className="h-9 w-full rounded border border-slate-200 bg-white px-2 outline-none hover:border-slate-400 focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
             />
           ) : <span className="px-2 text-foreground/75">{property.clientEmail || "—"}</span>}
         </td>
         <td className="min-w-[155px] border-r border-slate-200 px-2 py-1.5 text-sm">
           {property.canEdit ? (
             <input
-              form={formId}
               type="tel"
               aria-label={`Phone for ${property.clientName || property.propertyName || "client"}`}
-              value={phone}
+              value={draft.clientPhone}
               maxLength={40}
-              onChange={(event) => { setPhone(event.target.value); setSaved(false); }}
+              disabled={saving}
+              onChange={(event) => onDraftChange(property, "clientPhone", event.target.value)}
+              onBlur={(event) => onDraftChange(property, "clientPhone", formatClientPhone(event.target.value))}
               placeholder="Add phone"
-              className="h-9 w-full rounded border border-slate-200 bg-white px-2 outline-none hover:border-slate-400 focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+              className="h-9 w-full rounded border border-slate-200 bg-white px-2 outline-none hover:border-slate-400 focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
             />
-          ) : <span className="px-2 text-foreground/75">{property.clientPhone || "—"}</span>}
-        </td>
-        <td className="min-w-[100px] px-3 py-1.5 text-right text-xs">
-          {property.canEdit ? (
-            <form id={formId} onSubmit={handleSave}>
-              <button
-                type="submit"
-                disabled={!changed || saving}
-                className="h-8 min-w-[62px] rounded-md border border-[var(--brand)] bg-[var(--brand)] px-3 font-semibold text-white disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-500"
-              >
-                {saving ? "Saving…" : "Save"}
-              </button>
-              {saved && <span role="status" className="ml-1 font-semibold text-green-700">Saved</span>}
-            </form>
-          ) : <span className="text-foreground/45">View only</span>}
+          ) : <span className="px-2 text-foreground/75">{formatClientPhone(property.clientPhone) || "—"}</span>}
         </td>
       </tr>
       {showDestinations && (
         <tr id={`client-destinations-${property.id}`} className="border-b border-slate-200 bg-slate-50">
-          <td colSpan={6} className="px-3 py-2">
+          <td colSpan={5} className="px-3 py-2">
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span className="mr-1 text-foreground/60">Open {property.propertyName || "property"} in:</span>
               <a href="/reports" onClick={selectShortcutProperty} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 font-medium text-[var(--brand)] hover:border-[var(--brand)]">Reports</a>
               <a href="/punch-list" onClick={selectShortcutProperty} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 font-medium text-[var(--brand)] hover:border-[var(--brand)]">Punch List</a>
             </div>
           </td>
-        </tr>
-      )}
-      {error && (
-        <tr className="border-b border-slate-200 bg-red-50">
-          <td colSpan={6} role="alert" className="px-3 py-2 text-sm font-medium text-red-700">{error}</td>
         </tr>
       )}
     </Fragment>
@@ -155,9 +97,13 @@ export default function ClientDetailsPage() {
   const [orgs, setOrgs] = useState([]);
   const [orgId, setOrgId] = useState("");
   const [properties, setProperties] = useState([]);
+  const [drafts, setDrafts] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("");
+  const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
     document.title = "Client Details | SCOUT";
@@ -238,6 +184,11 @@ export default function ClientDetailsPage() {
     );
   }, [properties, search]);
 
+  const changedProperties = useMemo(
+    () => changedClientProperties(properties, drafts),
+    [properties, drafts]
+  );
+
   async function handleSignIn(event) {
     event.preventDefault();
     setAuthError("");
@@ -249,8 +200,53 @@ export default function ClientDetailsPage() {
     if (signInError) setAuthError(signInError.message || "Unable to sign in.");
   }
 
-  function handleSaved(updated) {
-    setProperties((current) => current.map((item) => item.id === updated.id ? updated : item));
+  function handleDraftChange(property, field, value) {
+    setDrafts((current) => ({
+      ...current,
+      [property.id]: { ...contactDraftForProperty(property, current), [field]: value },
+    }));
+    setSaveStatus("");
+    setSaveError("");
+  }
+
+  async function handleSaveAll() {
+    if (!session?.access_token || saving || changedProperties.length === 0) return;
+    setSaving(true);
+    setSaveStatus("");
+    setSaveError("");
+    try {
+      const { saved, failed } = await saveClientContactChanges({
+        properties,
+        drafts,
+        accessToken: session.access_token,
+      });
+      if (saved.length) {
+        const byId = new Map(saved.map((property) => [property.id, property]));
+        setProperties((current) => current.map((property) => byId.get(property.id) || property));
+        setDrafts((current) => {
+          const next = { ...current };
+          for (const property of saved) delete next[property.id];
+          return next;
+        });
+        setSaveStatus(`Saved ${saved.length} ${saved.length === 1 ? "property" : "properties"}.`);
+      }
+      if (failed.length) {
+        const first = failed[0];
+        setSaveError(`${failed.length} ${failed.length === 1 ? "property" : "properties"} could not be saved. ${first.property.propertyName || "Property"}: ${first.error}`);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSignOut() {
+    setDrafts({});
+    setProperties([]);
+    setOrgs([]);
+    setOrgId("");
+    setSaveStatus("");
+    setSaveError("");
+    await supabase.auth.signOut();
   }
 
   return (
@@ -261,12 +257,32 @@ export default function ClientDetailsPage() {
           <nav className="flex flex-wrap items-center gap-2" aria-label="Portal">
             <a href="/reports" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium"><FileText className="h-4 w-4" />Reports</a>
             <a href="/punch-list" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium"><ClipboardList className="h-4 w-4" />Punch List</a>
-            {session && <AccountMenu onSignOut={() => supabase.auth.signOut()} />}
+            {session && <AccountMenu onSignOut={handleSignOut} />}
           </nav>
         </div>
       </header>
       <main className="mx-auto max-w-screen-2xl px-4 py-6 md:px-6">
-        <div className="mb-5"><div className="text-sm font-medium text-[var(--brand)]">Client Portal</div><h1 className="text-2xl font-semibold">Clients</h1></div>
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+          <div><div className="text-sm font-medium text-[var(--brand)]">Client Portal</div><h1 className="text-2xl font-semibold">Clients</h1></div>
+          {session && (
+            <div className="flex flex-col items-end gap-1">
+              <button
+                type="button"
+                onClick={handleSaveAll}
+                disabled={saving || changedProperties.length === 0}
+                style={{
+                  backgroundColor: changedProperties.length > 0 ? BRAND_NAVY : "#e5e7eb",
+                  color: changedProperties.length > 0 ? "#ffffff" : "#64748b",
+                  borderColor: changedProperties.length > 0 ? BRAND_NAVY : "#cbd5e1",
+                }}
+                className="h-10 min-w-[132px] rounded-lg border px-4 text-sm font-semibold shadow-sm disabled:cursor-not-allowed"
+              >
+                {saving ? "Saving…" : changedProperties.length ? `Save changes (${changedProperties.length})` : "Save changes"}
+              </button>
+              {saveStatus && <span role="status" className="text-xs font-medium text-green-700">{saveStatus}</span>}
+            </div>
+          )}
+        </div>
         {authLoading && <p className="text-sm text-foreground/65">Checking your session…</p>}
         {!authLoading && !session && (
           <form onSubmit={handleSignIn} className="grid max-w-md gap-4 rounded-xl border border-border bg-background p-6 shadow-sm">
@@ -282,7 +298,7 @@ export default function ClientDetailsPage() {
           <>
             <div className="mb-3 flex flex-wrap items-end gap-3">
               <label className="grid min-w-[190px] gap-1 text-xs font-semibold text-foreground/60">Organization
-                <select value={orgId} onChange={(event) => { setOrgId(event.target.value); writePortalContext(session, { orgId: event.target.value, propertyId: "all" }); }} disabled={!orgs.length} className="h-9 min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground">
+                <select value={orgId} onChange={(event) => { setOrgId(event.target.value); setSaveStatus(""); setSaveError(""); writePortalContext(session, { orgId: event.target.value, propertyId: "all" }); }} disabled={!orgs.length || saving} className="h-9 min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground">
                   {!orgs.length && <option value="">No organizations</option>}
                   {orgs.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}
                 </select>
@@ -293,9 +309,10 @@ export default function ClientDetailsPage() {
               <span className="pb-2 text-xs tabular-nums text-foreground/50">{shownProperties.length} {shownProperties.length === 1 ? "row" : "rows"}</span>
             </div>
             {error && <div role="alert" className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+            {saveError && <div role="alert" className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{saveError}</div>}
             {loading && <p className="mb-3 flex items-center gap-2 text-sm text-foreground/60"><RefreshCw className="h-4 w-4 animate-spin" />Loading clients…</p>}
             <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-              <table className="w-full min-w-[1040px] border-collapse text-left">
+              <table className="w-full min-w-[920px] border-collapse text-left">
                 <thead className="bg-slate-100 text-xs font-semibold uppercase tracking-wide text-foreground/60">
                   <tr>
                     <th scope="col" className="sticky left-0 z-20 border-r border-slate-200 bg-slate-100 px-3 py-2.5">Property</th>
@@ -303,18 +320,26 @@ export default function ClientDetailsPage() {
                     <th scope="col" className="border-r border-slate-200 px-3 py-2.5">Address</th>
                     <th scope="col" className="border-r border-slate-200 px-3 py-2.5">Email</th>
                     <th scope="col" className="border-r border-slate-200 px-3 py-2.5">Phone</th>
-                    <th scope="col" className="px-3 py-2.5 text-right">Save</th>
                   </tr>
                 </thead>
                 <tbody>
                   {!loading && !error && !shownProperties.length && (
-                    <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-foreground/60">{search ? "No clients match your search." : "No properties are available for this organization."}</td></tr>
+                    <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-foreground/60">{search ? "No clients match your search." : "No properties are available for this organization."}</td></tr>
                   )}
-                  {shownProperties.map((property) => <ClientRow key={property.id} property={property} session={session} onSaved={handleSaved} />)}
+                  {shownProperties.map((property) => (
+                    <ClientRow
+                      key={property.id}
+                      property={property}
+                      session={session}
+                      draft={contactDraftForProperty(property, drafts)}
+                      saving={saving}
+                      onDraftChange={handleDraftChange}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
-            <p className="mt-2 text-xs text-foreground/50">Email and phone can be edited by owners and managers. Each row is one property record.</p>
+            <p className="mt-2 text-xs text-foreground/50">Owners and managers can edit email or phone, then save changes above. Each row is one property record.</p>
           </>
         )}
       </main>
