@@ -15,13 +15,24 @@ export default async function handler(req, res) {
   }
   try {
     const service = createServiceClient();
+    let expiredCustomers = [];
+    let failed = false;
+    try {
+      const { data, error } = await service.rpc("expire_due_customer_access", {
+        trusted_admin_emails: [...adminEmailSet()],
+      });
+      if (error) throw error;
+      expiredCustomers = data || [];
+    } catch (error) {
+      console.error("Customer expiration worker failed:", error);
+      failed = true;
+    }
     const { error: reconciliationError } = await service.rpc("reconcile_org_retention_schedule", {
       trusted_admin_emails: [...adminEmailSet()],
     });
     if (reconciliationError) throw reconciliationError;
     let account;
     let organization;
-    let failed = false;
     try {
       account = await processNextAccountDeletion(service);
     } catch (error) {
@@ -36,7 +47,7 @@ export default async function handler(req, res) {
       organization = { status: "failed" };
       failed = true;
     }
-    return sendJson(res, failed ? 500 : 200, { account, organization });
+    return sendJson(res, failed ? 500 : 200, { expiredCustomers, account, organization });
   } catch (error) {
     console.error("Deletion cron failed:", error);
     return sendJson(res, 500, { error: "Deletion job failed; it will be retried." });

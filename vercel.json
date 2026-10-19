@@ -67,6 +67,10 @@
     {
       "source": "/admin/portal-access",
       "destination": "/index.html"
+    },
+    {
+      "source": "/admin/customers",
+      "destination": "/index.html"
     }
   ],
   "crons": [

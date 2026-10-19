@@ -296,6 +296,13 @@ test("accepting an invite sets the shared Auth password and activates org member
       },
     },
     from(table) {
+      if (table === "customer_lifecycle") {
+        return {
+          select() {
+            return { eq() { return { async maybeSingle() { return { data: null, error: null }; } }; } };
+          },
+        };
+      }
       if (table === "users_profile") {
         return {
           async upsert(profile) {

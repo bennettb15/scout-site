@@ -1,3 +1,5 @@
+import process from "node:process";
+
 export const PRIMARY_ADMIN_EMAIL = "brian@scoutclear.com";
 export const DEFAULT_ADMIN_EMAILS = [
   "bennettb15@gmail.com",
@@ -82,6 +84,10 @@ export function adminEmailSet() {
 
 export function isApprovedAdminEmail(email) {
   return adminEmailSet().has(normalizeEmail(email));
+}
+
+export function visiblePortalPeopleForActor(rows, isPlatformAdmin) {
+  return isPlatformAdmin ? rows : rows.filter((row) => !isApprovedAdminEmail(row.email));
 }
 
 export function accountStatusSummary(user, statusAvailable) {

@@ -45,8 +45,10 @@ import {
   membershipNeedsRequiredAdminRepair,
   membershipSummary,
   normalizePortalAccessRole,
+  visiblePortalPeopleForActor,
   wouldRemoveLastOwner,
 } from "../../api-lib/portalAdminAccess.js";
+import { lifecycleExpiry } from "../../api-lib/customerLifecycle.js";
 import {
   ORG_ACCESS_SCOPE,
   PROPERTY_ACCESS_SCOPE,
@@ -90,6 +92,18 @@ function normalizeRequestedAccessAssignment(body, role) {
 
 function badRequest(message) {
   return Object.assign(new Error(message), { status: 400 });
+}
+
+async function assertCustomerTermAllowsAccess(service, orgId, email) {
+  if (isApprovedAdminEmail(email)) return;
+  const { data, error } = await service.from("customer_lifecycle")
+    .select("pilot_expires_at,ongoing_started_at,ongoing_expires_at")
+    .eq("org_id", orgId).maybeSingle();
+  if (error && error.code !== "42P01") throw error;
+  const expiry = lifecycleExpiry(data);
+  if (expiry && new Date(expiry).getTime() <= Date.now()) {
+    throw Object.assign(new Error("Customer access has expired. Extend the agreement in Customers before granting access."), { status: 409 });
+  }
 }
 
 function forbidden(message) {
@@ -511,7 +525,7 @@ async function loadPortalAccess(context) {
   if (allowedOrgIds) {
     if (!allowedOrgIds.length) {
       return {
-        adminEmails: [...adminEmailSet()].sort(),
+        adminEmails: context.isPlatformAdmin ? [...adminEmailSet()].sort() : [],
         adminAccessSync: { repairedCount: 0, missingAdminEmails: [] },
         orgs: [],
         access: [],
@@ -633,7 +647,7 @@ async function loadPortalAccess(context) {
   }), context);
 
   return {
-    adminEmails: [...adminEmailSet()].sort(),
+    adminEmails: context.isPlatformAdmin ? [...adminEmailSet()].sort() : [],
     adminAccessSync,
     orgs: (orgRows || []).map((row) => {
       const actorMembership = actorMembershipForOrg(context, row.id);
@@ -655,8 +669,8 @@ async function loadPortalAccess(context) {
         properties,
       };
     }),
-    access: accessRows,
-    pendingInvites: pendingInvitesWithProperties,
+    access: visiblePortalPeopleForActor(accessRows, context.isPlatformAdmin),
+    pendingInvites: visiblePortalPeopleForActor(pendingInvitesWithProperties, context.isPlatformAdmin),
   };
 }
 
@@ -716,16 +730,11 @@ export async function upsertOrgMembership(
   service,
   { orgId, userId, role, actorId, accessScope = ORG_ACCESS_SCOPE, propertyIds = [] }
 ) {
+  const { data: profile, error: profileError } = await service.from("users_profile")
+    .select("email").eq("id", userId).maybeSingle();
+  if (profileError) throw profileError;
+  await assertCustomerTermAllowsAccess(service, orgId, profile?.email);
   const normalizedScope = normalizeAccessScope(accessScope, role);
-  const { data: existingMembership, error: existingMembershipError } =
-    await service
-      .from("org_memberships")
-      .select("id,role,access_scope,deleted_at")
-      .eq("org_id", orgId)
-      .eq("user_id", userId)
-      .maybeSingle();
-
-  if (existingMembershipError) throw existingMembershipError;
   const { data: membership, error: membershipError } = await service
     .from("org_memberships")
     .upsert(
@@ -941,6 +950,7 @@ async function createPendingPortalInvite(
     emailSender = sendPortalInviteEmail,
   }
 ) {
+  await assertCustomerTermAllowsAccess(service, org.id, email);
   if (sendEmail && emailSender === sendPortalInviteEmail) assertInviteEmailConfigured();
   const token = createInviteToken();
   const now = new Date().toISOString();

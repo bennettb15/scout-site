@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { lifecycleExpiry } from "../api-lib/customerLifecycle.js";
 import {
   authenticateRequest,
   getQueryValue,
@@ -411,6 +412,15 @@ export async function activateInvite({
       "This invite no longer has an active organization.",
       409
     );
+  }
+
+  const { data: customerTerm, error: termError } = await service.from("customer_lifecycle")
+    .select("pilot_expires_at,ongoing_started_at,ongoing_expires_at")
+    .eq("org_id", invite.org_id).maybeSingle();
+  if (termError && termError.code !== "42P01") throw termError;
+  const termExpiry = lifecycleExpiry(customerTerm);
+  if (termExpiry && new Date(termExpiry).getTime() <= Date.now()) {
+    throw new PortalInviteError("customer_term_expired", "Customer access has expired. Ask your SCOUT contact for an updated invite.", 410);
   }
 
   const existing = await findAuthUserByEmail(service, inviteEmail);

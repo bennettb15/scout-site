@@ -3,6 +3,7 @@ import {
   loadManagementMemberships,
   normalizeEmail,
 } from "../_portalAdminShared.js";
+import { canManageCustomerLifecycle } from "../../api-lib/customerLifecycle.js";
 import {
   authenticateRequest,
   createServiceClient,
@@ -39,5 +40,6 @@ export default async function handler(req, res) {
     email,
     isAdmin: isPlatformAdmin || managementMemberships.length > 0,
     isPlatformAdmin,
+    canManageCustomerLifecycle: canManageCustomerLifecycle(email),
   });
 }
