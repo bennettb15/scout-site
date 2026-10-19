@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { CircleUserRound, ClipboardList, FileText, RefreshCw } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { ClipboardList, FileText, RefreshCw } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import AccountMenu from "./components/AccountMenu";
@@ -11,12 +11,13 @@ function propertyAddress(property) {
   return [property.addressLine1, property.addressLine2, locality].filter(Boolean).join(", ");
 }
 
-function ClientCard({ property, session, onSaved }) {
+function ClientRow({ property, session, onSaved }) {
   const [email, setEmail] = useState(property.clientEmail);
   const [phone, setPhone] = useState(property.clientPhone);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const formId = `client-contact-${property.id}`;
   const changed = email.trim() !== property.clientEmail || phone.trim() !== property.clientPhone;
 
   useEffect(() => {
@@ -59,61 +60,61 @@ function ClientCard({ property, session, onSaved }) {
   }
 
   return (
-    <article className="rounded-xl border border-border bg-background p-5 shadow-sm">
-      <div className="mb-4">
-        <div className="text-xs font-semibold uppercase tracking-wide text-foreground/50">Property</div>
-        <h2 className="mt-1 text-lg font-semibold text-foreground">{property.propertyName || "Property"}</h2>
-        <p className="mt-1 text-sm text-foreground/65">{propertyAddress(property) || "No address on file"}</p>
-      </div>
-      <div className="mb-4 rounded-lg bg-slate-50 px-4 py-3">
-        <div className="text-xs font-semibold uppercase tracking-wide text-foreground/50">Customer name</div>
-        <div className="mt-1 text-sm font-medium text-foreground">{property.clientName || "No name on file"}</div>
-      </div>
-      {property.canEdit ? (
-        <form onSubmit={handleSave} className="grid gap-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-1 text-sm font-medium text-foreground/75">
-              Email
-              <input
-                type="email"
-                value={email}
-                maxLength={254}
-                onChange={(event) => { setEmail(event.target.value); setSaved(false); }}
-                placeholder="customer@example.com"
-                className="h-11 min-w-0 rounded-lg border border-input bg-background px-3 text-foreground outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
-              />
-            </label>
-            <label className="grid gap-1 text-sm font-medium text-foreground/75">
-              Phone
-              <input
-                type="tel"
-                value={phone}
-                maxLength={40}
-                onChange={(event) => { setPhone(event.target.value); setSaved(false); }}
-                placeholder="(555) 555-5555"
-                className="h-11 min-w-0 rounded-lg border border-input bg-background px-3 text-foreground outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
-              />
-            </label>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="submit"
-              disabled={!changed || saving}
-              className="inline-flex h-10 items-center rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              {saving ? "Saving…" : "Save contact"}
-            </button>
-            {saved && <span className="text-sm font-medium text-green-700">Saved to SCOUT</span>}
-          </div>
-          {error && <p role="alert" className="text-sm font-medium text-red-700">{error}</p>}
-        </form>
-      ) : (
-        <div className="grid gap-3 text-sm sm:grid-cols-2">
-          <div><span className="font-medium text-foreground/55">Email</span><p className="mt-1 break-all">{property.clientEmail || "No email on file"}</p></div>
-          <div><span className="font-medium text-foreground/55">Phone</span><p className="mt-1">{property.clientPhone || "No phone on file"}</p></div>
-        </div>
+    <Fragment>
+      <tr className="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">
+        <th scope="row" className="sticky left-0 z-10 min-w-[170px] border-r border-slate-200 bg-white px-3 py-2 text-left text-sm font-semibold text-foreground">
+          {property.clientName || <span className="font-normal text-foreground/45">No name</span>}
+        </th>
+        <td className="min-w-[160px] border-r border-slate-200 px-3 py-2 text-sm text-foreground/75">{property.propertyName || "Property"}</td>
+        <td className="min-w-[245px] max-w-[340px] border-r border-slate-200 px-3 py-2 text-sm text-foreground/75" title={propertyAddress(property)}>
+          <div className="truncate">{propertyAddress(property) || <span className="text-foreground/45">No address</span>}</div>
+        </td>
+        <td className="min-w-[220px] border-r border-slate-200 px-2 py-1.5 text-sm">
+          {property.canEdit ? (
+            <input
+              form={formId}
+              type="email"
+              aria-label={`Email for ${property.clientName || property.propertyName || "client"}`}
+              value={email}
+              maxLength={254}
+              onChange={(event) => { setEmail(event.target.value); setSaved(false); }}
+              placeholder="Add email"
+              className="h-9 w-full rounded border border-slate-200 bg-white px-2 outline-none hover:border-slate-400 focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+            />
+          ) : <span className="px-2 text-foreground/75">{property.clientEmail || "—"}</span>}
+        </td>
+        <td className="min-w-[155px] border-r border-slate-200 px-2 py-1.5 text-sm">
+          {property.canEdit ? (
+            <input
+              form={formId}
+              type="tel"
+              aria-label={`Phone for ${property.clientName || property.propertyName || "client"}`}
+              value={phone}
+              maxLength={40}
+              onChange={(event) => { setPhone(event.target.value); setSaved(false); }}
+              placeholder="Add phone"
+              className="h-9 w-full rounded border border-slate-200 bg-white px-2 outline-none hover:border-slate-400 focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+            />
+          ) : <span className="px-2 text-foreground/75">{property.clientPhone || "—"}</span>}
+        </td>
+        <td className="min-w-[90px] px-3 py-1.5 text-right text-xs">
+          {property.canEdit ? (
+            <form id={formId} onSubmit={handleSave}>
+              {changed || saving ? (
+                <button type="submit" disabled={saving} className="h-8 rounded-md bg-[var(--brand)] px-3 font-semibold text-white disabled:opacity-60">
+                  {saving ? "Saving…" : "Save"}
+                </button>
+              ) : saved ? <span className="font-semibold text-green-700">Saved</span> : null}
+            </form>
+          ) : <span className="text-foreground/45">View only</span>}
+        </td>
+      </tr>
+      {error && (
+        <tr className="border-b border-slate-200 bg-red-50">
+          <td colSpan={6} role="alert" className="px-3 py-2 text-sm font-medium text-red-700">{error}</td>
+        </tr>
       )}
-    </article>
+    </Fragment>
   );
 }
 
@@ -236,8 +237,8 @@ export default function ClientDetailsPage() {
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-8 md:px-6">
-        <div className="mb-6 flex items-center gap-3"><CircleUserRound className="h-7 w-7 text-[var(--brand)]" /><div><div className="text-sm font-medium text-[var(--brand)]">Client Portal</div><h1 className="text-3xl font-semibold">Client Details</h1></div></div>
+      <main className="mx-auto max-w-screen-2xl px-4 py-6 md:px-6">
+        <div className="mb-5"><div className="text-sm font-medium text-[var(--brand)]">Client Portal</div><h1 className="text-2xl font-semibold">Clients</h1></div>
         {authLoading && <p className="text-sm text-foreground/65">Checking your session…</p>}
         {!authLoading && !session && (
           <form onSubmit={handleSignIn} className="grid max-w-md gap-4 rounded-xl border border-border bg-background p-6 shadow-sm">
@@ -251,24 +252,41 @@ export default function ClientDetailsPage() {
         )}
         {session && (
           <>
-            <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
-              <label className="grid gap-1 text-sm font-medium">Organization
-                <select value={orgId} onChange={(event) => { setOrgId(event.target.value); writePortalContext(session, { orgId: event.target.value, propertyId: "all" }); }} disabled={!orgs.length} className="h-11 min-w-0 rounded-lg border border-input bg-background px-3">
+            <div className="mb-3 flex flex-wrap items-end gap-3">
+              <label className="grid min-w-[190px] gap-1 text-xs font-semibold text-foreground/60">Organization
+                <select value={orgId} onChange={(event) => { setOrgId(event.target.value); writePortalContext(session, { orgId: event.target.value, propertyId: "all" }); }} disabled={!orgs.length} className="h-9 min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground">
                   {!orgs.length && <option value="">No organizations</option>}
                   {orgs.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}
                 </select>
               </label>
-              <label className="grid gap-1 text-sm font-medium">Search clients or properties
-                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, address, email, phone…" className="h-11 min-w-0 rounded-lg border border-input bg-background px-3" />
+              <label className="grid min-w-[220px] flex-1 gap-1 text-xs font-semibold text-foreground/60">Search
+                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Client, property, address, email, phone" className="h-9 min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground" />
               </label>
+              <span className="pb-2 text-xs tabular-nums text-foreground/50">{shownProperties.length} {shownProperties.length === 1 ? "row" : "rows"}</span>
             </div>
-            <p className="mb-5 text-sm text-foreground/60">Contact details are stored with each property. Owners and managers can update email and phone.</p>
-            {error && <div role="alert" className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
-            {loading && <p className="flex items-center gap-2 text-sm text-foreground/60"><RefreshCw className="h-4 w-4 animate-spin" />Loading client details…</p>}
-            {!loading && !error && !shownProperties.length && <div className="rounded-xl border border-border bg-background p-6 text-sm text-foreground/65">{search ? "No clients match your search." : "No properties are available for this organization."}</div>}
-            <div className="grid gap-4 lg:grid-cols-2">
-              {shownProperties.map((property) => <ClientCard key={property.id} property={property} session={session} onSaved={handleSaved} />)}
+            {error && <div role="alert" className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+            {loading && <p className="mb-3 flex items-center gap-2 text-sm text-foreground/60"><RefreshCw className="h-4 w-4 animate-spin" />Loading clients…</p>}
+            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+              <table className="w-full min-w-[1040px] border-collapse text-left">
+                <thead className="bg-slate-100 text-xs font-semibold uppercase tracking-wide text-foreground/60">
+                  <tr>
+                    <th scope="col" className="sticky left-0 z-20 border-r border-slate-200 bg-slate-100 px-3 py-2.5">Client</th>
+                    <th scope="col" className="border-r border-slate-200 px-3 py-2.5">Property</th>
+                    <th scope="col" className="border-r border-slate-200 px-3 py-2.5">Address</th>
+                    <th scope="col" className="border-r border-slate-200 px-3 py-2.5">Email</th>
+                    <th scope="col" className="border-r border-slate-200 px-3 py-2.5">Phone</th>
+                    <th scope="col" className="px-3 py-2.5 text-right"> </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!loading && !error && !shownProperties.length && (
+                    <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-foreground/60">{search ? "No clients match your search." : "No properties are available for this organization."}</td></tr>
+                  )}
+                  {shownProperties.map((property) => <ClientRow key={property.id} property={property} session={session} onSaved={handleSaved} />)}
+                </tbody>
+              </table>
             </div>
+            <p className="mt-2 text-xs text-foreground/50">Email and phone can be edited by owners and managers. Each row is one property record.</p>
           </>
         )}
       </main>
