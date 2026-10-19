@@ -329,15 +329,6 @@ function PropertyScopeEditor({
   const draftCanSave = portalPropertyScopeDraftCanSave(currentRow, activeSelection, properties);
   const draftHasChanges = portalPropertyScopeDraftChanged(currentRow, activeSelection, properties);
   const zeroSelected = activeScope === "property" && checkedIds.length === 0;
-  const propertyIdsKey = ids.join("|");
-  const propertiesKey = (properties || []).map((property) => property.id).join("|");
-
-  useEffect(() => {
-    setDraft(
-      normalizePortalPropertyScopeDraft({ role, accessScope: scope, propertyIds: ids, properties })
-    );
-  }, [role, scope, propertyIdsKey, propertiesKey]);
-
   function updateSelectionFromCheckedIds(nextCheckedIds) {
     const selection = portalPropertyScopeSelectionFromCheckedIds({
       checkedPropertyIds: nextCheckedIds,
@@ -498,6 +489,7 @@ export default function PortalAccessAdminPage() {
   const [submitting, setSubmitting] = useState(false);
   const [setupSubmitting, setSetupSubmitting] = useState(false);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [canManageCustomerLifecycle, setCanManageCustomerLifecycle] = useState(false);
   const [adminEmails, setAdminEmails] = useState([]);
   const [orgs, setOrgs] = useState([]);
   const [accessRows, setAccessRows] = useState([]);
@@ -590,6 +582,7 @@ export default function PortalAccessAdminPage() {
         setPendingInvites([]);
         setSelectedOrgId("");
         setIsPlatformAdmin(false);
+        setCanManageCustomerLifecycle(false);
         return;
       }
 
@@ -606,11 +599,13 @@ export default function PortalAccessAdminPage() {
         if (active) {
           setAdminStatus(response.ok && body.isAdmin === true ? "authorized" : "denied");
           setIsPlatformAdmin(response.ok && body.isPlatformAdmin === true);
+          setCanManageCustomerLifecycle(response.ok && body.canManageCustomerLifecycle === true);
         }
       } catch {
         if (active) {
           setAdminStatus("denied");
           setIsPlatformAdmin(false);
+          setCanManageCustomerLifecycle(false);
         }
       }
     }
@@ -1164,6 +1159,11 @@ export default function PortalAccessAdminPage() {
                 <ClipboardList className="h-4 w-4" />
                 Punch List
               </a>
+              {canManageCustomerLifecycle && (
+                <a href="/admin/customers" className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground sm:h-10 sm:flex-none">
+                  Customers
+                </a>
+              )}
             </nav>
           )}
           {session && (
@@ -1657,6 +1657,7 @@ export default function PortalAccessAdminPage() {
                             <tr className="block rounded-lg border border-border bg-background xl:table-row xl:rounded-none xl:border-x-0 xl:border-t-0 xl:bg-slate-50/70">
                               <td colSpan={7} className="block min-w-0 p-4 xl:table-cell xl:px-5 xl:py-4">
                                 <PropertyScopeEditor
+                                  key={`${row.id}:${row.role}:${row.accessScope}:${(row.propertyIds || []).join("|")}:${selectedOrgProperties.map((property) => property.id).join("|")}`}
                                   row={row}
                                   role={row.role}
                                   accessScope={row.accessScope}
