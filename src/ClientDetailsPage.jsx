@@ -88,6 +88,74 @@ function ClientRow({ property, session, draft, saving, onDraftChange }) {
   );
 }
 
+function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
+  const [showDestinations, setShowDestinations] = useState(false);
+
+  function selectShortcutProperty() {
+    writePortalContext(session, { orgId: property.orgId, propertyId: property.id });
+  }
+
+  return (
+    <article className="border-b border-slate-200 bg-white px-3 py-3 last:border-b-0">
+      <div className="flex items-start justify-between gap-3">
+        <button
+          type="button"
+          aria-expanded={showDestinations}
+          aria-controls={`mobile-client-destinations-${property.id}`}
+          onClick={() => setShowDestinations((current) => !current)}
+          className="inline-flex min-w-0 items-center gap-1 text-left text-sm font-semibold text-[var(--brand)] underline underline-offset-2"
+        >
+          <span className="break-words">{property.propertyName || "Property"}</span>
+          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${showDestinations ? "rotate-180" : ""}`} />
+        </button>
+        <span className="max-w-[42%] shrink-0 truncate text-right text-sm text-foreground/70">
+          {property.clientName || "No client name"}
+        </span>
+      </div>
+      {showDestinations && (
+        <div id={`mobile-client-destinations-${property.id}`} className="mt-2 flex flex-wrap gap-2">
+          <a href="/reports" onClick={selectShortcutProperty} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-[var(--brand)]">Reports</a>
+          <a href="/punch-list" onClick={selectShortcutProperty} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-[var(--brand)]">Punch List</a>
+        </div>
+      )}
+      <p className="mt-1 break-words text-xs leading-relaxed text-foreground/60">
+        {propertyAddress(property) || "No address on file"}
+      </p>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <label className="grid min-w-0 gap-1 text-[11px] font-semibold uppercase tracking-wide text-foreground/50">
+          Email
+          {property.canEdit ? (
+            <input
+              type="email"
+              value={draft.clientEmail}
+              maxLength={254}
+              disabled={saving}
+              onChange={(event) => onDraftChange(property, "clientEmail", event.target.value)}
+              placeholder="Add email"
+              className="h-10 w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
+            />
+          ) : <span className="min-h-10 break-all rounded-md bg-slate-50 px-2 py-2 text-sm font-normal normal-case tracking-normal text-foreground/75">{property.clientEmail || "—"}</span>}
+        </label>
+        <label className="grid min-w-0 gap-1 text-[11px] font-semibold uppercase tracking-wide text-foreground/50">
+          Phone
+          {property.canEdit ? (
+            <input
+              type="tel"
+              value={draft.clientPhone}
+              maxLength={40}
+              disabled={saving}
+              onChange={(event) => onDraftChange(property, "clientPhone", event.target.value)}
+              onBlur={(event) => onDraftChange(property, "clientPhone", formatClientPhone(event.target.value))}
+              placeholder="Add phone"
+              className="h-10 w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
+            />
+          ) : <span className="min-h-10 rounded-md bg-slate-50 px-2 py-2 text-sm font-normal normal-case tracking-normal text-foreground/75">{formatClientPhone(property.clientPhone) || "—"}</span>}
+        </label>
+      </div>
+    </article>
+  );
+}
+
 export default function ClientDetailsPage() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(Boolean(hasSupabaseConfig && supabase));
@@ -296,22 +364,37 @@ export default function ClientDetailsPage() {
         )}
         {session && (
           <>
-            <div className="mb-3 flex flex-wrap items-end gap-3">
-              <label className="grid min-w-[190px] gap-1 text-xs font-semibold text-foreground/60">Organization
-                <select value={orgId} onChange={(event) => { setOrgId(event.target.value); setSaveStatus(""); setSaveError(""); writePortalContext(session, { orgId: event.target.value, propertyId: "all" }); }} disabled={!orgs.length || saving} className="h-9 min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground">
+            <div className="mb-3 grid gap-3 sm:grid-cols-[minmax(190px,220px)_minmax(0,1fr)_auto] sm:items-end">
+              <label className="grid min-w-0 gap-1 text-xs font-semibold text-foreground/60">Organization
+                <select value={orgId} onChange={(event) => { setOrgId(event.target.value); setSaveStatus(""); setSaveError(""); writePortalContext(session, { orgId: event.target.value, propertyId: "all" }); }} disabled={!orgs.length || saving} className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground sm:h-9">
                   {!orgs.length && <option value="">No organizations</option>}
                   {orgs.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}
                 </select>
               </label>
-              <label className="grid min-w-[220px] flex-1 gap-1 text-xs font-semibold text-foreground/60">Search
-                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Client, property, address, email, phone" className="h-9 min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground" />
+              <label className="grid min-w-0 gap-1 text-xs font-semibold text-foreground/60">Search
+                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Client, property, address, email, phone" className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground sm:h-9" />
               </label>
-              <span className="pb-2 text-xs tabular-nums text-foreground/50">{shownProperties.length} {shownProperties.length === 1 ? "row" : "rows"}</span>
+              <span className="justify-self-end text-xs tabular-nums text-foreground/50 sm:pb-2">{shownProperties.length} {shownProperties.length === 1 ? "row" : "rows"}</span>
             </div>
             {error && <div role="alert" className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
             {saveError && <div role="alert" className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{saveError}</div>}
             {loading && <p className="mb-3 flex items-center gap-2 text-sm text-foreground/60"><RefreshCw className="h-4 w-4 animate-spin" />Loading clients…</p>}
-            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm lg:hidden">
+              {!loading && !error && !shownProperties.length && (
+                <p className="px-4 py-8 text-center text-sm text-foreground/60">{search ? "No clients match your search." : "No properties are available for this organization."}</p>
+              )}
+              {shownProperties.map((property) => (
+                <MobileClientRow
+                  key={property.id}
+                  property={property}
+                  session={session}
+                  draft={contactDraftForProperty(property, drafts)}
+                  saving={saving}
+                  onDraftChange={handleDraftChange}
+                />
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm lg:block">
               <table className="w-full min-w-[920px] border-collapse text-left">
                 <thead className="bg-slate-100 text-xs font-semibold uppercase tracking-wide text-foreground/60">
                   <tr>

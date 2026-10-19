@@ -3,6 +3,7 @@
 @source "../index.html";
 @source "./App.jsx";
 @source "./AccountPage.jsx";
+@source "./ClientDetailsPage.jsx";
 @source "./PrivacyPage.jsx";
 @source "./components/AccountMenu.jsx";
 @source "./ForgotPasswordPage.jsx";
