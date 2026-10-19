@@ -97,19 +97,19 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
 
   return (
     <article className="border-b border-slate-200 bg-white px-3 py-3 last:border-b-0">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <button
           type="button"
           aria-expanded={showDestinations}
           aria-controls={`mobile-client-destinations-${property.id}`}
           onClick={() => setShowDestinations((current) => !current)}
-          className="inline-flex min-w-0 items-center gap-1 text-left text-sm font-semibold text-[var(--brand)] underline underline-offset-2"
+          className="inline-flex max-w-full min-w-0 items-center gap-1 text-left text-sm font-semibold text-[var(--brand)] underline underline-offset-2"
         >
           <span className="break-words">{property.propertyName || "Property"}</span>
           <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${showDestinations ? "rotate-180" : ""}`} />
         </button>
-        <span className="max-w-[42%] shrink-0 truncate text-right text-sm text-foreground/70">
-          {property.clientName || "No client name"}
+        <span className="min-w-0 break-words text-sm text-foreground/70">
+          Client: {property.clientName || "No name"}
         </span>
       </div>
       {showDestinations && (
