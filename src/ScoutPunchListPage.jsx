@@ -9,6 +9,7 @@ import {
   Clock,
   Download,
   FileText,
+  CircleUserRound,
   Flag,
   ImageUp,
   Info,
@@ -6304,7 +6305,7 @@ export default function ScoutPunchListPage() {
     >
       <style>{PUNCH_LIST_STYLES}</style>
       <header className="border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 md:px-6">
+        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-3 px-4 py-4 sm:flex-row sm:items-center md:px-6">
           <a href="/" className="inline-flex items-center">
             <img
               src={BRAND.logos.wordmarkOnly}
@@ -6314,13 +6315,20 @@ export default function ScoutPunchListPage() {
             />
           </a>
           {session && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <a
                 href="/reports"
                 className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
               >
                 <FileText className="h-4 w-4" />
                 Reports
+              </a>
+              <a
+                href="/clients"
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
+              >
+                <CircleUserRound className="h-4 w-4" />
+                Clients
               </a>
               {canOpenAdmin && (
                 <a

@@ -1827,6 +1827,11 @@
       flex-wrap: wrap;
     }
   }
+  .sm\:items-center {
+    @media (width >= 40rem) {
+      align-items: center;
+    }
+  }
   .sm\:justify-end {
     @media (width >= 40rem) {
       justify-content: flex-end;
