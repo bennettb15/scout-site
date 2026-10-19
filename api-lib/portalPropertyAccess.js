@@ -13,10 +13,10 @@ export function normalizePropertyIds(values) {
   return [...new Set(list.map((value) => String(value || "").trim()).filter(Boolean))];
 }
 
-export function portalAccessAllowsProperty({ role, accessScope, propertyIds } = {}, propertyId) {
+export function portalAccessAllowsProperty({ role, accessScope, access_scope, propertyIds } = {}, propertyId) {
   if (!propertyId) return false;
   if (role === "owner") return true;
-  if (normalizeAccessScope(accessScope, role) === ORG_ACCESS_SCOPE) return true;
+  if (normalizeAccessScope(accessScope || access_scope, role) === ORG_ACCESS_SCOPE) return true;
   return new Set(normalizePropertyIds(propertyIds)).has(String(propertyId));
 }
 
