@@ -169,7 +169,7 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
           {property.clientName || "No client name"}
         </h2>
       </div>
-      <div className="mt-2 grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div className="min-w-0">
           <MobileContactField
             label="Email"
