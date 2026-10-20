@@ -97,27 +97,26 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
 
   return (
     <article className="border-b border-slate-200 bg-white px-3 py-3 last:border-b-0">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <button
-          type="button"
-          aria-expanded={showDestinations}
-          aria-controls={`mobile-client-destinations-${property.id}`}
-          onClick={() => setShowDestinations((current) => !current)}
-          className="inline-flex max-w-full min-w-0 items-center gap-1 text-left text-sm font-semibold text-[var(--brand)] underline underline-offset-2"
-        >
-          <span className="break-words">{property.propertyName || "Property"}</span>
-          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${showDestinations ? "rotate-180" : ""}`} />
-        </button>
-        <span className="min-w-0 break-words text-sm text-foreground/70">
-          Client: {property.clientName || "No name"}
-        </span>
-      </div>
+      <button
+        type="button"
+        aria-expanded={showDestinations}
+        aria-controls={`mobile-client-destinations-${property.id}`}
+        onClick={() => setShowDestinations((current) => !current)}
+        className="inline-flex max-w-full min-w-0 items-center gap-1 text-left text-sm font-semibold text-[var(--brand)] underline underline-offset-2"
+      >
+        <span className="break-words">{property.propertyName || "Property"}</span>
+        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${showDestinations ? "rotate-180" : ""}`} />
+      </button>
       {showDestinations && (
         <div id={`mobile-client-destinations-${property.id}`} className="mt-2 flex flex-wrap gap-2">
           <a href="/reports" onClick={selectShortcutProperty} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-[var(--brand)]">Reports</a>
           <a href="/punch-list" onClick={selectShortcutProperty} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-[var(--brand)]">Punch List</a>
         </div>
       )}
+      <div className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-foreground/50">Client</div>
+      <h2 className="break-words text-lg font-semibold leading-tight text-foreground">
+        {property.clientName || "No client name"}
+      </h2>
       <p className="mt-1 break-words text-xs leading-relaxed text-foreground/60">
         {propertyAddress(property) || "No address on file"}
       </p>
@@ -132,9 +131,9 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
               disabled={saving}
               onChange={(event) => onDraftChange(property, "clientEmail", event.target.value)}
               placeholder="Add email"
-              className="h-10 w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
+              className="h-9 w-full min-w-0 rounded-md border border-slate-200 bg-slate-50 px-2 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
             />
-          ) : <span className="min-h-10 break-all rounded-md bg-slate-50 px-2 py-2 text-sm font-normal normal-case tracking-normal text-foreground/75">{property.clientEmail || "—"}</span>}
+          ) : <span className="min-h-9 break-all rounded-md bg-slate-50 px-2 py-2 text-sm font-normal normal-case tracking-normal text-foreground/75">{property.clientEmail || "—"}</span>}
         </label>
         <label className="grid min-w-0 gap-1 text-[11px] font-semibold uppercase tracking-wide text-foreground/50">
           Phone
@@ -147,9 +146,9 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
               onChange={(event) => onDraftChange(property, "clientPhone", event.target.value)}
               onBlur={(event) => onDraftChange(property, "clientPhone", formatClientPhone(event.target.value))}
               placeholder="Add phone"
-              className="h-10 w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
+              className="h-9 w-full min-w-0 rounded-md border border-slate-200 bg-slate-50 px-2 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
             />
-          ) : <span className="min-h-10 rounded-md bg-slate-50 px-2 py-2 text-sm font-normal normal-case tracking-normal text-foreground/75">{formatClientPhone(property.clientPhone) || "—"}</span>}
+          ) : <span className="min-h-9 rounded-md bg-slate-50 px-2 py-2 text-sm font-normal normal-case tracking-normal text-foreground/75">{formatClientPhone(property.clientPhone) || "—"}</span>}
         </label>
       </div>
     </article>
