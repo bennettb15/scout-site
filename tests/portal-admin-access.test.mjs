@@ -186,10 +186,11 @@ test("manager cannot change or revoke owner access", () => {
   );
 });
 
-test("owner invite dropdown allows viewer, field, manager, and owner", () => {
-  assert.deepEqual(inviteRolesForActor("owner"), ["viewer", "field", "manager", "owner"]);
+test("owner invite dropdown excludes owner", () => {
+  assert.deepEqual(inviteRolesForActor("owner"), ["viewer", "field", "manager"]);
   assert.equal(canActorInvitePortalRole({ actorRole: "owner", targetRole: "manager" }), true);
-  assert.equal(canActorInvitePortalRole({ actorRole: "owner", targetRole: "owner" }), true);
+  assert.equal(canActorInvitePortalRole({ actorRole: "owner", targetRole: "owner" }), false);
+  assert.equal(canActorChangePortalRole({ actorRole: "owner", currentRole: "manager", nextRole: "owner" }), false);
 });
 
 test("manager invite dropdown allows viewer, field, and manager", () => {
