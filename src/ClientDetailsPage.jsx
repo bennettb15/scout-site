@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ClipboardList, FileText, Mail, Pencil, Phone, RefreshCw } from "lucide-react";
+import { ChevronDown, CircleUserRound, ClipboardList, FileText, Mail, Pencil, Phone, RefreshCw } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
@@ -163,8 +163,8 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
       <p className="mt-1 break-words text-xs leading-snug text-foreground/55">
         {propertyAddress(property) || "No address on file"}
       </p>
-      <div className="mt-2">
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-foreground/45">Client</div>
+      <div className="mt-2 flex items-center gap-2">
+        <CircleUserRound className="h-4 w-4 shrink-0 text-foreground/45" aria-hidden="true" />
         <h2 className="min-w-0 break-words text-base font-semibold leading-tight text-foreground">
           {property.clientName || "No client name"}
         </h2>
