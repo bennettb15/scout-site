@@ -4,7 +4,6 @@ import {
   ClipboardList,
   FileText,
   Info,
-  KeyRound,
   Mail,
   Plus,
   RefreshCw,
@@ -489,7 +488,6 @@ export default function PortalAccessAdminPage() {
   const [loading, setLoading] = useState(false);
   const [adminStatus, setAdminStatus] = useState("signed-out");
   const [submitting, setSubmitting] = useState(false);
-  const [setupSubmitting, setSetupSubmitting] = useState(false);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [canManageCustomerLifecycle, setCanManageCustomerLifecycle] = useState(false);
   const [adminEmails, setAdminEmails] = useState([]);
@@ -504,8 +502,6 @@ export default function PortalAccessAdminPage() {
   const [newOrgName, setNewOrgName] = useState("");
   const [isCreateOrgOpen, setIsCreateOrgOpen] = useState(false);
   const [creatingOrg, setCreatingOrg] = useState(false);
-  const [setupLinkDetails, setSetupLinkDetails] = useState(null);
-  const [copyMessage, setCopyMessage] = useState("");
   const [revokeId, setRevokeId] = useState("");
   const [cancelInviteId, setCancelInviteId] = useState("");
   const [roleChangeId, setRoleChangeId] = useState("");
@@ -657,13 +653,11 @@ export default function PortalAccessAdminPage() {
     ]);
   }
 
-  async function handleAccessSubmit(action) {
+  async function handleInviteUser() {
     if (!session?.access_token) return;
     setSubmitting(true);
     setActionMessage("");
     setLoadError("");
-    setSetupLinkDetails(null);
-    setCopyMessage("");
 
     try {
       const response = await fetch("/api/admin/portal-access", {
@@ -673,7 +667,6 @@ export default function PortalAccessAdminPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          action,
           email: clientEmail,
           orgId: selectedOrgId,
           accessRole: selectedAccessRole,
@@ -686,7 +679,7 @@ export default function PortalAccessAdminPage() {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(body.error || "Unable to grant portal access.");
+        throw new Error(body.error || "Unable to invite user.");
       }
       setClientEmail("");
       setActionMessage(
@@ -711,61 +704,9 @@ export default function PortalAccessAdminPage() {
       mergePendingInvite(body.invite);
       await loadAccess(session);
     } catch (error) {
-      setLoadError(error.message || "Unable to grant portal access.");
+      setLoadError(error.message || "Unable to invite user.");
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function handleCreateSetupLink() {
-    if (!session?.access_token) return;
-    setSetupSubmitting(true);
-    setActionMessage("");
-    setLoadError("");
-    setSetupLinkDetails(null);
-    setCopyMessage("");
-
-    try {
-      const response = await fetch("/api/admin/portal-access", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "setupLink",
-          email: clientEmail,
-          orgId: selectedOrgId,
-          accessRole: selectedAccessRole,
-          accessScope: selectedAccessRole === "owner" ? "org" : selectedAccessScope,
-          propertyIds:
-            selectedAccessRole !== "owner" && selectedAccessScope === "property"
-              ? selectedPropertyIds
-              : [],
-        }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(body.error || "Unable to create setup link.");
-      }
-
-      setSetupLinkDetails({
-        email: body.user.email,
-        orgName: body.org.name,
-        setupUrl: body.setupUrl,
-        setupPath: body.setupPath,
-      });
-      setActionMessage(
-        `Created fallback setup link for ${body.user.email}; ${selectedAccessTypeLabel(
-          body.invite?.role
-        )} access will activate after they accept it.`
-      );
-      mergePendingInvite(body.invite);
-      await loadAccess(session);
-    } catch (error) {
-      setLoadError(error.message || "Unable to create setup link.");
-    } finally {
-      setSetupSubmitting(false);
     }
   }
 
@@ -776,8 +717,6 @@ export default function PortalAccessAdminPage() {
     setCreatingOrg(true);
     setActionMessage("");
     setLoadError("");
-    setSetupLinkDetails(null);
-    setCopyMessage("");
 
     try {
       const response = await fetch("/api/admin/portal-access", {
@@ -805,18 +744,6 @@ export default function PortalAccessAdminPage() {
       setLoadError(error.message || "Unable to create organization.");
     } finally {
       setCreatingOrg(false);
-    }
-  }
-
-  async function handleCopySetupLink() {
-    if (!setupLinkDetails?.setupUrl) return;
-    setCopyMessage("");
-
-    try {
-      await navigator.clipboard.writeText(setupLinkDetails.setupUrl);
-      setCopyMessage("Setup link copied.");
-    } catch {
-      setCopyMessage("Copy failed. Select the link and copy it manually.");
     }
   }
 
@@ -1379,11 +1306,7 @@ export default function PortalAccessAdminPage() {
                     type="email"
                     autoComplete="email"
                     value={clientEmail}
-                    onChange={(event) => {
-                      setClientEmail(event.target.value);
-                      setSetupLinkDetails(null);
-                      setCopyMessage("");
-                    }}
+                    onChange={(event) => setClientEmail(event.target.value)}
                     className="h-11 rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
                   />
                 </label>
@@ -1419,7 +1342,7 @@ export default function PortalAccessAdminPage() {
                         accessScope={selectedAccessScope}
                         propertyIds={selectedPropertyIds}
                         properties={selectedOrgProperties}
-                        disabled={submitting || setupSubmitting}
+                        disabled={submitting}
                         onChange={(nextScope, nextPropertyIds) => {
                           setSelectedAccessScope(nextScope);
                           setSelectedPropertyIds(nextPropertyIds);
@@ -1431,26 +1354,9 @@ export default function PortalAccessAdminPage() {
                 <div className="add-client-actions grid gap-2 sm:flex sm:flex-wrap md:col-span-2">
                   <button
                     type="button"
-                    onClick={() => handleAccessSubmit("grantExisting")}
+                    onClick={handleInviteUser}
                     disabled={
                       submitting ||
-                      setupSubmitting ||
-                      !clientEmail ||
-                      !selectedOrgId ||
-                      !inviteRoleOptions.length ||
-                      inviteScopeIncomplete
-                    }
-                    className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-foreground disabled:opacity-60"
-                  >
-                    <ShieldCheck className="h-4 w-4" />
-                    Grant Access
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAccessSubmit(undefined)}
-                    disabled={
-                      submitting ||
-                      setupSubmitting ||
                       !clientEmail ||
                       !selectedOrgId ||
                       !inviteRoleOptions.length ||
@@ -1461,65 +1367,12 @@ export default function PortalAccessAdminPage() {
                     <UserPlus className="h-4 w-4" />
                     Invite User
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleCreateSetupLink}
-                    disabled={
-                      submitting ||
-                      setupSubmitting ||
-                      !clientEmail ||
-                      !selectedOrgId ||
-                      !inviteRoleOptions.length ||
-                      inviteScopeIncomplete
-                    }
-                    className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-amber-200 bg-amber-50 px-3 text-sm font-semibold text-amber-950 shadow-sm hover:bg-amber-100 disabled:opacity-60"
-                  >
-                    <KeyRound className="h-4 w-4" />
-                    {setupSubmitting ? "Creating..." : "Fallback Setup Link"}
-                  </button>
                 </div>
               </div>
               <p className="mt-3 text-sm leading-relaxed text-foreground/60">
-                Invite User sends a Scout-branded setup invite for new portal
-                users, or grants access immediately when the email already has a
-                confirmed portal account. Grant Access is for an existing portal
-                account when no notification is needed. Use the fallback setup
-                link only when you need to copy the same setup flow manually.
+                New users receive a setup email. Existing, confirmed users without
+                access are added immediately and notified by email.
               </p>
-              {setupLinkDetails?.setupUrl && (
-                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
-                  <div className="text-sm font-semibold text-amber-950">
-                    Fallback setup link for {setupLinkDetails.email}
-                  </div>
-                  <p className="mt-1 text-sm text-amber-900/80">
-                    Copy this link only if the invite email did not arrive. It opens
-                    the Client Portal invite setup page and activates access only
-                    after the recipient accepts it.
-                  </p>
-                  <div className="mt-3 flex flex-col gap-2 md:flex-row">
-                    <input
-                      type="text"
-                      readOnly
-                      value={setupLinkDetails.setupUrl}
-                      className="h-11 min-w-0 flex-1 rounded-lg border border-amber-200 bg-background px-3 text-sm text-foreground outline-none"
-                      onFocus={(event) => event.target.select()}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleCopySetupLink}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm"
-                    >
-                      <ClipboardList className="h-4 w-4" />
-                      Copy Fallback Link
-                    </button>
-                  </div>
-                  {copyMessage && (
-                    <p className="mt-2 text-sm font-medium text-amber-950">
-                      {copyMessage}
-                    </p>
-                  )}
-                </div>
-              )}
             </section>
 
             <section className="rounded-lg border border-border bg-background shadow-sm">
