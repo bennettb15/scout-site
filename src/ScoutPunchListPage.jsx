@@ -3367,7 +3367,7 @@ function previewPhotosForRow(row) {
     photos.push(photo);
   };
 
-  const scoutPhoto = scoutCurrentPhotoForRow(row, row?.status === "resolved" ? "ScoutCapture" : "Current");
+  const scoutPhoto = scoutCurrentPhotoForRow(row, row?.status === "resolved" ? "Scout Capture" : "Current");
   const historyPhotos = rowHistoryPhotos(row);
   const scoutHistoryPhotos = historyPhotos.filter((photo) => !textValue(photo.label).toLowerCase().includes("completion"));
   const previousCompletionPhotos = historyPhotos.filter((photo) =>

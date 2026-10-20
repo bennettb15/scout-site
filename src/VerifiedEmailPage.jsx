@@ -163,8 +163,8 @@ export default function VerifiedEmailPage() {
               <MessageState
                 icon="→"
                 title="Verify your email"
-                body="Confirm this email address to finish creating your ScoutCapture account."
-                secondaryBody="After verification, return to ScoutCapture and sign in with your email and password."
+                body="Confirm this email address to finish creating your Scout Capture account."
+                secondaryBody="After verification, return to Scout Capture and sign in with your email and password."
                 actionHref={confirmationUrl}
                 actionLabel="Verify Email"
               />
@@ -174,8 +174,8 @@ export default function VerifiedEmailPage() {
               <MessageState
                 icon="✓"
                 title="Email verified"
-                body="Your ScoutCapture account has been successfully verified."
-                secondaryBody="You may now return to ScoutCapture and sign in using your email and password."
+                body="Your Scout Capture account has been successfully verified."
+                secondaryBody="You may now return to Scout Capture and sign in using your email and password."
               />
             )}
 
@@ -191,7 +191,7 @@ export default function VerifiedEmailPage() {
               <MessageState
                 icon="!"
                 title="Verification link expired or invalid"
-                body="Request a new verification email from ScoutCapture."
+                body="Request a new verification email from Scout Capture."
               />
             )}
 

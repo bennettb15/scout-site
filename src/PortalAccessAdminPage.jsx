@@ -800,7 +800,7 @@ export default function PortalAccessAdminPage() {
       setIsCreateOrgOpen(false);
       await loadAccess(session);
       if (body.org?.id) setSelectedOrgId(body.org.id);
-      setActionMessage("Created organization. Add properties in ScoutCapture, then invite the client.");
+      setActionMessage("Created organization. Add properties in Scout Capture, then invite the client.");
     } catch (error) {
       setLoadError(error.message || "Unable to create organization.");
     } finally {
@@ -1327,9 +1327,9 @@ export default function PortalAccessAdminPage() {
                   <div className="absolute left-0 top-full z-40 mt-2 w-[min(21rem,calc(100vw-3rem))] rounded-xl border border-border bg-background p-4 text-sm leading-relaxed text-foreground shadow-xl">
                     <div className="font-semibold">User roles</div>
                     <dl className="mt-3 grid gap-3">
-                      <div><dt className="font-semibold">Viewer</dt><dd className="text-foreground/70">Use the portal to view reports and clients, work on punch lists, and approve or reject completed punch list items. Viewer sign-in to ScoutCapture currently permits read-only access.</dd></div>
-                      <div><dt className="font-semibold">Field</dt><dd className="text-foreground/70">Use the portal and ScoutCapture for reports, clients, and punch list work. Cannot approve or reject completed punch list items.</dd></div>
-                      <div><dt className="font-semibold">Manager · Most access</dt><dd className="text-foreground/70">Use the portal and ScoutCapture, approve or reject completed punch list items, and manage users and client details in Admin.</dd></div>
+                      <div><dt className="font-semibold">Viewer</dt><dd className="text-foreground/70">Use the portal to view reports and clients, work on punch lists, and approve or reject completed punch list items. Viewer sign-in to Scout Capture currently permits read-only access.</dd></div>
+                      <div><dt className="font-semibold">Field</dt><dd className="text-foreground/70">Use the portal and Scout Capture for reports, clients, and punch list work. Cannot approve or reject completed punch list items.</dd></div>
+                      <div><dt className="font-semibold">Manager · Most access</dt><dd className="text-foreground/70">Use the portal and Scout Capture, approve or reject completed punch list items, and manage users and client details in Admin.</dd></div>
                     </dl>
                     <p className="mt-3 border-t border-border pt-3 text-xs text-foreground/60">Access can cover all properties or only those selected below.</p>
                   </div>
@@ -1733,7 +1733,7 @@ export default function PortalAccessAdminPage() {
                   Create Organization
                 </h2>
                 <p className="mt-1 text-sm leading-relaxed text-foreground/60">
-                  Add the organization here, then add properties in ScoutCapture.
+                  Add the organization here, then add properties in Scout Capture.
                 </p>
               </div>
               <button
