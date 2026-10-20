@@ -800,7 +800,7 @@ export default function PortalAccessAdminPage() {
       setIsCreateOrgOpen(false);
       await loadAccess(session);
       if (body.org?.id) setSelectedOrgId(body.org.id);
-      setActionMessage("Created organization. Add properties in ScoutCapture, then invite the client.");
+      setActionMessage("Created organization. Add properties in Scout Capture, then invite the client.");
     } catch (error) {
       setLoadError(error.message || "Unable to create organization.");
     } finally {
@@ -1317,21 +1317,58 @@ export default function PortalAccessAdminPage() {
               </div>
             )}
 
-            <section className="rounded-lg border border-border bg-background p-4 shadow-sm sm:p-5">
+            <section className="relative rounded-lg border border-border bg-background p-4 shadow-sm sm:p-5">
               <div className="mb-4 flex items-center gap-2">
                 <h2 className="text-base font-semibold text-foreground">Add User</h2>
-                <details className="group relative">
+                <details className="group">
                   <summary aria-label="About user roles" className="flex h-6 w-6 cursor-pointer list-none items-center justify-center rounded-full text-foreground/55 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 [&::-webkit-details-marker]:hidden">
                     <Info className="h-4 w-4" />
                   </summary>
-                  <div className="absolute left-0 top-full z-40 mt-2 w-[min(21rem,calc(100vw-3rem))] rounded-xl border border-border bg-background p-4 text-sm leading-relaxed text-foreground shadow-xl">
+                  <div className="absolute left-3 right-3 top-14 z-40 rounded-xl border border-border bg-background p-3 text-sm text-foreground shadow-xl sm:left-4 sm:right-auto sm:w-[min(32rem,calc(100vw-4rem))] sm:p-4">
                     <div className="font-semibold">User roles</div>
-                    <dl className="mt-3 grid gap-3">
-                      <div><dt className="font-semibold">Viewer</dt><dd className="text-foreground/70">Use the portal to view reports and clients, work on punch lists, and approve or reject completed punch list items. Viewer sign-in to ScoutCapture currently permits read-only access.</dd></div>
-                      <div><dt className="font-semibold">Field</dt><dd className="text-foreground/70">Use the portal and ScoutCapture for reports, clients, and punch list work. Cannot approve or reject completed punch list items.</dd></div>
-                      <div><dt className="font-semibold">Manager · Most access</dt><dd className="text-foreground/70">Use the portal and ScoutCapture, approve or reject completed punch list items, and manage users and client details in Admin.</dd></div>
-                    </dl>
-                    <p className="mt-3 border-t border-border pt-3 text-xs text-foreground/60">Access can cover all properties or only those selected below.</p>
+                    <table className="mt-3 w-full table-fixed border-collapse text-left text-xs sm:text-sm">
+                      <thead>
+                        <tr className="border-b border-border text-foreground/75">
+                          <th scope="col" className="w-[43%] py-2 pr-2 font-medium">Access</th>
+                          <th scope="col" className="w-[19%] px-1 py-2 text-center font-semibold">Viewer</th>
+                          <th scope="col" className="w-[19%] px-1 py-2 text-center font-semibold">Field</th>
+                          <th scope="col" className="w-[19%] px-1 py-2 text-center font-semibold">Manager</th>
+                        </tr>
+                      </thead>
+                      <tbody className="[&_tr:not(:last-child)]:border-b [&_tr:not(:last-child)]:border-border/70">
+                        <tr>
+                          <th scope="row" className="py-2 pr-2 font-normal">View reports and clients</th>
+                          <td className="px-1 py-2 text-center" aria-label="Viewer: yes">✓</td>
+                          <td className="px-1 py-2 text-center" aria-label="Field: yes">✓</td>
+                          <td className="px-1 py-2 text-center" aria-label="Manager: yes">✓</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" className="py-2 pr-2 font-normal">Work on punch lists</th>
+                          <td className="px-1 py-2 text-center" aria-label="Viewer: yes">✓</td>
+                          <td className="px-1 py-2 text-center" aria-label="Field: yes">✓</td>
+                          <td className="px-1 py-2 text-center" aria-label="Manager: yes">✓</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" className="py-2 pr-2 font-normal">Approve or reject completed punch list items</th>
+                          <td className="px-1 py-2 text-center" aria-label="Viewer: yes">✓</td>
+                          <td className="px-1 py-2 text-center text-foreground/35" aria-label="Field: no">—</td>
+                          <td className="px-1 py-2 text-center" aria-label="Manager: yes">✓</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" className="py-2 pr-2 font-normal">Use Scout Capture</th>
+                          <td className="px-1 py-2 text-center text-[10px] leading-tight text-foreground/65 sm:text-xs">View only</td>
+                          <td className="px-1 py-2 text-center" aria-label="Field: yes">✓</td>
+                          <td className="px-1 py-2 text-center" aria-label="Manager: yes">✓</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" className="py-2 pr-2 font-normal">Manage users and client details</th>
+                          <td className="px-1 py-2 text-center text-foreground/35" aria-label="Viewer: no">—</td>
+                          <td className="px-1 py-2 text-center text-foreground/35" aria-label="Field: no">—</td>
+                          <td className="px-1 py-2 text-center" aria-label="Manager: yes">✓</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <p className="mt-3 border-t border-border pt-3 text-xs leading-relaxed text-foreground/60">Viewer access in Scout Capture is currently read-only. Access can cover all properties or only those selected below.</p>
                   </div>
                 </details>
               </div>
@@ -1733,7 +1770,7 @@ export default function PortalAccessAdminPage() {
                   Create Organization
                 </h2>
                 <p className="mt-1 text-sm leading-relaxed text-foreground/60">
-                  Add the organization here, then add properties in ScoutCapture.
+                  Add the organization here, then add properties in Scout Capture.
                 </p>
               </div>
               <button
