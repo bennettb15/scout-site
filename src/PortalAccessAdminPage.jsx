@@ -1327,11 +1327,11 @@ export default function PortalAccessAdminPage() {
                   <div className="absolute left-0 top-full z-40 mt-2 w-[min(21rem,calc(100vw-3rem))] rounded-xl border border-border bg-background p-4 text-sm leading-relaxed text-foreground shadow-xl">
                     <div className="font-semibold">User roles</div>
                     <dl className="mt-3 grid gap-3">
-                      <div><dt className="font-semibold">Viewer · Portal work</dt><dd className="text-foreground/70">View reports and clients; work on punch lists, including notes, fields, and completion reviews. ScoutCapture also allows read-only viewing of assigned properties.</dd></div>
-                      <div><dt className="font-semibold">Field · App + portal</dt><dd className="text-foreground/70">Capture in the app and work on portal punch lists. Cannot approve or reject completions.</dd></div>
-                      <div><dt className="font-semibold">Manager · App + portal + admin</dt><dd className="text-foreground/70">Manage users and client contact details, and approve or reject punch list completions.</dd></div>
+                      <div><dt className="font-semibold">Viewer · Oversee and review</dt><dd className="text-foreground/70">View reports and clients; add punch list notes, update fields, submit work, and approve or reject completions. This can be any person assigned to oversee the work.</dd></div>
+                      <div><dt className="font-semibold">Field · Perform the work</dt><dd className="text-foreground/70">View reports and clients; add punch list notes, update fields, and submit completed work. The portal is enough; using the app is optional. Cannot approve or reject completions.</dd></div>
+                      <div><dt className="font-semibold">Manager · Manage SCOUT access</dt><dd className="text-foreground/70">Use the Admin page to manage users and client contact details, and approve or reject punch list completions.</dd></div>
                     </dl>
-                    <p className="mt-3 border-t border-border pt-3 text-xs text-foreground/60">Access can cover all properties or only the properties selected below.</p>
+                    <p className="mt-3 border-t border-border pt-3 text-xs text-foreground/60">Roles describe SCOUT permissions, not job titles. Access can cover all properties or only those selected below.</p>
                   </div>
                 </details>
               </div>
