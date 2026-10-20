@@ -66,7 +66,6 @@ const MAX_NOTE_LENGTH = 1000;
 const MAX_COMPLETION_PHOTO_BYTES = 25 * 1024 * 1024;
 const ALL_VALUE = "all";
 const PDF_REPORT_TITLE = "Punch List Report";
-const PDF_VERSION_MARKER = "Punchlist PDF v5 caption sidebar polish";
 const SCOUT_NAVY = "#1C2742";
 const ISSUE_PHOTO_SLOT_X = 12;
 const ISSUE_PHOTO_SLOT_WIDTH = 430;
@@ -3447,15 +3446,21 @@ function drawLabelValue(doc, label, value, x, y, width) {
     .text(value || "None", x, y + 10, { width, height: 24 });
 }
 
-function issuePhotoFitRect(doc, imageBuffer, x, y, width, height) {
+export function issuePhotoFitRect(doc, imageBuffer, x, y, width, height) {
   if (imageBuffer) {
     try {
       const image = doc.openImage(imageBuffer);
-      const fitted = aspectFitBox({ width: image.width, height: image.height }, { x, y, width, height });
+      // PDFKit rotates EXIF-oriented JPEGs when drawing them. Fit the displayed
+      // dimensions so portrait photos are not stretched into landscape boxes.
+      const quarterTurn = image.orientation >= 5 && image.orientation <= 8;
+      const displayedSize = quarterTurn
+        ? { width: image.height, height: image.width }
+        : { width: image.width, height: image.height };
+      const fitted = aspectFitBox(displayedSize, { x, y, width, height });
       return {
         ...fitted,
         hasImage: true,
-        isLandscape: image.width >= image.height,
+        isLandscape: displayedSize.width >= displayedSize.height,
       };
     } catch {
       return { x, y, width, height, hasImage: false, isLandscape: false };
@@ -3967,7 +3972,7 @@ function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto) {
 
   y += 12;
   drawCoverCenteredText(doc, "Prepared by:", y, { bold: true, fontSize: 11 });
-  drawCoverCenteredText(doc, "SCOUT - Visual Documentation Services", y + 26, { fontSize: 11 });
+  drawCoverCenteredText(doc, context.org?.name || "Organization not specified", y + 26, { fontSize: 11 });
   drawCoverCenteredText(doc, "Clear, time-stamped visual documentation of observable property conditions.", y + 46, {
     fontSize: 11,
   });
@@ -3981,7 +3986,6 @@ function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto) {
 async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null) {
   const doc = new PDFDocument({ autoFirstPage: false, bufferPages: true, size: "LETTER", margin: 42 });
   doc.info.Title = PDF_REPORT_TITLE;
-  doc.info.Subject = PDF_VERSION_MARKER;
   const result = collectPdf(doc);
   const imageBuffers = new Map();
   const coverImagePromise = imageBufferFromUrl(coverPhoto?.previewUrl);
@@ -4013,11 +4017,6 @@ async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null) {
   const range = doc.bufferedPageRange();
   for (let index = range.start; index < range.start + range.count; index += 1) {
     doc.switchToPage(index);
-    doc
-      .font("Helvetica")
-      .fontSize(7.5)
-      .fillColor("#94a3b8")
-      .text(PDF_VERSION_MARKER, 320, 748, { width: 170, height: 10, align: "right", lineBreak: false });
     doc
       .font("Helvetica")
       .fontSize(10)
