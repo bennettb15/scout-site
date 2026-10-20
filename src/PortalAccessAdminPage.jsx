@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
+import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import AccountMenu from "./components/AccountMenu";
 import {
   canEditPortalPropertyScope,
@@ -558,8 +559,16 @@ export default function PortalAccessAdminPage() {
       setOrgs(body.orgs || []);
       setAccessRows(body.access || []);
       setPendingInvites(body.pendingInvites || []);
-      if (!selectedOrgId && body.orgs?.[0]?.id) {
-        setSelectedOrgId(body.orgs[0].id);
+      const availableOrgs = body.orgs || [];
+      const savedContext = readPortalContext(activeSession);
+      const nextOrgId = availableOrgs.some((org) => org.id === selectedOrgId)
+        ? selectedOrgId
+        : availableOrgs.some((org) => org.id === savedContext.orgId)
+          ? savedContext.orgId
+          : availableOrgs[0]?.id || "";
+      setSelectedOrgId(nextOrgId);
+      if (nextOrgId && nextOrgId !== savedContext.orgId) {
+        writePortalContext(activeSession, { orgId: nextOrgId, propertyId: "all" });
       }
     } catch (error) {
       setLoadError(error.message || "Unable to load portal access.");
@@ -738,7 +747,10 @@ export default function PortalAccessAdminPage() {
       setNewOrgName("");
       setIsCreateOrgOpen(false);
       await loadAccess(session);
-      if (body.org?.id) setSelectedOrgId(body.org.id);
+      if (body.org?.id) {
+        setSelectedOrgId(body.org.id);
+        writePortalContext(session, { orgId: body.org.id, propertyId: "all" });
+      }
       setActionMessage("Created organization. Add properties in Scout Capture, then invite the client.");
     } catch (error) {
       setLoadError(error.message || "Unable to create organization.");
@@ -1202,7 +1214,10 @@ export default function PortalAccessAdminPage() {
                   Organization
                   <select
                     value={selectedOrgId}
-                    onChange={(event) => setSelectedOrgId(event.target.value)}
+                    onChange={(event) => {
+                      setSelectedOrgId(event.target.value);
+                      writePortalContext(session, { orgId: event.target.value, propertyId: "all" });
+                    }}
                     disabled={!orgs.length}
                     className="h-11 min-w-0 w-full rounded-lg border border-input bg-background px-3 text-base outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
                   >

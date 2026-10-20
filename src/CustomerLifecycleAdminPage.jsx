@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, ChevronLeft, Clock, RefreshCw, ShieldCheck } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
+import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import AccountMenu from "./components/AccountMenu";
 
 const EMPTY_DRAFT = {
@@ -113,13 +114,13 @@ export default function CustomerLifecycleAdminPage() {
     };
   }, []);
 
-  const loadCustomers = useCallback(async (accessToken, preferredOrgId = "") => {
-    if (!accessToken) return;
+  const loadCustomers = useCallback(async (activeSession, preferredOrgId = "") => {
+    if (!activeSession?.access_token) return;
     setLoading(true);
     setError("");
     try {
       const response = await fetch("/api/admin/customer-lifecycle", {
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: { Authorization: `Bearer ${activeSession.access_token}` },
       });
       const body = await response.json().catch(() => ({}));
       if (response.status === 403) {
@@ -130,8 +131,16 @@ export default function CustomerLifecycleAdminPage() {
       if (!response.ok) throw new Error(body.error || "Unable to load customers.");
       const rows = body.organizations || [];
       setOrganizations(rows);
-      const nextId = rows.some((row) => row.id === preferredOrgId) ? preferredOrgId : rows[0]?.id || "";
+      const savedContext = readPortalContext(activeSession);
+      const nextId = rows.some((row) => row.id === preferredOrgId)
+        ? preferredOrgId
+        : rows.some((row) => row.id === savedContext.orgId)
+          ? savedContext.orgId
+          : rows[0]?.id || "";
       setSelectedOrgId(nextId);
+      if (nextId && nextId !== savedContext.orgId) {
+        writePortalContext(activeSession, { orgId: nextId, propertyId: "all" });
+      }
       setDraft(draftFor(rows.find((row) => row.id === nextId)?.lifecycle));
       setConfirmImmediateExpiration(false);
       setAccessState("authorized");
@@ -151,8 +160,8 @@ export default function CustomerLifecycleAdminPage() {
       return;
     }
     setAccessState("checking");
-    loadCustomers(token);
-  }, [session?.access_token, loadCustomers]);
+    loadCustomers(session);
+  }, [session, loadCustomers]);
 
   const selectedOrg = useMemo(
     () => organizations.find((org) => org.id === selectedOrgId) || null,
@@ -240,7 +249,7 @@ export default function CustomerLifecycleAdminPage() {
             </p>
           </div>
           {accessState === "authorized" && (
-            <button type="button" onClick={() => loadCustomers(session?.access_token, selectedOrgId)} disabled={loading}
+            <button type="button" onClick={() => loadCustomers(session, selectedOrgId)} disabled={loading}
               className="inline-flex h-11 items-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-semibold disabled:opacity-50">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
             </button>
@@ -276,6 +285,7 @@ export default function CustomerLifecycleAdminPage() {
                 {organizations.map((org) => (
                   <button key={org.id} type="button" onClick={() => {
                     setSelectedOrgId(org.id);
+                    writePortalContext(session, { orgId: org.id, propertyId: "all" });
                     setDraft(draftFor(org.lifecycle));
                     setConfirmImmediateExpiration(false);
                     setNotice("");

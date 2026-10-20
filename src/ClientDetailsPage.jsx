@@ -278,7 +278,11 @@ export default function ClientDetailsPage() {
         if (!active) return;
         setOrgs(rows);
         const savedOrgId = readPortalContext(session).orgId;
-        setOrgId(rows.find((row) => row.id === savedOrgId)?.id || rows[0]?.id || "");
+        const nextOrgId = rows.find((row) => row.id === savedOrgId)?.id || rows[0]?.id || "";
+        setOrgId(nextOrgId);
+        if (nextOrgId && nextOrgId !== savedOrgId) {
+          writePortalContext(session, { orgId: nextOrgId, propertyId: "all" });
+        }
       })
       .catch((loadError) => { if (active) setError(loadError.message); })
       .finally(() => { if (active) setLoading(false); });

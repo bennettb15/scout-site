@@ -4086,65 +4086,27 @@ async function handleFilters(req, res, timing) {
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
     const service = createServiceClient();
-    const [portalAccess, packageRows, observationRows, tradeOptions, tradeOptionEditable] = await Promise.all([
+    const [portalAccess, { data: allOrgRows, error: orgError }, { data: allPropertyRows, error: propertyError }, tradeOptions, tradeOptionEditable] = await Promise.all([
       loadUserPortalPropertyAccess(service, auth.user),
-      safeRows(
-        service
-          .from("report_packages")
-          .select("org_id,property_id")
-          .eq("status", "ready")
-          .is("deleted_at", null)
-          .order("session_completed_at", { ascending: false })
-          .limit(1000)
-      ),
-      safeRows(
-        service
-          .from("observations")
-          .select("org_id,property_id")
-          .is("deleted_at", null)
-          .order("updated_at", { ascending: false })
-          .limit(1000)
-      ),
+      service.from("orgs").select("id,name").is("deleted_at", null).order("name", { ascending: true }),
+      service.from("properties")
+        .select("id,org_id,name,address_line1,city,state,postal_code")
+        .is("deleted_at", null)
+        .order("name", { ascending: true }),
       loadTradeOptions(),
       canAddTradeOption(auth),
     ]);
     timing.mark("access_and_filter_sources");
-    const visiblePackageRows = packageRows.filter((row) =>
-      portalAccess.canAccessProperty(row.org_id, row.property_id)
+    if (orgError || propertyError) throw orgError || propertyError;
+    const orgRows = (allOrgRows || []).filter((row) =>
+      portalAccess.orgWideOrgIds === null ||
+      portalAccess.orgWideOrgIds.has(row.id) ||
+      portalAccess.rows.some((access) => access.org_id === row.id)
     );
-    const visibleObservationRows = observationRows.filter((row) =>
-      portalAccess.canAccessProperty(row.org_id, row.property_id)
+    const visibleOrgIds = new Set(orgRows.map((row) => row.id));
+    const propertyRows = (allPropertyRows || []).filter((row) =>
+      visibleOrgIds.has(row.org_id) && portalAccess.canAccessProperty(row.org_id, row.id)
     );
-
-    const orgIds = unique([
-      ...visiblePackageRows.map((row) => row.org_id),
-      ...visibleObservationRows.map((row) => row.org_id),
-    ]);
-    const propertyIds = unique([
-      ...visiblePackageRows.map((row) => row.property_id),
-      ...visibleObservationRows.map((row) => row.property_id),
-    ]);
-
-    const [{ data: orgRows }, { data: propertyRows }] = await Promise.all([
-      orgIds.length
-        ? service
-            .from("orgs")
-            .select("id,name")
-            .in("id", orgIds)
-            .is("deleted_at", null)
-            .order("name", { ascending: true })
-        : { data: [] },
-      propertyIds.length
-        ? service
-            .from("properties")
-            .select("id,org_id,name,address_line1,city,state,postal_code")
-            .in("id", propertyIds)
-            .is("deleted_at", null)
-            .order("name", { ascending: true })
-        : { data: [] },
-    ]);
-
-    timing.mark("orgs_and_properties");
     return sendJson(res, 200, {
       orgs: (orgRows || []).map(toOrg),
       properties: (propertyRows || []).map(toProperty),
