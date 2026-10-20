@@ -43,7 +43,6 @@
     --color-black: #000;
     --color-white: #fff;
     --spacing: 0.25rem;
-    --breakpoint-2xl: 96rem;
     --container-sm: 24rem;
     --container-md: 28rem;
     --container-lg: 32rem;
@@ -591,9 +590,6 @@
   }
   .max-w-md {
     max-width: var(--container-md);
-  }
-  .max-w-screen-2xl {
-    max-width: var(--breakpoint-2xl);
   }
   .max-w-xl {
     max-width: var(--container-xl);
@@ -2270,11 +2266,6 @@
   .xl\:grid-cols-2 {
     @media (width >= 80rem) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-  .xl\:overflow-x-auto {
-    @media (width >= 80rem) {
-      overflow-x: auto;
     }
   }
   .xl\:rounded-none {

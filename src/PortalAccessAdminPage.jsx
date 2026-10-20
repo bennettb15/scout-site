@@ -1101,7 +1101,7 @@ export default function PortalAccessAdminPage() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6 md:py-8">
+      <main className="mx-auto w-full min-w-0 max-w-6xl px-4 py-6 md:px-6 md:py-8">
         <div className="mb-6 flex flex-col justify-between gap-3 md:flex-row md:items-end">
           <div>
             <div className="text-sm font-medium text-[var(--brand)]">
@@ -1375,7 +1375,7 @@ export default function PortalAccessAdminPage() {
               </p>
             </section>
 
-            <section className="rounded-lg border border-border bg-background shadow-sm">
+            <section className="min-w-0 max-w-full rounded-lg border border-border bg-background shadow-sm">
               <div className="flex flex-col justify-between gap-3 border-b border-border px-4 py-4 sm:px-5 md:flex-row md:items-center">
                 <div className="min-w-0">
                   <h2 className="break-words text-base font-semibold text-foreground">
@@ -1420,7 +1420,7 @@ export default function PortalAccessAdminPage() {
                 </div>
               </div>
 
-              <div className="xl:overflow-x-auto">
+              <div className="w-full min-w-0 max-w-full overflow-x-auto">
                 <table className="block w-full text-left text-sm xl:table xl:min-w-[1180px]">
                   <thead className="hidden border-b border-border bg-slate-50 text-xs uppercase text-foreground/55 xl:table-header-group">
                     <tr>
