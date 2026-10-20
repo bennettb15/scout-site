@@ -30,6 +30,7 @@ import { mapWithConcurrency } from "../api-lib/mapWithConcurrency.js";
 import { loadActiveAttributionEmails } from "../api-lib/activeAttributionEmails.js";
 import { startPortalRequestTiming } from "../api-lib/portalRequestTiming.js";
 import {
+  PUNCH_LIST_WORK_ROLES,
   portalAccessCanReviewCompletion,
 } from "../api-lib/punchListPermissions.js";
 import {
@@ -83,8 +84,6 @@ const PRIORITY_BORDER_COLORS = {
 const PUNCHLIST_COORDINATION_NOTE =
   "This punch list is provided as a coordination aid for visible open items documented in the selected portal context. Field teams should verify scope, responsibility, sequencing, and completion requirements before work proceeds.";
 const SCOUT_ONLY_LOGO_PATH = path.join(process.cwd(), "public", "Scout Only Logo Navy Dark NEW.png");
-const NOTE_WRITER_ROLES = ["viewer", "field"];
-const WORKFLOW_EDITOR_ROLES = ["viewer", "field"];
 const WORKFLOW_ACTIVITY_FIELD_BY_TYPE = {
   priority_changed: "priority",
   status_changed: "status",
@@ -1296,19 +1295,6 @@ export function publicShotRow({
   };
 }
 
-async function loadNoteWriterMembership(auth, orgId) {
-  const { data, error } = await auth.client
-    .from("org_memberships")
-    .select("id,role,access_scope,deleted_at")
-    .eq("org_id", orgId)
-    .eq("user_id", auth.user.id)
-    .in("role", NOTE_WRITER_ROLES)
-    .is("deleted_at", null);
-
-  if (error) return null;
-  return (data || []).find((row) => (row.access_scope || "org") === "org") || null;
-}
-
 async function noteWriterOrgIdSet(auth, orgIds) {
   const ids = unique(orgIds).filter(Boolean);
   if (ids.length === 0) return new Set();
@@ -1319,7 +1305,7 @@ async function noteWriterOrgIdSet(auth, orgIds) {
     .select("org_id,role,access_scope,deleted_at")
     .in("org_id", ids)
     .eq("user_id", auth.user.id)
-    .in("role", NOTE_WRITER_ROLES)
+    .in("role", PUNCH_LIST_WORK_ROLES)
     .is("deleted_at", null);
 
   if (error) return new Set();
@@ -1328,19 +1314,6 @@ async function noteWriterOrgIdSet(auth, orgIds) {
       .filter((row) => (row.access_scope || "org") === "org")
       .map((row) => row.org_id)
   );
-}
-
-async function loadWorkflowEditorMembership(auth, orgId) {
-  const { data, error } = await auth.client
-    .from("org_memberships")
-    .select("id,role,access_scope,deleted_at")
-    .eq("org_id", orgId)
-    .eq("user_id", auth.user.id)
-    .in("role", WORKFLOW_EDITOR_ROLES)
-    .is("deleted_at", null);
-
-  if (error) return null;
-  return (data || []).find((row) => (row.access_scope || "org") === "org") || null;
 }
 
 async function workflowEditorOrgIdSet(auth, orgIds) {
@@ -1353,7 +1326,7 @@ async function workflowEditorOrgIdSet(auth, orgIds) {
     .select("org_id,role,access_scope,deleted_at")
     .in("org_id", ids)
     .eq("user_id", auth.user.id)
-    .in("role", WORKFLOW_EDITOR_ROLES)
+    .in("role", PUNCH_LIST_WORK_ROLES)
     .is("deleted_at", null);
 
   if (error) return new Set();
@@ -1601,14 +1574,10 @@ async function createObservationForFallbackShot(service, auth, shot) {
   return data;
 }
 
-async function canWritePunchListNotes(auth, orgId) {
+async function canWorkOnPunchList(auth, service, orgId, propertyId) {
   if (isApprovedAdminEmail(auth.user?.email)) return true;
-  return Boolean(await loadNoteWriterMembership(auth, orgId));
-}
-
-async function canEditPunchListWorkflow(auth, orgId) {
-  if (isApprovedAdminEmail(auth.user?.email)) return true;
-  return Boolean(await loadWorkflowEditorMembership(auth, orgId));
+  const portalAccess = await loadUserPortalPropertyAccess(service, auth.user);
+  return portalAccessCanUseRole(portalAccess, PUNCH_LIST_WORK_ROLES, orgId, propertyId);
 }
 
 async function canReviewPunchListCompletion(auth, service, orgId, propertyId) {
@@ -1636,8 +1605,8 @@ async function resolveNoteObservation(auth, service, { observationId, shotId, pa
       error.statusCode = 404;
       throw error;
     }
-    if (!(await canWritePunchListNotes(auth, observation.org_id))) {
-      const error = new Error("Viewer or Field access is required to add notes.");
+    if (!(await canWorkOnPunchList(auth, service, observation.org_id, observation.property_id))) {
+      const error = new Error("Punch list work access is required to add notes.");
       error.statusCode = 403;
       throw error;
     }
@@ -1656,8 +1625,8 @@ async function resolveNoteObservation(auth, service, { observationId, shotId, pa
     error.statusCode = 404;
     throw error;
   }
-  if (!(await canWritePunchListNotes(auth, shot.org_id))) {
-    const error = new Error("Viewer or Field access is required to add notes.");
+  if (!(await canWorkOnPunchList(auth, service, shot.org_id, shot.property_id))) {
+    const error = new Error("Punch list work access is required to add notes.");
     error.statusCode = 403;
     throw error;
   }
@@ -1685,8 +1654,8 @@ async function resolveWorkflowObservation(auth, service, { observationId, shotId
       error.statusCode = 404;
       throw error;
     }
-    if (!(await canEditPunchListWorkflow(auth, observation.org_id))) {
-      const error = new Error("Viewer or Field access is required to edit workflow fields.");
+    if (!(await canWorkOnPunchList(auth, service, observation.org_id, observation.property_id))) {
+      const error = new Error("Punch list work access is required to edit workflow fields.");
       error.statusCode = 403;
       throw error;
     }
@@ -1705,8 +1674,8 @@ async function resolveWorkflowObservation(auth, service, { observationId, shotId
     error.statusCode = 404;
     throw error;
   }
-  if (!(await canEditPunchListWorkflow(auth, shot.org_id))) {
-    const error = new Error("Viewer or Field access is required to edit workflow fields.");
+  if (!(await canWorkOnPunchList(auth, service, shot.org_id, shot.property_id))) {
+    const error = new Error("Punch list work access is required to edit workflow fields.");
     error.statusCode = 403;
     throw error;
   }
@@ -1819,7 +1788,7 @@ async function canAddTradeOption(auth) {
     .from("org_memberships")
     .select("id,role,access_scope,deleted_at")
     .eq("user_id", auth.user.id)
-    .eq("role", "field")
+    .in("role", ["field", "manager", "owner"])
     .eq("access_scope", "org")
     .is("deleted_at", null)
     .limit(1);
@@ -1949,7 +1918,7 @@ async function handleAddTradeOption(req, res) {
     const auth = await authenticateRequest(req);
     if (auth.error) return sendJson(res, 401, { error: auth.error });
     if (!(await canAddTradeOption(auth))) {
-      return sendJson(res, 403, { error: "Field access is required to add trades." });
+      return sendJson(res, 403, { error: "Field or Manager access is required to add trades." });
     }
 
     const service = createServiceClient();
@@ -2407,9 +2376,10 @@ async function handleUpdateNote(req, res, body = null) {
       return sendJson(res, 400, { error: "Only notes can be edited." });
     }
 
+    const service = createServiceClient();
     const adminAllowed = isApprovedAdminEmail(auth.user?.email);
-    const ownNoteWriterNote =
-      activity.created_by === auth.user.id && (await loadNoteWriterMembership(auth, activity.org_id));
+    const ownNoteWriterNote = activity.created_by === auth.user.id &&
+      await canWorkOnPunchList(auth, service, activity.org_id, activity.property_id);
     if (!adminAllowed && !ownNoteWriterNote) {
       return sendJson(res, 403, { error: "You can only edit your own notes." });
     }
@@ -2426,7 +2396,6 @@ async function handleUpdateNote(req, res, body = null) {
       });
     }
 
-    const service = createServiceClient();
     const { data: updatedActivity, error: updateError } = await service
       .from("punchlist_activity")
       .update({
@@ -2594,14 +2563,14 @@ async function handleDeleteNote(req, res) {
       return sendJson(res, 400, { error: "Only notes can be deleted." });
     }
 
+    const service = createServiceClient();
     const adminAllowed = isApprovedAdminEmail(auth.user?.email);
-    const ownNoteWriterNote =
-      activity.created_by === auth.user.id && (await loadNoteWriterMembership(auth, activity.org_id));
+    const ownNoteWriterNote = activity.created_by === auth.user.id &&
+      await canWorkOnPunchList(auth, service, activity.org_id, activity.property_id);
     if (!adminAllowed && !ownNoteWriterNote) {
       return sendJson(res, 403, { error: "You can only delete your own notes." });
     }
 
-    const service = createServiceClient();
     const { error: updateError } = await service
       .from("punchlist_activity")
       .update({ deleted_at: new Date().toISOString() })
@@ -2880,11 +2849,11 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   const canAddNoteForProperty = (orgId, propertyId) =>
     adminAllowed ||
     noteWriterOrgIds.has(orgId) ||
-    portalAccessCanUseRole(portalAccess, NOTE_WRITER_ROLES, orgId, propertyId);
+    portalAccessCanUseRole(portalAccess, PUNCH_LIST_WORK_ROLES, orgId, propertyId);
   const canEditWorkflowForProperty = (orgId, propertyId) =>
     adminAllowed ||
     workflowEditorOrgIds.has(orgId) ||
-    portalAccessCanUseRole(portalAccess, WORKFLOW_EDITOR_ROLES, orgId, propertyId);
+    portalAccessCanUseRole(portalAccess, PUNCH_LIST_WORK_ROLES, orgId, propertyId);
   const canReviewCompletionForProperty = (orgId, propertyId) =>
     adminAllowed ||
     portalAccessCanReviewCompletion(portalAccess, orgId, propertyId);
