@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ClipboardList, FileText, Mail, Pencil, Phone, RefreshCw, UserFilled } from "lucide-react";
+import { ChevronDown, ClipboardList, FileText, Mail, Pencil, Phone, RefreshCw, ShieldCheck, UserFilled } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
@@ -207,6 +207,7 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
 export default function ClientDetailsPage() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(Boolean(hasSupabaseConfig && supabase));
+  const [canOpenAdmin, setCanOpenAdmin] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
@@ -238,6 +239,23 @@ export default function ClientDetailsPage() {
     });
     return () => { active = false; subscription?.unsubscribe(); };
   }, []);
+
+  useEffect(() => {
+    if (!session?.access_token) {
+      setCanOpenAdmin(false);
+      return undefined;
+    }
+    let active = true;
+    fetch("/api/admin/me", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    }).then(async (response) => {
+      const body = await response.json().catch(() => ({}));
+      if (active) setCanOpenAdmin(response.ok && body.isAdmin === true);
+    }).catch(() => {
+      if (active) setCanOpenAdmin(false);
+    });
+    return () => { active = false; };
+  }, [session?.access_token]);
 
   useEffect(() => {
     if (!session?.access_token) {
@@ -373,6 +391,7 @@ export default function ClientDetailsPage() {
           <nav className="flex flex-wrap items-center gap-2" aria-label="Portal">
             <a href="/reports" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium"><FileText className="h-4 w-4" />Reports</a>
             <a href="/punch-list" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium"><ClipboardList className="h-4 w-4" />Punch List</a>
+            {canOpenAdmin && <a href="/admin/portal-access" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium"><ShieldCheck className="h-4 w-4" />Admin</a>}
             {session && <AccountMenu onSignOut={handleSignOut} />}
           </nav>
         </div>
