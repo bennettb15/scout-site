@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  PUNCH_LIST_WORK_ROLES,
   canReviewCompletionForPunchListRow,
   portalAccessCanReviewCompletion,
   portalRoleCanReviewCompletionAction,
 } from "../api-lib/punchListPermissions.js";
+import { portalAccessCanUseRole } from "../api/_reportPortalShared.js";
 import {
   publicObservationRow,
   reviewStatusSyncTargetFromSubmission,
@@ -29,6 +31,16 @@ function portalAccessForRole(role) {
     isApprovedAdmin: false,
   };
 }
+
+test("Manager can do punch list work as well as review, within assigned properties", () => {
+  const manager = portalAccessForRole("manager");
+  assert.equal(portalAccessCanUseRole(manager, PUNCH_LIST_WORK_ROLES, orgId, propertyId), true);
+  assert.equal(portalAccessCanReviewCompletion(manager, orgId, propertyId), true);
+  assert.equal(
+    portalAccessCanUseRole(manager, PUNCH_LIST_WORK_ROLES, orgId, "66666666-6666-4666-8666-666666666666"),
+    false
+  );
+});
 
 function pendingReviewRow({ canReviewCompletion }) {
   return publicObservationRow({

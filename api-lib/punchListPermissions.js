@@ -1,6 +1,7 @@
 import { portalAccessAllowsProperty } from "./portalPropertyAccess.js";
 
 export const COMPLETION_REVIEWER_ROLES = ["viewer", "manager", "owner"];
+export const PUNCH_LIST_WORK_ROLES = ["viewer", "field", "manager", "owner"];
 
 export function portalRoleCanReviewCompletion(role) {
   return COMPLETION_REVIEWER_ROLES.includes(String(role || "").trim().toLowerCase());
