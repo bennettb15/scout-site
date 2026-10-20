@@ -364,12 +364,17 @@ export default function ClientDetailsPage() {
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-screen-2xl px-4 py-6 md:px-6">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-4 sm:mb-5">
+      <main className="mx-auto max-w-screen-2xl px-4 py-4 sm:py-6 md:px-6">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-2 sm:mb-5 sm:gap-4">
           <div>
             <div className="hidden text-sm font-medium text-[var(--brand)] sm:block">Client Portal</div>
             <h1 className="text-2xl font-semibold">Clients</h1>
-            {session && <p className="mt-0.5 text-xs text-foreground/50 sm:hidden">{shownProperties.length} {shownProperties.length === 1 ? "property" : "properties"}</p>}
+            {session && (
+              <p className="mt-0.5 text-xs text-foreground/50 sm:hidden">
+                {orgs.length === 1 && <>{orgs[0].name} · </>}
+                {shownProperties.length} {shownProperties.length === 1 ? "property" : "properties"}
+              </p>
+            )}
           </div>
           {session && (
             <div className="flex flex-col items-end gap-1">
@@ -404,14 +409,14 @@ export default function ClientDetailsPage() {
         {session && (
           <>
             <div className="mb-3 grid gap-3 sm:grid-cols-[minmax(190px,220px)_minmax(0,1fr)_auto] sm:items-end">
-              <label className="grid min-w-0 gap-1 text-xs font-semibold text-foreground/60">Organization
+              <label className={`min-w-0 gap-1 text-xs font-semibold text-foreground/60 ${orgs.length === 1 ? "hidden sm:grid" : "grid"}`}>Organization
                 <select value={orgId} onChange={(event) => { setOrgId(event.target.value); setSaveStatus(""); setSaveError(""); writePortalContext(session, { orgId: event.target.value, propertyId: "all" }); }} disabled={!orgs.length || saving} className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-base text-foreground sm:h-9 sm:text-sm">
                   {!orgs.length && <option value="">No organizations</option>}
                   {orgs.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}
                 </select>
               </label>
               <label className="grid min-w-0 gap-1 text-xs font-semibold text-foreground/60">Search
-                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Client, property, address, email, phone" className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-base text-foreground sm:h-9 sm:text-sm" />
+                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search clients or properties" className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-base text-foreground sm:h-9 sm:text-sm" />
               </label>
               <span className="hidden justify-self-end text-xs tabular-nums text-foreground/50 sm:block sm:pb-2">{shownProperties.length} {shownProperties.length === 1 ? "row" : "rows"}</span>
             </div>
