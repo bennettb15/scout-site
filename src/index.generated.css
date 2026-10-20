@@ -649,6 +649,9 @@
   .grid-cols-2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .grid-cols-\[minmax\(0\,1\.6fr\)_minmax\(0\,1fr\)\] {
+    grid-template-columns: minmax(0,1.6fr) minmax(0,1fr);
+  }
   .flex-col {
     flex-direction: column;
   }
@@ -657,9 +660,6 @@
   }
   .flex-wrap {
     flex-wrap: wrap;
-  }
-  .items-baseline {
-    align-items: baseline;
   }
   .items-center {
     align-items: center;
@@ -829,9 +829,6 @@
   }
   .border-red-200 {
     border-color: var(--color-red-200);
-  }
-  .border-slate-100 {
-    border-color: var(--color-slate-100);
   }
   .border-slate-200 {
     border-color: var(--color-slate-200);

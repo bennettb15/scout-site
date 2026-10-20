@@ -136,56 +136,67 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
   }
 
   return (
-    <article className="border-b border-slate-200 bg-white px-4 py-3 last:border-b-0">
-      <button
-        type="button"
-        aria-expanded={showDestinations}
-        aria-controls={`mobile-client-destinations-${property.id}`}
-        onClick={() => setShowDestinations((current) => !current)}
-        className="inline-flex max-w-full min-w-0 items-center gap-1 text-left text-sm font-semibold text-[var(--brand)] underline underline-offset-2"
-      >
-        <span className="break-words">{property.propertyName || "Property"}</span>
-        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${showDestinations ? "rotate-180" : ""}`} />
-      </button>
+    <article className="border-b border-slate-200 bg-white last:border-b-0">
+      <div className="bg-slate-50 px-3 py-2.5">
+        <button
+          type="button"
+          aria-expanded={showDestinations}
+          aria-controls={`mobile-client-destinations-${property.id}`}
+          onClick={() => setShowDestinations((current) => !current)}
+          className="inline-flex max-w-full min-w-0 items-center gap-1 text-left text-sm font-semibold text-[var(--brand)] underline underline-offset-2"
+        >
+          <span className="break-words">{property.propertyName || "Property"}</span>
+          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${showDestinations ? "rotate-180" : ""}`} />
+        </button>
+      </div>
       {showDestinations && (
-        <div id={`mobile-client-destinations-${property.id}`} className="mt-2 flex flex-wrap gap-2">
+        <div id={`mobile-client-destinations-${property.id}`} className="flex flex-wrap gap-2 border-t border-slate-200 px-3 py-2">
           <a href="/reports" onClick={selectShortcutProperty} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-[var(--brand)]">Reports</a>
           <a href="/punch-list" onClick={selectShortcutProperty} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-[var(--brand)]">Punch List</a>
         </div>
       )}
-      <p className="mt-0.5 break-words text-xs leading-relaxed text-foreground/60">
-        {propertyAddress(property) || "No address on file"}
-      </p>
-      <div className="mt-3 flex items-baseline gap-3">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground/50">Client</span>
-        <h2 className="min-w-0 break-words text-base font-semibold leading-tight text-foreground">
-          {property.clientName || "No client name"}
-        </h2>
+      <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] border-t border-slate-200">
+        <div className="min-w-0 px-3 py-2.5">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-foreground/50">Address</div>
+          <p className="mt-0.5 break-words text-xs leading-snug text-foreground/75">
+            {propertyAddress(property) || "No address on file"}
+          </p>
+        </div>
+        <div className="min-w-0 border-l border-slate-200 px-3 py-2.5">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-foreground/50">Client</div>
+          <h2 className="mt-0.5 min-w-0 break-words text-base font-semibold leading-tight text-foreground">
+            {property.clientName || "No client name"}
+          </h2>
+        </div>
       </div>
-      <div className="mt-2 grid grid-cols-2 gap-4 border-t border-slate-100 pt-2">
-        <MobileContactField
-          label="Email"
-          propertyName={property.propertyName || "property"}
-          type="email"
-          value={draft.clientEmail}
-          displayValue={draft.clientEmail}
-          placeholder="Add email"
-          canEdit={property.canEdit}
-          saving={saving}
-          onChange={(value) => onDraftChange(property, "clientEmail", value)}
-        />
-        <MobileContactField
-          label="Phone"
-          propertyName={property.propertyName || "property"}
-          type="tel"
-          value={draft.clientPhone}
-          displayValue={formatClientPhone(draft.clientPhone)}
-          placeholder="Add phone"
-          canEdit={property.canEdit}
-          saving={saving}
-          onChange={(value) => onDraftChange(property, "clientPhone", value)}
-          onBlur={(value) => onDraftChange(property, "clientPhone", formatClientPhone(value))}
-        />
+      <div className="grid grid-cols-2 border-t border-slate-200">
+        <div className="min-w-0 px-3 py-2">
+          <MobileContactField
+            label="Email"
+            propertyName={property.propertyName || "property"}
+            type="email"
+            value={draft.clientEmail}
+            displayValue={draft.clientEmail}
+            placeholder="Add email"
+            canEdit={property.canEdit}
+            saving={saving}
+            onChange={(value) => onDraftChange(property, "clientEmail", value)}
+          />
+        </div>
+        <div className="min-w-0 border-l border-slate-200 px-3 py-2">
+          <MobileContactField
+            label="Phone"
+            propertyName={property.propertyName || "property"}
+            type="tel"
+            value={draft.clientPhone}
+            displayValue={formatClientPhone(draft.clientPhone)}
+            placeholder="Add phone"
+            canEdit={property.canEdit}
+            saving={saving}
+            onChange={(value) => onDraftChange(property, "clientPhone", value)}
+            onBlur={(value) => onDraftChange(property, "clientPhone", formatClientPhone(value))}
+          />
+        </div>
       </div>
     </article>
   );
