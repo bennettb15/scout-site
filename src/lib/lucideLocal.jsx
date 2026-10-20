@@ -46,6 +46,12 @@ export const CircleUserRound = createIcon(
     <path d="M5.8 18.5a7 7 0 0 1 12.4 0" />
   </>
 );
+export const UserFilled = createIcon(
+  <>
+    <circle cx="12" cy="7" r="4" fill="currentColor" stroke="none" />
+    <path d="M3 21c0-5 4-8 9-8s9 3 9 8H3Z" fill="currentColor" stroke="none" />
+  </>
+);
 export const Camera = createIcon(
   <>
     <path d="M14.5 4 16 6h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1.5-2z" />
