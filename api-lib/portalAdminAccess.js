@@ -17,7 +17,7 @@ export const PORTAL_ACCESS_ROLE_LABELS = {
   viewer: "Viewer",
 };
 
-export const OWNER_INVITE_ROLES = ["viewer", "field", "manager", "owner"];
+export const OWNER_INVITE_ROLES = ["viewer", "field", "manager"];
 export const MANAGER_INVITE_ROLES = ["viewer", "field", "manager"];
 
 export function portalAccessRoleLabel(role) {
@@ -40,13 +40,14 @@ export function canActorInvitePortalRole({ actorRole, targetRole }) {
 }
 
 export function canActorCancelPendingInvite({ actorRole, inviteRole }) {
+  if (actorRole === "owner" && inviteRole === "owner") return true;
   return canActorInvitePortalRole({ actorRole, targetRole: inviteRole });
 }
 
 export function canActorChangePortalRole({ actorRole, currentRole, nextRole, isRequiredAdmin = false }) {
   if (isRequiredAdmin) return false;
   if (!PORTAL_ACCESS_ROLES.has(currentRole) || !PORTAL_ACCESS_ROLES.has(nextRole)) return false;
-  if (actorRole === "owner") return true;
+  if (actorRole === "owner") return nextRole !== "owner" || currentRole === "owner";
   if (actorRole !== "manager") return false;
   return currentRole !== "owner" && nextRole !== "owner";
 }

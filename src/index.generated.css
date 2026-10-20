@@ -329,6 +329,9 @@
   .z-30 {
     z-index: 30;
   }
+  .z-40 {
+    z-index: 40;
+  }
   .z-50 {
     z-index: 50;
   }
@@ -529,6 +532,9 @@
   }
   .w-\[calc\(100vw-2rem\)\] {
     width: calc(100vw - 2rem);
+  }
+  .w-\[min\(21rem\,calc\(100vw-3rem\)\)\] {
+    width: min(21rem, calc(100vw - 3rem));
   }
   .w-auto {
     width: auto;
@@ -1720,6 +1726,14 @@
       --tw-ring-color: var(--brand);
       @supports (color: color-mix(in lab, red, red)) {
         --tw-ring-color: color-mix(in oklab, var(--brand) 20%, transparent);
+      }
+    }
+  }
+  .focus\:ring-\[var\(--brand\)\]\/30 {
+    &:focus {
+      --tw-ring-color: var(--brand);
+      @supports (color: color-mix(in lab, red, red)) {
+        --tw-ring-color: color-mix(in oklab, var(--brand) 30%, transparent);
       }
     }
   }

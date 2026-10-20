@@ -491,7 +491,8 @@ function decorateAccessRowsForActor(rows, context) {
         targetAccessScope: role === "owner" ? ORG_ACCESS_SCOPE : row.accessScope,
         targetPropertyIds: row.propertyIds,
       });
-    const allowedRoleChanges = Array.from(PORTAL_ACCESS_ROLES).filter(canChooseRole);
+    const allowedRoleChanges = Array.from(PORTAL_ACCESS_ROLES)
+      .filter((role) => role !== "owner" && canChooseRole(role));
 
     return {
       ...row,

@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ClipboardList,
   FileText,
+  Info,
   KeyRound,
   Mail,
   Plus,
@@ -203,11 +204,12 @@ function RoleSelect({ row, disabled, onChange }) {
     <label className="grid max-w-[220px] gap-1">
       <span className="sr-only">Role for {row.email || row.userId}</span>
       <select
-        value={row.role || "viewer"}
+        value={row.role === "owner" ? "" : row.role || "viewer"}
         disabled={disabled}
         onChange={(event) => onChange(row, event.target.value)}
               className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60 xl:h-10"
       >
+        {row.role === "owner" && <option value="" disabled>Change Owner role</option>}
         {ROLE_CHANGE_OPTIONS.filter((option) => allowedRoles.has(option.value)).map(
           (option) => (
             <option key={option.value} value={option.value}>
@@ -1316,9 +1318,23 @@ export default function PortalAccessAdminPage() {
             )}
 
             <section className="rounded-lg border border-border bg-background p-4 shadow-sm sm:p-5">
-              <h2 className="mb-4 text-base font-semibold text-foreground">
-                Add User
-              </h2>
+              <div className="mb-4 flex items-center gap-2">
+                <h2 className="text-base font-semibold text-foreground">Add User</h2>
+                <details className="group relative">
+                  <summary aria-label="About user roles" className="flex h-6 w-6 cursor-pointer list-none items-center justify-center rounded-full text-foreground/55 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/30 [&::-webkit-details-marker]:hidden">
+                    <Info className="h-4 w-4" />
+                  </summary>
+                  <div className="absolute left-0 top-full z-40 mt-2 w-[min(21rem,calc(100vw-3rem))] rounded-xl border border-border bg-background p-4 text-sm leading-relaxed text-foreground shadow-xl">
+                    <div className="font-semibold">User roles</div>
+                    <dl className="mt-3 grid gap-3">
+                      <div><dt className="font-semibold">Viewer · Portal work</dt><dd className="text-foreground/70">View reports and clients; work on punch lists, including notes, fields, and completion reviews. ScoutCapture also allows read-only viewing of assigned properties.</dd></div>
+                      <div><dt className="font-semibold">Field · App + portal</dt><dd className="text-foreground/70">Capture in the app and work on portal punch lists. Cannot approve or reject completions.</dd></div>
+                      <div><dt className="font-semibold">Manager · App + portal + admin</dt><dd className="text-foreground/70">Manage users and client contact details, and approve or reject punch list completions.</dd></div>
+                    </dl>
+                    <p className="mt-3 border-t border-border pt-3 text-xs text-foreground/60">Access can cover all properties or only the properties selected below.</p>
+                  </div>
+                </details>
+              </div>
               <div className="add-client-fields grid gap-4 md:grid-cols-2">
                 <label className="grid min-w-0 gap-1.5 text-sm font-medium text-foreground">
                   User Email
