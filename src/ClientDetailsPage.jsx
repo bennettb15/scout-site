@@ -396,7 +396,7 @@ export default function ClientDetailsPage() {
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-screen-2xl px-4 py-6 md:px-6">
+      <main className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-4 sm:mb-5">
           <div>
             <div className="hidden text-sm font-medium text-[var(--brand)] sm:block">Client Portal</div>
