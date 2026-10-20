@@ -1317,11 +1317,11 @@ export default function PortalAccessAdminPage() {
 
             <section className="rounded-lg border border-border bg-background p-4 shadow-sm sm:p-5">
               <h2 className="mb-4 text-base font-semibold text-foreground">
-                Add Client
+                Add User
               </h2>
               <div className="add-client-fields grid gap-4 md:grid-cols-2">
                 <label className="grid min-w-0 gap-1.5 text-sm font-medium text-foreground">
-                  Client Email
+                  User Email
                   <input
                     type="email"
                     autoComplete="email"
