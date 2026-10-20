@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ClipboardList, FileText, RefreshCw } from "lucide-react";
+import { ChevronDown, ClipboardList, FileText, Pencil, RefreshCw } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
@@ -88,6 +88,46 @@ function ClientRow({ property, session, draft, saving, onDraftChange }) {
   );
 }
 
+function MobileContactField({ label, propertyName, type, value, displayValue, placeholder, canEdit, saving, onChange, onBlur }) {
+  const [editing, setEditing] = useState(false);
+
+  return (
+    <div className="min-w-0">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-foreground/50">{label}</div>
+      {canEdit && editing ? (
+        <input
+          autoFocus
+          type={type}
+          aria-label={`${label} for ${propertyName}`}
+          value={value}
+          maxLength={type === "email" ? 254 : 40}
+          disabled={saving}
+          onChange={(event) => onChange(event.target.value)}
+          onBlur={(event) => {
+            onBlur?.(event.target.value);
+            setEditing(false);
+          }}
+          placeholder={placeholder}
+          className="h-8 w-full min-w-0 rounded-none border-0 border-b border-[var(--brand)] bg-transparent px-0 text-base font-normal normal-case tracking-normal text-foreground outline-none disabled:opacity-60"
+        />
+      ) : canEdit ? (
+        <button
+          type="button"
+          aria-label={`Edit ${label.toLowerCase()} for ${propertyName}: ${displayValue || placeholder}`}
+          disabled={saving}
+          onClick={() => setEditing(true)}
+          className={`flex min-h-8 w-full items-center justify-between gap-1 text-left text-sm disabled:opacity-60 ${displayValue ? "text-foreground" : "text-foreground/45"}`}
+        >
+          <span className="min-w-0 break-all">{displayValue || placeholder}</span>
+          <Pencil className="h-3 w-3 shrink-0 text-foreground/35" aria-hidden="true" />
+        </button>
+      ) : (
+        <span className="flex min-h-8 items-center break-all text-sm text-foreground/75">{displayValue || "—"}</span>
+      )}
+    </div>
+  );
+}
+
 function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
   const [showDestinations, setShowDestinations] = useState(false);
 
@@ -123,35 +163,29 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
         </h2>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-4 border-t border-slate-100 pt-2">
-        <label className="grid min-w-0 gap-0.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/50">
-          Email
-          {property.canEdit ? (
-            <input
-              type="email"
-              value={draft.clientEmail}
-              maxLength={254}
-              disabled={saving}
-              onChange={(event) => onDraftChange(property, "clientEmail", event.target.value)}
-              placeholder="Add email"
-              className="h-8 w-full min-w-0 rounded-none border-0 border-b border-slate-200 bg-transparent px-0 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:border-[var(--brand)] disabled:opacity-60"
-            />
-          ) : <span className="min-h-8 break-all py-1 text-sm font-normal normal-case tracking-normal text-foreground/75">{property.clientEmail || "—"}</span>}
-        </label>
-        <label className="grid min-w-0 gap-0.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/50">
-          Phone
-          {property.canEdit ? (
-            <input
-              type="tel"
-              value={draft.clientPhone}
-              maxLength={40}
-              disabled={saving}
-              onChange={(event) => onDraftChange(property, "clientPhone", event.target.value)}
-              onBlur={(event) => onDraftChange(property, "clientPhone", formatClientPhone(event.target.value))}
-              placeholder="Add phone"
-              className="h-8 w-full min-w-0 rounded-none border-0 border-b border-slate-200 bg-transparent px-0 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:border-[var(--brand)] disabled:opacity-60"
-            />
-          ) : <span className="min-h-8 py-1 text-sm font-normal normal-case tracking-normal text-foreground/75">{formatClientPhone(property.clientPhone) || "—"}</span>}
-        </label>
+        <MobileContactField
+          label="Email"
+          propertyName={property.propertyName || "property"}
+          type="email"
+          value={draft.clientEmail}
+          displayValue={draft.clientEmail}
+          placeholder="Add email"
+          canEdit={property.canEdit}
+          saving={saving}
+          onChange={(value) => onDraftChange(property, "clientEmail", value)}
+        />
+        <MobileContactField
+          label="Phone"
+          propertyName={property.propertyName || "property"}
+          type="tel"
+          value={draft.clientPhone}
+          displayValue={formatClientPhone(draft.clientPhone)}
+          placeholder="Add phone"
+          canEdit={property.canEdit}
+          saving={saving}
+          onChange={(value) => onDraftChange(property, "clientPhone", value)}
+          onBlur={(value) => onDraftChange(property, "clientPhone", formatClientPhone(value))}
+        />
       </div>
     </article>
   );
@@ -331,8 +365,12 @@ export default function ClientDetailsPage() {
         </div>
       </header>
       <main className="mx-auto max-w-screen-2xl px-4 py-6 md:px-6">
-        <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
-          <div><div className="text-sm font-medium text-[var(--brand)]">Client Portal</div><h1 className="text-2xl font-semibold">Clients</h1></div>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-4 sm:mb-5">
+          <div>
+            <div className="hidden text-sm font-medium text-[var(--brand)] sm:block">Client Portal</div>
+            <h1 className="text-2xl font-semibold">Clients</h1>
+            {session && <p className="mt-0.5 text-xs text-foreground/50 sm:hidden">{shownProperties.length} {shownProperties.length === 1 ? "property" : "properties"}</p>}
+          </div>
           {session && (
             <div className="flex flex-col items-end gap-1">
               <button
@@ -356,8 +394,8 @@ export default function ClientDetailsPage() {
         {!authLoading && !session && (
           <form onSubmit={handleSignIn} className="grid max-w-md gap-4 rounded-xl border border-border bg-background p-6 shadow-sm">
             <p className="text-sm text-foreground/65">Sign in to see the clients for your organization.</p>
-            <label className="grid gap-1 text-sm font-medium">Email<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="h-11 rounded-lg border border-input px-3" /></label>
-            <label className="grid gap-1 text-sm font-medium">Password<input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} className="h-11 rounded-lg border border-input px-3" /></label>
+            <label className="grid gap-1 text-sm font-medium">Email<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="h-11 rounded-lg border border-input px-3 text-base" /></label>
+            <label className="grid gap-1 text-sm font-medium">Password<input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} className="h-11 rounded-lg border border-input px-3 text-base" /></label>
             {authError && <p role="alert" className="text-sm text-red-700">{authError}</p>}
             <button type="submit" className="h-11 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white">Sign In</button>
             <a href="/forgot-password" className="text-center text-sm font-medium text-[var(--brand)]">Forgot password?</a>
@@ -367,15 +405,15 @@ export default function ClientDetailsPage() {
           <>
             <div className="mb-3 grid gap-3 sm:grid-cols-[minmax(190px,220px)_minmax(0,1fr)_auto] sm:items-end">
               <label className="grid min-w-0 gap-1 text-xs font-semibold text-foreground/60">Organization
-                <select value={orgId} onChange={(event) => { setOrgId(event.target.value); setSaveStatus(""); setSaveError(""); writePortalContext(session, { orgId: event.target.value, propertyId: "all" }); }} disabled={!orgs.length || saving} className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground sm:h-9">
+                <select value={orgId} onChange={(event) => { setOrgId(event.target.value); setSaveStatus(""); setSaveError(""); writePortalContext(session, { orgId: event.target.value, propertyId: "all" }); }} disabled={!orgs.length || saving} className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-base text-foreground sm:h-9 sm:text-sm">
                   {!orgs.length && <option value="">No organizations</option>}
                   {orgs.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}
                 </select>
               </label>
               <label className="grid min-w-0 gap-1 text-xs font-semibold text-foreground/60">Search
-                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Client, property, address, email, phone" className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground sm:h-9" />
+                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Client, property, address, email, phone" className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-base text-foreground sm:h-9 sm:text-sm" />
               </label>
-              <span className="justify-self-end text-xs tabular-nums text-foreground/50 sm:pb-2">{shownProperties.length} {shownProperties.length === 1 ? "row" : "rows"}</span>
+              <span className="hidden justify-self-end text-xs tabular-nums text-foreground/50 sm:block sm:pb-2">{shownProperties.length} {shownProperties.length === 1 ? "row" : "rows"}</span>
             </div>
             {error && <div role="alert" className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
             {saveError && <div role="alert" className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{saveError}</div>}
