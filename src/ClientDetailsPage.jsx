@@ -96,7 +96,7 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
   }
 
   return (
-    <article className="border-b border-slate-200 bg-white px-3 py-3 last:border-b-0">
+    <article className="border-b border-slate-200 bg-white px-4 py-3 last:border-b-0">
       <button
         type="button"
         aria-expanded={showDestinations}
@@ -113,15 +113,17 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
           <a href="/punch-list" onClick={selectShortcutProperty} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-[var(--brand)]">Punch List</a>
         </div>
       )}
-      <p className="mt-1 break-words text-xs leading-relaxed text-foreground/60">
+      <p className="mt-0.5 break-words text-xs leading-relaxed text-foreground/60">
         {propertyAddress(property) || "No address on file"}
       </p>
-      <div className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-foreground/50">Client</div>
-      <h2 className="break-words text-lg font-semibold leading-tight text-foreground">
-        {property.clientName || "No client name"}
-      </h2>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <label className="grid min-w-0 gap-1 text-[11px] font-semibold uppercase tracking-wide text-foreground/50">
+      <div className="mt-3 flex items-baseline gap-3">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground/50">Client</span>
+        <h2 className="min-w-0 break-words text-base font-semibold leading-tight text-foreground">
+          {property.clientName || "No client name"}
+        </h2>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-4 border-t border-slate-100 pt-2">
+        <label className="grid min-w-0 gap-0.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/50">
           Email
           {property.canEdit ? (
             <input
@@ -131,11 +133,11 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
               disabled={saving}
               onChange={(event) => onDraftChange(property, "clientEmail", event.target.value)}
               placeholder="Add email"
-              className="h-9 w-full min-w-0 rounded-md border border-slate-200 bg-slate-50 px-2 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
+              className="h-8 w-full min-w-0 rounded-none border-0 border-b border-slate-200 bg-transparent px-0 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:border-[var(--brand)] disabled:opacity-60"
             />
-          ) : <span className="min-h-9 break-all rounded-md bg-slate-50 px-2 py-2 text-sm font-normal normal-case tracking-normal text-foreground/75">{property.clientEmail || "—"}</span>}
+          ) : <span className="min-h-8 break-all py-1 text-sm font-normal normal-case tracking-normal text-foreground/75">{property.clientEmail || "—"}</span>}
         </label>
-        <label className="grid min-w-0 gap-1 text-[11px] font-semibold uppercase tracking-wide text-foreground/50">
+        <label className="grid min-w-0 gap-0.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/50">
           Phone
           {property.canEdit ? (
             <input
@@ -146,9 +148,9 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
               onChange={(event) => onDraftChange(property, "clientPhone", event.target.value)}
               onBlur={(event) => onDraftChange(property, "clientPhone", formatClientPhone(event.target.value))}
               placeholder="Add phone"
-              className="h-9 w-full min-w-0 rounded-md border border-slate-200 bg-slate-50 px-2 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
+              className="h-8 w-full min-w-0 rounded-none border-0 border-b border-slate-200 bg-transparent px-0 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:border-[var(--brand)] disabled:opacity-60"
             />
-          ) : <span className="min-h-9 rounded-md bg-slate-50 px-2 py-2 text-sm font-normal normal-case tracking-normal text-foreground/75">{formatClientPhone(property.clientPhone) || "—"}</span>}
+          ) : <span className="min-h-8 py-1 text-sm font-normal normal-case tracking-normal text-foreground/75">{formatClientPhone(property.clientPhone) || "—"}</span>}
         </label>
       </div>
     </article>
