@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ClipboardList, FileText, Pencil, RefreshCw } from "lucide-react";
+import { ChevronDown, ClipboardList, FileText, Mail, Pencil, Phone, RefreshCw } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
@@ -88,41 +88,48 @@ function ClientRow({ property, session, draft, saving, onDraftChange }) {
   );
 }
 
-function MobileContactField({ label, propertyName, type, value, displayValue, placeholder, canEdit, saving, onChange, onBlur }) {
+function MobileContactField({ label, icon: Icon, propertyName, type, value, displayValue, placeholder, canEdit, saving, onChange, onBlur }) {
   const [editing, setEditing] = useState(false);
 
   return (
     <div className="min-w-0">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-foreground/50">{label}</div>
+      <span className="sr-only">{label}</span>
       {canEdit && editing ? (
-        <input
-          autoFocus
-          type={type}
-          aria-label={`${label} for ${propertyName}`}
-          value={value}
-          maxLength={type === "email" ? 254 : 40}
-          disabled={saving}
-          onChange={(event) => onChange(event.target.value)}
-          onBlur={(event) => {
-            onBlur?.(event.target.value);
-            setEditing(false);
-          }}
-          placeholder={placeholder}
-          className="h-8 w-full min-w-0 rounded-none border-0 border-b border-[var(--brand)] bg-transparent px-0 text-base font-normal normal-case tracking-normal text-foreground outline-none disabled:opacity-60"
-        />
+        <div className="flex min-h-9 items-center gap-1.5">
+          <Icon className="h-3.5 w-3.5 shrink-0 text-foreground/45" aria-hidden="true" />
+          <input
+            autoFocus
+            type={type}
+            aria-label={`${label} for ${propertyName}`}
+            value={value}
+            maxLength={type === "email" ? 254 : 40}
+            disabled={saving}
+            onChange={(event) => onChange(event.target.value)}
+            onBlur={(event) => {
+              onBlur?.(event.target.value);
+              setEditing(false);
+            }}
+            placeholder={placeholder}
+            className="h-9 w-full min-w-0 rounded-none border-0 border-b border-[var(--brand)] bg-transparent px-0 text-base font-normal normal-case tracking-normal text-foreground outline-none disabled:opacity-60"
+          />
+        </div>
       ) : canEdit ? (
         <button
           type="button"
           aria-label={`Edit ${label.toLowerCase()} for ${propertyName}: ${displayValue || placeholder}`}
           disabled={saving}
           onClick={() => setEditing(true)}
-          className={`flex min-h-8 w-full items-center justify-between gap-1 text-left text-sm disabled:opacity-60 ${displayValue ? "text-foreground" : "text-foreground/45"}`}
+          className={`flex min-h-9 w-full items-center gap-1.5 text-left text-[13px] disabled:opacity-60 ${displayValue ? "text-foreground/70" : "text-foreground/45"}`}
         >
+          <Icon className="h-3.5 w-3.5 shrink-0 text-foreground/45" aria-hidden="true" />
           <span className="min-w-0 break-all">{displayValue || placeholder}</span>
-          <Pencil className="h-3 w-3 shrink-0 text-foreground/35" aria-hidden="true" />
+          <Pencil className="ml-auto h-3 w-3 shrink-0 text-foreground/35" aria-hidden="true" />
         </button>
       ) : (
-        <span className="flex min-h-8 items-center break-all text-sm text-foreground/75">{displayValue || "—"}</span>
+        <span className="flex min-h-9 items-center gap-1.5 break-all text-[13px] text-foreground/70">
+          <Icon className="h-3.5 w-3.5 shrink-0 text-foreground/45" aria-hidden="true" />
+          {displayValue || "—"}
+        </span>
       )}
     </div>
   );
@@ -136,43 +143,37 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
   }
 
   return (
-    <article className="border-b border-slate-200 bg-white last:border-b-0">
-      <div className="bg-slate-50 px-3 py-2.5">
-        <button
-          type="button"
-          aria-expanded={showDestinations}
-          aria-controls={`mobile-client-destinations-${property.id}`}
-          onClick={() => setShowDestinations((current) => !current)}
-          className="inline-flex max-w-full min-w-0 items-center gap-1 text-left text-sm font-semibold text-[var(--brand)] underline underline-offset-2"
-        >
-          <span className="break-words">{property.propertyName || "Property"}</span>
-          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${showDestinations ? "rotate-180" : ""}`} />
-        </button>
-      </div>
+    <article className="border-b border-slate-200 bg-white px-4 py-3 last:border-b-0">
+      <button
+        type="button"
+        aria-expanded={showDestinations}
+        aria-controls={`mobile-client-destinations-${property.id}`}
+        onClick={() => setShowDestinations((current) => !current)}
+        className="inline-flex max-w-full min-w-0 items-center gap-1 text-left text-sm font-semibold text-[var(--brand)] underline underline-offset-2"
+      >
+        <span className="break-words">{property.propertyName || "Property"}</span>
+        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${showDestinations ? "rotate-180" : ""}`} />
+      </button>
       {showDestinations && (
-        <div id={`mobile-client-destinations-${property.id}`} className="flex flex-wrap gap-2 border-t border-slate-200 px-3 py-2">
+        <div id={`mobile-client-destinations-${property.id}`} className="mt-2 flex flex-wrap gap-2">
           <a href="/reports" onClick={selectShortcutProperty} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-[var(--brand)]">Reports</a>
           <a href="/punch-list" onClick={selectShortcutProperty} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-[var(--brand)]">Punch List</a>
         </div>
       )}
-      <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] border-t border-slate-200">
-        <div className="min-w-0 px-3 py-2.5">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-foreground/50">Address</div>
-          <p className="mt-0.5 break-words text-xs leading-snug text-foreground/75">
-            {propertyAddress(property) || "No address on file"}
-          </p>
-        </div>
-        <div className="min-w-0 border-l border-slate-200 px-3 py-2.5">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-foreground/50">Client</div>
-          <h2 className="mt-0.5 min-w-0 break-words text-base font-semibold leading-tight text-foreground">
-            {property.clientName || "No client name"}
-          </h2>
-        </div>
+      <p className="mt-1 break-words text-xs leading-snug text-foreground/55">
+        {propertyAddress(property) || "No address on file"}
+      </p>
+      <div className="mt-2">
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-foreground/45">Client</div>
+        <h2 className="min-w-0 break-words text-base font-semibold leading-tight text-foreground">
+          {property.clientName || "No client name"}
+        </h2>
       </div>
-      <div className="grid grid-cols-2 border-t border-slate-200">
-        <div className="min-w-0 px-3 py-2">
+      <div className="mt-2 grid grid-cols-2 gap-3">
+        <div className="min-w-0">
           <MobileContactField
             label="Email"
+            icon={Mail}
             propertyName={property.propertyName || "property"}
             type="email"
             value={draft.clientEmail}
@@ -183,9 +184,10 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
             onChange={(value) => onDraftChange(property, "clientEmail", value)}
           />
         </div>
-        <div className="min-w-0 border-l border-slate-200 px-3 py-2">
+        <div className="min-w-0">
           <MobileContactField
             label="Phone"
+            icon={Phone}
             propertyName={property.propertyName || "property"}
             type="tel"
             value={draft.clientPhone}
