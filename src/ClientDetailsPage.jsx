@@ -27,7 +27,7 @@ function ClientRow({ property, session, draft, saving, onDraftChange }) {
   return (
     <Fragment>
       <tr className="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">
-        <th scope="row" className="sticky left-0 z-10 min-w-[170px] border-r border-slate-200 bg-white px-3 py-2 text-left text-sm font-semibold text-foreground">
+        <th scope="row" className="sticky left-0 z-10 border-r border-slate-200 bg-white px-3 py-2 text-left text-sm font-semibold text-foreground">
           <button
             type="button"
             aria-expanded={showDestinations}
@@ -39,11 +39,11 @@ function ClientRow({ property, session, draft, saving, onDraftChange }) {
             <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${showDestinations ? "rotate-180" : ""}`} />
           </button>
         </th>
-        <td className="min-w-[160px] border-r border-slate-200 px-3 py-2 text-sm text-foreground/75">{property.clientName || <span className="text-foreground/45">No name</span>}</td>
-        <td className="min-w-[245px] max-w-[340px] border-r border-slate-200 px-3 py-2 text-sm text-foreground/75" title={propertyAddress(property)}>
+        <td className="border-r border-slate-200 px-3 py-2 text-sm text-foreground/75">{property.clientName || <span className="text-foreground/45">No name</span>}</td>
+        <td className="border-r border-slate-200 px-3 py-2 text-sm text-foreground/75" title={propertyAddress(property)}>
           <div className="truncate">{propertyAddress(property) || <span className="text-foreground/45">No address</span>}</div>
         </td>
-        <td className="min-w-[220px] border-r border-slate-200 px-2 py-1.5 text-sm">
+        <td className="border-r border-slate-200 px-2 py-1.5 text-sm">
           {property.canEdit ? (
             <input
               type="email"
@@ -57,7 +57,7 @@ function ClientRow({ property, session, draft, saving, onDraftChange }) {
             />
           ) : <span className="px-2 text-foreground/75">{property.clientEmail || "—"}</span>}
         </td>
-        <td className="min-w-[155px] border-r border-slate-200 px-2 py-1.5 text-sm">
+        <td className="border-r border-slate-200 px-2 py-1.5 text-sm">
           {property.canEdit ? (
             <input
               type="tel"
@@ -68,7 +68,7 @@ function ClientRow({ property, session, draft, saving, onDraftChange }) {
               onChange={(event) => onDraftChange(property, "clientPhone", event.target.value)}
               onBlur={(event) => onDraftChange(property, "clientPhone", formatClientPhone(event.target.value))}
               placeholder="Add phone"
-              className="h-9 w-full rounded border border-slate-200 bg-white px-2 outline-none hover:border-slate-400 focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
+              className="h-9 w-full min-w-0 rounded border border-slate-200 bg-white px-2 outline-none hover:border-slate-400 focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
             />
           ) : <span className="px-2 text-foreground/75">{formatClientPhone(property.clientPhone) || "—"}</span>}
         </td>
@@ -470,7 +470,14 @@ export default function ClientDetailsPage() {
               ))}
             </div>
             <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm lg:block">
-              <table className="w-full min-w-[920px] border-collapse text-left">
+              <table className="w-full min-w-[960px] table-fixed border-collapse text-left">
+                <colgroup>
+                  <col className="w-[18%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[33%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[13%]" />
+                </colgroup>
                 <thead className="bg-slate-100 text-xs font-semibold uppercase tracking-wide text-foreground/60">
                   <tr>
                     <th scope="col" className="sticky left-0 z-20 border-r border-slate-200 bg-slate-100 px-3 py-2.5">Property</th>
