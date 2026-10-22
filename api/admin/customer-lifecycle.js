@@ -76,9 +76,9 @@ async function saveLifecycle(service, user, body) {
       (pilotSignedAt && new Date(pilotExpiresAt) <= new Date(pilotSignedAt))) {
     throw Object.assign(new Error("Pilot expiration must be after the signed date."), { status: 400 });
   }
-  if (Boolean(ongoingStartedAt) !== Boolean(ongoingExpiresAt) ||
-      (ongoingStartedAt && new Date(ongoingExpiresAt) <= new Date(ongoingStartedAt))) {
-    throw Object.assign(new Error("Ongoing start and expiration must both be set, with expiration later."), { status: 400 });
+  if ((ongoingExpiresAt && !ongoingStartedAt) ||
+      (ongoingStartedAt && ongoingExpiresAt && new Date(ongoingExpiresAt) <= new Date(ongoingStartedAt))) {
+    throw Object.assign(new Error("Ongoing access needs a start date; an optional end date must be later."), { status: 400 });
   }
   if (pilotExpiresAt && ongoingStartedAt && new Date(ongoingStartedAt) > new Date(pilotExpiresAt)) {
     throw Object.assign(new Error("Ongoing access must start by the pilot cutoff. Extend the pilot first if needed."), { status: 400 });

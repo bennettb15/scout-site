@@ -29,13 +29,13 @@ export function lifecycleExpiry(row, now = new Date()) {
 export function lifecycleStatus(row, now = new Date()) {
   if (!row) return "untracked";
   const expiry = lifecycleExpiry(row, now);
-  if (!expiry) return "untracked";
-  if (row.access_ended_at && new Date(expiry).getTime() <= new Date(row.access_ended_at).getTime()) {
+  if (expiry && row.access_ended_at && new Date(expiry).getTime() <= new Date(row.access_ended_at).getTime()) {
     return "access-ended";
   }
-  if (new Date(expiry).getTime() <= now.getTime()) return "expired";
+  if (expiry && new Date(expiry).getTime() <= now.getTime()) return "expired";
   if (row.ongoing_started_at && new Date(row.ongoing_started_at).getTime() <= now.getTime()) {
     return "ongoing";
   }
+  if (!expiry) return "untracked";
   return "pilot";
 }
