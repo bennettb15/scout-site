@@ -168,7 +168,8 @@ export default function CustomerLifecycleAdminPage() {
     [organizations, selectedOrgId]
   );
 
-  const effectiveExpiration = draft.ongoingStartedAt && new Date(draft.ongoingStartedAt) <= new Date()
+  const ongoingHasStarted = Boolean(draft.ongoingStartedAt && new Date(draft.ongoingStartedAt) <= new Date());
+  const effectiveExpiration = ongoingHasStarted
     ? draft.ongoingExpiresAt
     : draft.pilotExpiresAt;
   const endsImmediately = Boolean(
@@ -329,11 +330,11 @@ export default function CustomerLifecycleAdminPage() {
 
                 <section className="mt-7 border-t border-border pt-5">
                   <h3 className="text-base font-semibold">Ongoing agreement</h3>
-                  <p className="mt-1 text-sm text-foreground/60">Set both dates after the customer accepts an ongoing agreement. The ongoing cutoff takes effect when that term starts; its start must be no later than the pilot cutoff.</p>
+                  <p className="mt-1 text-sm text-foreground/60">After the customer accepts paid access, set its start date. Leave the end blank while the subscription renews monthly. If they cancel, set the end to the close of their current paid period. Paid access must start by the pilot cutoff; extend the pilot first if needed.</p>
                   <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <DateField label="Ongoing starts" value={draft.ongoingStartedAt}
                       onChange={(value) => setDraft((current) => ({ ...current, ongoingStartedAt: value }))} />
-                    <DateField label="Ongoing expires" value={draft.ongoingExpiresAt}
+                    <DateField label="Ongoing ends (optional)" value={draft.ongoingExpiresAt}
                       onChange={(value) => setDraft((current) => ({ ...current, ongoingExpiresAt: value }))} />
                   </div>
                 </section>
@@ -346,7 +347,7 @@ export default function CustomerLifecycleAdminPage() {
                 </label>
 
                 <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-foreground/70">
-                  <p><strong>Current cutoff:</strong> {effectiveExpiration ? dateLabel(isoValue(effectiveExpiration)) : "Not set"}</p>
+                  <p><strong>Current cutoff:</strong> {effectiveExpiration ? dateLabel(isoValue(effectiveExpiration)) : ongoingHasStarted ? "No end date set" : "Not set"}</p>
                   <p className="mt-1">The daily expiration job removes customer organization access after this time. It does not delete the shared login or records; the existing 90-day organization retention process applies after access ends.</p>
                   {selectedOrg.lifecycle?.accessEndedAt && (
                     <p className="mt-2 font-semibold text-amber-800">Customer access was last ended {dateLabel(selectedOrg.lifecycle.accessEndedAt)}. New dates do not restore revoked memberships; invite the customer again through Portal Access.</p>
