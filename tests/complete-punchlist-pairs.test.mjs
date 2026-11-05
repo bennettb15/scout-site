@@ -1,12 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import PDFDocument from 'pdfkit';
-import { selectCompleteReportSources, completeReportNoteRecords, wrapReportText, requiresCompletionApproval, isCompletionCapture } from '../api-lib/completePunchlistReport.js';
-import { completeReportPagePlans } from '../api/punch-list.js';
+import { selectCompleteReportSources, completeReportNoteRecords, wrapReportText, requiresCompletionApproval, isCompletionCapture, reportStatusColor } from '../api-lib/completePunchlistReport.js';
+import { completeReportPagePlans, buildPunchListPdf } from '../api/punch-list.js';
 
 const photo = (id, date, status = 'active', issue = 'issue') => ({ id, captured_at: date, org_id: 'org', property_id: 'prop', issue_id: issue, issue_status: status });
 const event = (id, type, date, group, extra = {}) => ({ id, activity_type: type, created_at: date, from_value: group, org_id: 'org', property_id: 'prop', observation_id: 'issue', ...extra });
 const select = (status, shots, activity = []) => selectCompleteReportSources({ status, shots, activity, issueId: 'issue', observationId: 'issue', orgId: 'org', propertyId: 'prop' });
+test('report flags match the portal status colors', () => {
+  assert.equal(reportStatusColor('active'), '#dc2626');
+  assert.equal(reportStatusColor('pending_review'), '#ea580c');
+  assert.equal(reportStatusColor('resolved'), '#15803d');
+});
+test('complete punchlist still renders when a property address is unavailable', async () => {
+  const pdf = await buildPunchListPdf([{ id: 'item', status: 'active', property: { name: 'Address unavailable' }, trade: 'general', priority: 'medium' }], [], null, true);
+  assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
+});
 
 test('original photo is the earliest flagged capture for the same issue, not the most recent previous photo', () => {
   const shots = [photo('latest', '2026-10-03'), photo('original', '2026-10-01'), photo('other', '2026-09-01', 'active', 'different')];

@@ -1,4 +1,5 @@
 const key = (value) => String(value || '').trim().toLowerCase();
+export const reportStatusColor = (status) => key(status) === 'resolved' ? '#15803d' : key(status) === 'pending_review' ? '#ea580c' : '#dc2626';
 const time = (value) => Date.parse(value || '') || 0;
 const oldestFirst = (a, b) => time(a.captured_at || a.created_at) - time(b.captured_at || b.created_at) || key(a.id).localeCompare(key(b.id));
 const newestActivityFirst = (a, b) => time(b.created_at) - time(a.created_at) || key(b.id).localeCompare(key(a.id));
@@ -58,6 +59,7 @@ export function completeReportNoteRecords(row) {
   const reason = String(original?.reason || row.reason || row.title || '').trim();
   if (reason) records.push({ label: 'Original note', note: reason, createdAt: original?.capturedAt || row.capturedAt, actorEmail: original?.actorEmail || '' });
   if (row.reason && reason && row.reason.trim() !== reason) records.push({ label: 'Latest observation note', note: row.reason, createdAt: row.capturedAt, actorEmail: '' });
+  if (row.dueDate) records.push({ label: 'Due date', note: String(row.dueDate), createdAt: null, actorEmail: '' });
   const seen = new Set();
   for (const event of [...(row.activity || [])].sort((a, b) => time(a.createdAt) - time(b.createdAt) || key(a.id).localeCompare(key(b.id)))) {
     if (!event.note?.trim() || (event.id && seen.has(event.id))) continue;

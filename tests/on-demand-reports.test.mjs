@@ -101,3 +101,31 @@ test('missing session types do not fabricate full baselines', () => {
   assert.equal(buildSnapshotPhotoMetadata({ sessionType: 'punchlist_visit', guidedShots: [{ id: 'old-guided' }] }).isFullBaseline, false);
   assert.equal(buildSnapshotPhotoMetadata({ sessionType: 'full_documentation', shots: [] }).isFullBaseline, true);
 });
+
+test('generation loads only the chosen baseline and latest available version instead of every historical package', async () => {
+  const packages = Array.from({ length: 271 }, (_, i) => ({ id: `package-${i}`, session_id: `session-${i}`,
+    org_id: 'org-a', property_id: 'property-a', package_session_type: i === 270 ? 'full_documentation' : 'punchlist_visit' }));
+  const pages = [];
+  const service = { from(table) {
+    let ids = null;
+    return { select() { return this; }, eq() { return this; }, is() { return this; }, order() { return this; },
+      in(_column, value) { ids = value; return this; },
+      range(a, b) {
+        assert.equal(table, 'report_packages');
+        const data = (ids ? packages.filter((row) => ids.includes(row.id)) : packages).slice(a, b + 1);
+        pages.push(data.length);
+        return Promise.resolve({ data, error: null });
+      },
+      then(resolve) {
+        assert.equal(table, 'report_package_files');
+        return Promise.resolve({ data: ids.map((package_id) => ({ package_id })), error: null }).then(resolve);
+      } };
+  } };
+  const [baseline, latest] = await Promise.all([
+    comparisonOptions(service, 'org-a', 'property-a', { onlyIds: ['package-270'] }),
+    comparisonOptions(service, 'org-a', 'property-a', { latestOnly: true }),
+  ]);
+  assert.equal(baseline[0].id, 'package-270');
+  assert.equal(latest[0].id, 'package-0');
+  assert.deepEqual(pages.sort((a, b) => a - b), [1, 10]);
+});
