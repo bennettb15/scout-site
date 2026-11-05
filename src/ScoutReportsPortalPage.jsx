@@ -1509,10 +1509,6 @@ export default function ScoutReportsPortalPage() {
                       </div>
                     </div>
 
-                    {packageIndex === 0 && group.property?.id && group.org?.id && <TenantComparisonControl
-                      expanded={isPackageExpanded(reportPackage)}
-                      propertyId={group.property.id} propertyName={group.property.name} orgId={group.org.id} accessToken={session.access_token}
-                    />}
                     {isPackageExpanded(reportPackage) && (
                       <div className="mt-4 grid gap-3">
                         <section>
@@ -1564,7 +1560,15 @@ export default function ScoutReportsPortalPage() {
                               })}
                           </div>
                         </section>
+                      </div>
+                    )}
 
+                    {packageIndex === 0 && group.property?.id && group.org?.id && <TenantComparisonControl
+                      expanded={isPackageExpanded(reportPackage)}
+                      propertyId={group.property.id} propertyName={group.property.name} orgId={group.org.id} accessToken={session.access_token}
+                    />}
+                    {isPackageExpanded(reportPackage) && (
+                      <div className="mt-4 grid gap-3">
                         <section>
                           <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
