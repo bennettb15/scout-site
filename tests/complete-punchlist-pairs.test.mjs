@@ -12,6 +12,17 @@ test('report flags match the portal status colors', () => {
   assert.equal(reportStatusColor('pending_review'), '#ea580c');
   assert.equal(reportStatusColor('resolved'), '#15803d');
 });
+test('complete punchlist keeps original and follow-up notes, including unchanged wording, with their own dates', () => {
+  for (const note of ['Repaired downspout', 'Broken downspout']) {
+    const records = completeReportNoteRecords({ reason: 'Broken downspout', reportPair: {
+      original: { reason: 'Broken downspout', capturedAt: '2026-11-04' },
+      completion: { reason: note, capturedAt: '2026-11-05' },
+    } });
+    assert.deepEqual(records.map((r) => [r.label, r.note, r.createdAt]), [
+      ['Original note', 'Broken downspout', '2026-11-04'], ['Updated note', note, '2026-11-05'],
+    ]);
+  }
+});
 test('complete punchlist still renders when a property address is unavailable', async () => {
   const pdf = await buildPunchListPdf([{ id: 'item', status: 'active', property: { name: 'Address unavailable' }, trade: 'general', priority: 'medium' }], [], null, true);
   assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
