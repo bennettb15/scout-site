@@ -78,8 +78,8 @@ export default function TenantComparisonControl({ orgId, propertyId, propertyNam
     } catch (e) { setError(e.message); setBusy(false); setMessage(''); }
   }
 
-  return <section className="mt-4 border-t border-border pt-4">
-    <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={`Tenant Comparison PDF for ${propertyName || 'this property'}`} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90">
+  return <section className="border-t border-border py-3">
+    <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={`Tenant Comparison PDF for ${propertyName || 'this property'}`} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-violet-800">
       <FileText className="h-4 w-4" />Tenant Comparison PDF<ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
     </button>
     {open && <div className="mt-3 grid gap-3">
@@ -99,7 +99,7 @@ export default function TenantComparisonControl({ orgId, propertyId, propertyNam
       </label>}
       {loading && <p role="status" className="text-sm text-foreground/65">Loading report versions…</p>}
       {versions.length < 2 && !busy && !loading && <p className="text-sm text-foreground/65">Two report versions are needed for a comparison.</p>}
-      <button type="button" disabled={busy || loading || !beforeId || versions.length < 2 || beforeId === (customEnd ? afterId : versions[0]?.id)} onClick={generate} className="w-fit rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Preparing…' : 'Generate Tenant Comparison PDF'}</button>
+      <button type="button" disabled={busy || loading || !beforeId || versions.length < 2 || beforeId === (customEnd ? afterId : versions[0]?.id)} onClick={generate} className="w-fit rounded-md bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50">{busy ? 'Preparing…' : 'Generate Tenant Comparison PDF'}</button>
       {message && <p role="status" className="text-sm text-foreground/65">{message}</p>}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       {download && <button type="button" className="w-fit text-sm font-semibold text-[var(--brand)] underline" onClick={async () => {

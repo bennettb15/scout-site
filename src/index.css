@@ -6,6 +6,7 @@
 @source "./ClientDetailsPage.jsx";
 @source "./PrivacyPage.jsx";
 @source "./components/AccountMenu.jsx";
+@source "./components/TenantComparisonControl.jsx";
 @source "./ForgotPasswordPage.jsx";
 @source "./PortalAccessAdminPage.jsx";
 @source "./CustomerLifecycleAdminPage.jsx";
