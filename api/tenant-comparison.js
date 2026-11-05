@@ -94,6 +94,12 @@ return async function handler(req, res) {
     if (propertyError) throw propertyError;
     if (!property) return sendJson(res, 404, { error: 'Property not found.' });
     if (req.method === 'GET') {
+      if (getQueryValue(req, 'current') === '1') {
+        const row = await activeTenantRequest(service, auth.user.id, orgId, propertyId);
+        const dispatch = row?.status === 'queued' ? await dispatchTenantRequest(service, row.id) : null;
+        return sendJson(res, 200, { request: tenantRequestSummary(row), dispatch,
+          dispatchDelayed: String(row?.last_error || '').startsWith('dispatch_') });
+      }
       if (getQueryValue(req, 'lookup') === '1') {
         const beforeId = getQueryValue(req, 'beforePackageId');
         const afterId = getQueryValue(req, 'afterPackageId');

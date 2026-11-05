@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { FileText, ChevronDown, Download, RefreshCw } from 'lucide-react';
+import { FileText, Download, RefreshCw } from 'lucide-react';
 import { restoredComparisonSelection, matchingComparisonRequest, comparisonProgressMessage } from '../lib/tenantComparisonDisplay.js';
 
 const dateLabel = (value) => value ? new Date(value).toLocaleString() : 'Unknown date';
 const generationStyle = 'border border-blue-200 bg-blue-50 text-[var(--brand)] hover:bg-blue-100';
 
-export default function TenantComparisonControl({ orgId, propertyId, propertyName, accessToken }) {
-  const [open, setOpen] = useState(false);
+export default function TenantComparisonControl({ orgId, propertyId, propertyName, accessToken, expanded = false }) {
   const [versions, setVersions] = useState([]);
   const [selection, setSelection] = useState({ beforeId: '', afterId: '', customEnd: false });
   const [request, setRequest] = useState(null);
@@ -18,13 +17,14 @@ export default function TenantComparisonControl({ orgId, propertyId, propertyNam
   const [error, setError] = useState('');
   const { beforeId, afterId, customEnd } = selection;
   const selectedAfter = customEnd ? afterId : versions[0]?.id;
-  const current = matchingComparisonRequest(request, beforeId, selectedAfter);
+  const current = expanded ? matchingComparisonRequest(request, beforeId, selectedAfter) :
+    (request && Date.parse(request.expiresAt) > Date.now() ? request : null);
   const processing = current && ['queued', 'generating'].includes(current.status);
   const ready = current?.status === 'ready';
   const validSelection = beforeId && selectedAfter && beforeId !== selectedAfter;
 
   useEffect(() => {
-    if (!open) return;
+    if (!expanded) return;
     const controller = new AbortController();
     setLoading(true); setError('');
     fetch(`/api/tenant-comparison?${new URLSearchParams({ orgId, propertyId })}`, {
@@ -40,7 +40,7 @@ export default function TenantComparisonControl({ orgId, propertyId, propertyNam
     }).catch((e) => { if (!controller.signal.aborted) setError(e.message); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [open, orgId, propertyId, accessToken]);
+  }, [expanded, orgId, propertyId, accessToken]);
 
   useEffect(() => {
     const check = () => { if (!document.hidden) setRefresh((value) => value + 1); };
@@ -50,13 +50,14 @@ export default function TenantComparisonControl({ orgId, propertyId, propertyNam
   }, []);
 
   useEffect(() => {
-    if (!open || loading || !validSelection) return;
+    if (expanded && (loading || !validSelection)) return;
     const controller = new AbortController();
     let timer;
     async function poll() {
       setChecking(true);
       try {
-        const params = new URLSearchParams({ orgId, propertyId, lookup: '1', beforePackageId: beforeId, afterPackageId: selectedAfter });
+        const params = new URLSearchParams({ orgId, propertyId, ...(expanded ?
+          { lookup: '1', beforePackageId: beforeId, afterPackageId: selectedAfter } : { current: '1' }) });
         const response = await fetch(`/api/tenant-comparison?${params}`, {
           headers: { Authorization: `Bearer ${accessToken}` }, signal: controller.signal,
         });
@@ -76,7 +77,7 @@ export default function TenantComparisonControl({ orgId, propertyId, propertyNam
     }
     poll();
     return () => { controller.abort(); clearTimeout(timer); };
-  }, [open, loading, validSelection, orgId, propertyId, accessToken, beforeId, selectedAfter, refresh]);
+  }, [expanded, loading, validSelection, orgId, propertyId, accessToken, beforeId, selectedAfter, refresh]);
 
   async function act() {
     setActing(true); setError('');
@@ -102,11 +103,18 @@ export default function TenantComparisonControl({ orgId, propertyId, propertyNam
     finally { setActing(false); }
   }
 
-  return <section className="border-t border-border py-3">
-    <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={`Tenant Comparison PDF for ${propertyName || 'this property'}`} className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold shadow-sm ${generationStyle}`}>
-      <FileText className="h-4 w-4" />Tenant Comparison PDF<ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
-    </button>
-    {open && <div className="mt-3 grid gap-3">
+  if (!expanded && !current && !error) return null;
+
+  return <section className="mt-4 border-t border-border py-3" aria-label={`Tenant Comparison PDF for ${propertyName || 'this property'}`}>
+    <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--brand)]"><FileText className="h-4 w-4" />Tenant Comparison PDF</h3>
+    {!expanded && <div className="mt-3 grid gap-2">
+      {processing && <p role="status" className="flex items-center gap-2 text-sm font-semibold text-[var(--brand)]"><RefreshCw className="h-4 w-4 animate-spin" />Processing… {comparisonProgressMessage(current, delayed)}</p>}
+      {ready && <>
+        <button type="button" onClick={act} disabled={acting} className="inline-flex min-h-10 w-fit items-center gap-2 rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-60"><Download className="h-4 w-4" />Download Tenant Comparison PDF</button>
+        <p className="text-sm text-foreground/65">Expires {dateLabel(current.expiresAt)}.</p>
+      </>}
+    </div>}
+    {expanded && <div className="mt-3 grid gap-3">
       <p className="text-sm text-foreground/65">Compare a full documentation baseline with the latest Property Report, including punchlist updates. Each photo keeps its capture date.</p>
       <label className="grid gap-1 text-sm font-medium">Compare from
         <select value={beforeId} onChange={(e) => setSelection({ ...selection, beforeId: e.target.value })} disabled={acting || loading} className="rounded-md border border-border p-2">
@@ -131,7 +139,7 @@ export default function TenantComparisonControl({ orgId, propertyId, propertyNam
       </button>
       {processing && <p role="status" className="text-sm text-foreground/65">{comparisonProgressMessage(current, delayed)}</p>}
       {ready && <p role="status" className="text-sm text-foreground/65">Ready to download. Available for 24 hours after completion. Expires {dateLabel(current.expiresAt)}.</p>}
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
     </div>}
+    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
   </section>;
 }

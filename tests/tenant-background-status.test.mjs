@@ -37,6 +37,18 @@ test('a fresh page discovers the server request and current step without creatin
   assert.equal(comparisonProgressMessage(h.res.body.request), 'Creating the side-by-side comparison PDF…');
   assert.ok(h.queries.find((q) => q.table === 'on_demand_report_requests').filters.some(([k,,v]) => k === 'requested_by' && v === 'user'));
 });
+test('collapsed property cards discover progress without loading report history or generating a PDF', async () => {
+  const h = harness();
+  await h.handler({ method: 'GET', headers: {}, query: { orgId: org, propertyId: property, current: '1' } }, h.res);
+  assert.equal(h.res.statusCode, 200);
+  assert.equal(h.res.body.request.requestId, id);
+  assert.equal(h.res.body.request.progressStep, 'rendering');
+  assert.deepEqual(h.queries.map((q) => q.table), ['properties', 'on_demand_report_requests']);
+  const denied = harness([row], false);
+  await denied.handler({ method: 'GET', headers: {}, query: { orgId: org, propertyId: property, current: '1' } }, denied.res);
+  assert.equal(denied.res.statusCode, 404);
+  assert.equal(denied.queries.length, 0);
+});
 test('revisiting a completed comparison restores Download through the entire 24-hour window', async () => {
   const ready = { ...row, status: 'ready', progress_step: 'ready' };
   ready.storage_path = tenantPath(ready);
