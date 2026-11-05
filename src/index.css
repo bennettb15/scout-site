@@ -27,6 +27,13 @@
 
 @plugin "tailwindcss-animate";
 
+/* Every page's primary logo/navigation header stays visible while scrolling. */
+#root > div > header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
