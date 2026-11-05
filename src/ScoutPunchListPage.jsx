@@ -30,6 +30,7 @@ import {
   nextPunchListTradeFilter,
 } from "./lib/punchListSummary";
 import { canReviewCompletionForPunchListRow } from "../api-lib/punchListPermissions";
+import { photoFlagReason } from "./lib/punchListPhotoPreview";
 
 const BRAND = {
   siteTitle: "Punch List | SCOUT",
@@ -4884,7 +4885,7 @@ function ImagePreviewModal({ target, onClose }) {
   }, [hasMultiplePhotos, photos.length]);
 
   if (!activePhoto) return null;
-  const flagNote = row.title || row.reason || "Flagged observation";
+  const flagNote = photoFlagReason(activePhoto);
   const resolved = row.status === "resolved";
   const issueResolved = resolved && activePhoto.label === "Resolved";
   const issuePrefix = activePhoto.label ? `${activePhoto.label}: ` : "";
@@ -4989,7 +4990,7 @@ function ImagePreviewModal({ target, onClose }) {
               {activePhotoMeta.length > 0 && (
                 <span>{activePhotoMeta.join(" · ")}</span>
               )}
-              {activePhoto.note && <span>{activePhoto.note}</span>}
+              {activePhoto.note && activePhoto.note !== flagNote && <span>{activePhoto.note}</span>}
             </div>
           )}
           <div className="punch-lightbox-priority">

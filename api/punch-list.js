@@ -827,10 +827,11 @@ function rankedHistoryCandidates({
     });
 }
 
-function publicPreview(row, previewUrl, reportPackage) {
+export function publicPreview(row, previewUrl, reportPackage) {
   const canDownloadOriginal = Boolean(reportPackage?.id && row?.id && originalPathIsExpected(row));
   return {
     displayName: row ? friendlyPhotoDisplayName(row) : null,
+    flagReason: compactText(row?.reason),
     previewUrl,
     previewExpiresInSeconds: previewUrl ? SIGNED_URL_SECONDS : null,
     originalDownload: canDownloadOriginal
@@ -846,7 +847,7 @@ function publicPreview(row, previewUrl, reportPackage) {
   };
 }
 
-async function publicHistoryPhotoForRow({
+export async function publicHistoryPhotoForRow({
   row,
   shot,
   historyShotsByIssueId,
