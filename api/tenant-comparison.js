@@ -30,7 +30,7 @@ export async function comparisonOptions(service, orgId, propertyId, { onlyIds = 
     let query = service.from('report_packages')
       .select('id,org_id,property_id,session_id,snapshot_id,session_completed_at,completed_at,package_session_type:manifest->>session_type')
       .eq('org_id', orgId).eq('property_id', propertyId).eq('status', 'ready').is('deleted_at', null)
-      .order('session_completed_at', { ascending: false }).order('id');
+      .order('session_completed_at', { ascending: false }).order('completed_at', { ascending: false }).order('id');
     if (onlyIds) query = query.in('id', onlyIds);
     const { data, error } = await query.range(offset, offset + pageSize - 1);
     if (error) throw error;
