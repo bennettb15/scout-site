@@ -1,7 +1,6 @@
 import {
   FULL_DOCUMENTATION_SESSION_TYPE,
   PUNCHLIST_VISIT_SESSION_TYPE,
-  isPunchlistVisitSessionType,
   normalizeReportPackageSessionType,
 } from "../../api-lib/reportPackageSession.js";
 
@@ -25,8 +24,7 @@ export function shouldShowReportPackageTypeLabel(reportPackage = {}) {
 
 export function visibleReportFilesForPackage(reportPackage = {}) {
   const files = Array.isArray(reportPackage.files) ? reportPackage.files : [];
-  if (!isPunchlistVisitSessionType(reportPackageSessionType(reportPackage))) return files;
-  return files.filter((file) => file?.reportType !== PROPERTY_REPORT_TYPE);
+  return files;
 }
 
 export function packageShowsPropertyReport(reportPackage = {}) {
