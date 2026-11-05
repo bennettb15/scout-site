@@ -3,6 +3,26 @@ import { authenticateRequest, createServiceClient, getQueryValue, loadUserPortal
 import { isUuid, TENANT_BUCKET, TENANT_RENDER_VERSION, tenantPath, selectComparisonPackages } from '../api-lib/tenantComparison.js';
 import { dispatchTenantRequest } from '../api-lib/tenantDispatch.js';
 
+export function tenantRequestSummary(row) {
+  if (!row) return null;
+  return { requestId: row.id, status: row.status, beforePackageId: row.before_package_id,
+    afterPackageId: row.after_package_id, expiresAt: row.expires_at, progressStep: row.progress_step || row.status };
+}
+
+export async function activeTenantRequest(service, userId, orgId, propertyId, beforeId = null, afterId = null, includeFailed = false) {
+  let query = service.from('on_demand_report_requests').select('*')
+    .eq('org_id', orgId).eq('property_id', propertyId).eq('requested_by', userId)
+    .eq('kind', 'tenant_comparison').eq('renderer_version', TENANT_RENDER_VERSION)
+    .in('status', includeFailed ? ['queued', 'generating', 'ready', 'failed'] : ['queued', 'generating', 'ready']).gt('expires_at', new Date().toISOString());
+  if (beforeId) query = query.eq('before_package_id', beforeId);
+  if (afterId) query = query.eq('after_package_id', afterId);
+  const { data, error } = await query.order('requested_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  // Never advertise a ready file outside the expected private request path.
+  if (data?.status === 'ready' && data.storage_path !== tenantPath(data)) return null;
+  return data;
+}
+
 export async function comparisonOptions(service, orgId, propertyId, { onlyIds = null, latestOnly = false } = {}) {
   const packages = [];
   const pageSize = latestOnly ? 10 : 100;
@@ -56,14 +76,14 @@ return async function handler(req, res) {
       if (row.status === 'failed') return sendJson(res, 200, { status: 'failed', error: 'The comparison could not be generated. Please try again.' });
       if (row.status !== 'ready') {
         const dispatch = row.status === 'queued' ? await dispatchTenantRequest(service, row.id) : null;
-        return sendJson(res, 200, { status: row.status, requestId: row.id, dispatch, dispatchDelayed: String(row.last_error || '').startsWith('dispatch_') });
+        return sendJson(res, 200, { ...tenantRequestSummary(row), dispatch, dispatchDelayed: String(row.last_error || '').startsWith('dispatch_') });
       }
       if (row.storage_path !== tenantPath(row)) return sendJson(res, 404, { error: 'Download unavailable.' });
       const seconds = Math.min(300, Math.floor((new Date(row.expires_at).getTime() - Date.now()) / 1000));
       if (seconds < 1) return sendJson(res, 410, { error: 'This temporary download expired. Generate it again.' });
       const { data, error: signingError } = await service.storage.from(TENANT_BUCKET).createSignedUrl(row.storage_path, seconds, { download: row.filename });
       if (signingError) throw signingError;
-      return sendJson(res, 200, { status: 'ready', downloadUrl: data.signedUrl, filename: row.filename });
+      return sendJson(res, 200, { ...tenantRequestSummary(row), downloadUrl: data.signedUrl, filename: row.filename });
     }
     const body = req.method === 'POST' ? (typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {}) : {};
     const orgId = body.orgId || getQueryValue(req, 'orgId');
@@ -74,8 +94,19 @@ return async function handler(req, res) {
     if (propertyError) throw propertyError;
     if (!property) return sendJson(res, 404, { error: 'Property not found.' });
     if (req.method === 'GET') {
-      const packages = await comparisonOptions(service, orgId, propertyId);
-      return sendJson(res, 200, { versions: packages.map((p) => ({ id: p.id, sessionType: p.sessionType, date: p.session_completed_at, sessionId: p.session_id })) });
+      if (getQueryValue(req, 'lookup') === '1') {
+        const beforeId = getQueryValue(req, 'beforePackageId');
+        const afterId = getQueryValue(req, 'afterPackageId');
+        if (!isUuid(beforeId) || !isUuid(afterId)) return sendJson(res, 400, { error: 'Choose valid report versions.' });
+        const row = await activeTenantRequest(service, auth.user.id, orgId, propertyId, beforeId, afterId, true);
+        const dispatch = row?.status === 'queued' ? await dispatchTenantRequest(service, row.id) : null;
+        return sendJson(res, 200, { request: tenantRequestSummary(row), dispatch,
+          dispatchDelayed: String(row?.last_error || '').startsWith('dispatch_') });
+      }
+      const [packages, latest] = await Promise.all([
+        comparisonOptions(service, orgId, propertyId), activeTenantRequest(service, auth.user.id, orgId, propertyId),
+      ]);
+      return sendJson(res, 200, { versions: packages.map((p) => ({ id: p.id, sessionType: p.sessionType, date: p.session_completed_at, sessionId: p.session_id })), latestRequest: tenantRequestSummary(latest) });
     }
     if (!isUuid(body.beforePackageId) || (body.afterPackageId && !isUuid(body.afterPackageId))) return sendJson(res, 400, { error: 'Choose valid report versions.' });
     const [before, after] = await Promise.all([
@@ -87,22 +118,17 @@ return async function handler(req, res) {
     try { selected = selectComparisonPackages(packages, body.beforePackageId, body.afterPackageId); }
     catch (error) { return sendJson(res, 400, { error: error.message }); }
     // Reuse this user's active request to avoid duplicate worker builds on double-click/reload.
-    const { data: existing, error: existingError } = await service.from('on_demand_report_requests').select('id,status')
-      .eq('org_id', orgId).eq('property_id', propertyId).eq('requested_by', auth.user.id)
-      .eq('before_package_id', selected.before.id).eq('after_package_id', selected.after.id)
-      .eq('renderer_version', TENANT_RENDER_VERSION)
-      .in('status', ['queued', 'generating', 'ready']).gt('expires_at', new Date().toISOString()).order('requested_at', { ascending: false }).limit(1);
-    if (existingError) throw existingError;
-    if (existing?.[0]) {
-      if (existing[0].status === 'queued') await dispatchTenantRequest(service, existing[0].id);
-      return sendJson(res, 202, { requestId: existing[0].id, status: existing[0].status });
+    const existing = await activeTenantRequest(service, auth.user.id, orgId, propertyId, selected.before.id, selected.after.id);
+    if (existing) {
+      if (existing.status === 'queued') await dispatchTenantRequest(service, existing.id);
+      return sendJson(res, 202, tenantRequestSummary(existing));
     }
     const { data: row, error } = await service.from('on_demand_report_requests').insert({ org_id: orgId, property_id: propertyId,
-      requested_by: auth.user.id, renderer_version: TENANT_RENDER_VERSION, before_package_id: selected.before.id, after_package_id: selected.after.id }).select('id,status').single();
+      requested_by: auth.user.id, renderer_version: TENANT_RENDER_VERSION, before_package_id: selected.before.id, after_package_id: selected.after.id }).select('*').single();
     if (error) throw error;
     // The authenticated function dispatches the existing report worker. Scheduled polling is the fallback.
     await dispatchTenantRequest(service, row.id);
-    return sendJson(res, 202, { requestId: row.id, status: row.status });
+    return sendJson(res, 202, tenantRequestSummary(row));
   } catch {
     return sendJson(res, 500, { error: 'Unable to prepare tenant comparison.' });
   }
