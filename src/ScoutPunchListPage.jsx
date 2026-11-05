@@ -2835,6 +2835,7 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-report-button {
+    cursor: pointer;
     display: inline-flex;
     height: 40px;
     align-items: center;
@@ -2851,8 +2852,12 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-report-button:disabled {
-    cursor: wait;
+    cursor: not-allowed;
     opacity: 0.55;
+  }
+
+  .punch-report-button[aria-busy="true"] {
+    cursor: wait;
   }
 
   .punch-report-modal {
@@ -2990,7 +2995,7 @@ const PUNCH_LIST_STYLES = `
 
   .punch-report-generate:disabled,
   .punch-report-cancel:disabled {
-    cursor: wait;
+    cursor: not-allowed;
     opacity: 0.55;
   }
 
@@ -4704,7 +4709,7 @@ function IssueRow({
   );
 }
 
-function PunchReportModal({
+export function PunchReportModal({
   open,
   tradeItems,
   selectedTrades,
@@ -4712,6 +4717,10 @@ function PunchReportModal({
   onToggleTrade,
   onGenerate,
   onClose,
+  complete = false,
+  propertyOptions = [],
+  propertyId = "",
+  onSelectProperty,
 }) {
   if (!open) return null;
 
@@ -4729,7 +4738,7 @@ function PunchReportModal({
       className="punch-report-modal"
       role="dialog"
       aria-modal="true"
-      aria-label="Generate punch list report"
+      aria-label={complete ? "Generate complete property punchlist" : "Generate punch list report"}
       onClick={() => {
         if (!generating) onClose();
       }}
@@ -4737,8 +4746,8 @@ function PunchReportModal({
       <div className="punch-report-panel" onClick={(event) => event.stopPropagation()}>
         <div className="punch-report-header">
           <div>
-            <div className="punch-report-title">Generate Punchlist</div>
-            <div className="punch-report-subtitle">Open issues only. Choose trades to include.</div>
+            <div className="punch-report-title">{complete ? "All Open & Resolved PDF" : "Generate Punchlist"}</div>
+            <div className="punch-report-subtitle">{complete ? "Includes open, pending review, and resolved items with photos and notes. Choose one property." : "Open issues only. Choose trades to include."}</div>
           </div>
           <button
             type="button"
@@ -4751,7 +4760,14 @@ function PunchReportModal({
           </button>
         </div>
         <div className="punch-report-body">
-          {tradeItems.length === 0 ? (
+          {complete ? (
+            <label className="grid gap-2 text-sm font-semibold text-foreground">Property
+              <select value={propertyId} onChange={(event) => onSelectProperty(event.target.value)} disabled={generating} className="min-w-0 w-full rounded-lg border border-border bg-background p-3">
+                <option value="">Choose a property</option>
+                {propertyOptions.map((property) => <option key={property.id} value={property.id}>{property.label}</option>)}
+              </select>
+            </label>
+          ) : tradeItems.length === 0 ? (
             <div className="rounded-lg border border-border bg-slate-50 p-4 text-sm font-semibold text-foreground/60">
               No master trades are available.
             </div>
@@ -4791,7 +4807,8 @@ function PunchReportModal({
             type="button"
             className="punch-report-generate"
             onClick={onGenerate}
-            disabled={generating || selectedCount === 0}
+            disabled={generating || (complete ? !propertyId : selectedCount === 0)}
+            aria-busy={generating}
           >
             <Download className="h-4 w-4" />
             {generating ? "Generating..." : "Generate"}
@@ -5034,6 +5051,8 @@ export default function ScoutPunchListPage() {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportSelectedTrades, setReportSelectedTrades] = useState({});
   const [reportGenerating, setReportGenerating] = useState(false);
+  const [reportComplete, setReportComplete] = useState(false);
+  const [reportPropertyId, setReportPropertyId] = useState("");
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
   const sessionScopeRef = useRef("");
   const filterRequestRef = useRef(0);
@@ -5967,11 +5986,22 @@ export default function ScoutPunchListPage() {
   }
 
   function handleOpenReportModal() {
+    setReportComplete(false);
     const selected = {};
     for (const item of reportTradeItems) {
       if (item.enabled) selected[item.id] = true;
     }
     setReportSelectedTrades(selected);
+    setReportModalOpen(true);
+  }
+
+  function handleCompleteReport() {
+    if (selectedPropertyId && selectedPropertyId !== ALL) {
+      handleGenerateReport(true, selectedPropertyId);
+      return;
+    }
+    setReportComplete(true);
+    setReportPropertyId("");
     setReportModalOpen(true);
   }
 
@@ -5984,9 +6014,9 @@ export default function ScoutPunchListPage() {
     }));
   }
 
-  async function handleGenerateReport(complete = false) {
+  async function handleGenerateReport(complete = false, reportProperty = selectedPropertyId) {
     if (!session?.access_token || !selectedOrgId || (!complete && selectedReportTradeIds.length === 0)) return;
-    if (complete && (!selectedPropertyId || selectedPropertyId === ALL)) return;
+    if (complete && (!reportProperty || reportProperty === ALL)) return;
     setReportGenerating(true);
     setPunchListError("");
     try {
@@ -5998,7 +6028,7 @@ export default function ScoutPunchListPage() {
         },
         body: JSON.stringify({
           orgId: selectedOrgId,
-          propertyId: selectedPropertyId || ALL,
+          propertyId: reportProperty || ALL,
           trades: selectedReportTradeIds,
           scope: complete ? "all_items" : "open_items",
         }),
@@ -6015,6 +6045,7 @@ export default function ScoutPunchListPage() {
       if (complete) {
         const body = await response.json();
         if (!body.downloadUrl) throw new Error('Unable to prepare complete punchlist download.');
+        setReportModalOpen(false);
         window.location.assign(body.downloadUrl);
         return;
       }
@@ -6616,6 +6647,7 @@ export default function ScoutPunchListPage() {
                   type="button"
                   onClick={handleOpenReportModal}
                   disabled={filtersLoading || punchListLoading || reportGenerating || !selectedOrgId}
+                  aria-busy={reportGenerating}
                   className="punch-report-button"
                 >
                   <Download className="h-4 w-4" />
@@ -6623,9 +6655,10 @@ export default function ScoutPunchListPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleGenerateReport(true)}
-                  disabled={filtersLoading || punchListLoading || reportGenerating || !selectedOrgId || !selectedPropertyId || selectedPropertyId === ALL}
-                  title="Select one property to download all open and resolved items"
+                  onClick={handleCompleteReport}
+                  disabled={filtersLoading || punchListLoading || reportGenerating || !selectedOrgId}
+                  aria-busy={reportGenerating}
+                  title="Download all open, pending review, and resolved items for one property"
                   className="punch-report-button"
                 >
                   <Download className="h-4 w-4" />
@@ -6778,8 +6811,12 @@ export default function ScoutPunchListPage() {
         tradeItems={reportTradeItems}
         selectedTrades={reportSelectedTrades}
         generating={reportGenerating}
+        complete={reportComplete}
+        propertyOptions={propertyOptions}
+        propertyId={reportPropertyId}
+        onSelectProperty={setReportPropertyId}
         onToggleTrade={handleToggleReportTrade}
-        onGenerate={() => handleGenerateReport(false)}
+        onGenerate={() => handleGenerateReport(reportComplete, reportComplete ? reportPropertyId : selectedPropertyId)}
         onClose={() => setReportModalOpen(false)}
       />
       <ImagePreviewModal target={previewRow} onClose={() => setPreviewRow(null)} />

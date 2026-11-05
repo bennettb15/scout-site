@@ -126,6 +126,7 @@ async function loadReadyPackageRows(service) {
     .eq("status", "ready")
     .is("deleted_at", null)
     .order("session_completed_at", { ascending: false })
+    .order("completed_at", { ascending: false })
     .limit(500);
 }
 
@@ -139,6 +140,7 @@ export async function loadReadyPackageRowsForOrg(service, orgId, properties, his
       .eq("status", "ready")
       .is("deleted_at", null)
       .order("session_completed_at", { ascending: false })
+      .order("completed_at", { ascending: false })
       .limit(history === "all" ? 50 : 2)
   );
   const error = results.find((result) => result.error)?.error;
