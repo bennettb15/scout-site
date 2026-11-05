@@ -30,7 +30,7 @@ import { mapWithConcurrency } from "../api-lib/mapWithConcurrency.js";
 import { loadActiveAttributionEmails } from "../api-lib/activeAttributionEmails.js";
 import { startPortalRequestTiming } from "../api-lib/portalRequestTiming.js";
 import { TENANT_BUCKET, tenantPath } from "../api-lib/tenantComparison.js";
-import { selectCompleteReportSources, completeReportNoteRecords, wrapReportText, requiresCompletionApproval, isCompletionCapture } from "../api-lib/completePunchlistReport.js";
+import { selectCompleteReportSources, completeReportNoteRecords, wrapReportText, requiresCompletionApproval, isCompletionCapture, reportStatusColor } from "../api-lib/completePunchlistReport.js";
 import {
   PUNCH_LIST_WORK_ROLES,
   portalAccessCanReviewCompletion,
@@ -3473,7 +3473,7 @@ function drawScoutLogo(doc, x, y, width, height) {
 }
 
 function footerPropertyLine(row) {
-  return [propertyName(row), propertyAddress(row)].map(singleLine).filter(Boolean).join(" · ");
+  return [propertyName(row), propertyAddress(row)].map((value) => singleLine(value)).filter(Boolean).join(" · ");
 }
 
 function tradePageTitle(tradeLabel) {
@@ -3499,15 +3499,6 @@ function addReportPage(doc, pageTitle = PDF_REPORT_TITLE, footerRow = null) {
     .fontSize(9)
     .fillColor("#111827")
     .text(footerPropertyLine(footerRow) || "Unknown property", 64, 748, { width: 380, height: 12 });
-}
-
-function drawLabelValue(doc, label, value, x, y, width) {
-  doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#64748b").text(label.toUpperCase(), x, y, { width });
-  doc
-    .font("Helvetica")
-    .fontSize(9.5)
-    .fillColor("#111827")
-    .text(value || "None", x, y + 10, { width, height: 24 });
 }
 
 export function issuePhotoFitRect(doc, imageBuffer, x, y, width, height) {
@@ -3659,24 +3650,24 @@ function priorityBorderColor(priority) {
   return PRIORITY_BORDER_COLORS[normalizedPriority(priority)] || PRIORITY_BORDER_COLORS.medium;
 }
 
-function drawCaptionFlagIcon(doc, x, y) {
+function drawCaptionFlagIcon(doc, x, y, color = '#dc2626') {
   const scale = 0.55;
   doc.save();
   doc.translate(x - 2.6, y - 3.3).scale(scale);
   doc
     .path("M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6z")
-    .fillColor("#dc2626")
+    .fillColor(color)
     .fill();
   doc.restore();
 }
 
-function drawIndexFlagIcon(doc, x, y) {
+function drawIndexFlagIcon(doc, x, y, color = '#dc2626') {
   const scale = 0.46;
   doc.save();
   doc.translate(x - 2.2, y - 3.9).scale(scale);
   doc
     .path("M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6z")
-    .fillColor("#dc2626")
+    .fillColor(color)
     .fill();
   doc.restore();
 }
@@ -3710,12 +3701,12 @@ function drawPriorityCaptionLine(doc, row, x, y, width) {
   currentX += priorityWidth;
   doc.text(separator, currentX, y, { width: separatorWidth + 1, height: 14, lineBreak: false });
   currentX += separatorWidth;
-  drawCaptionFlagIcon(doc, currentX, y);
+  drawCaptionFlagIcon(doc, currentX, y, reportStatusColor(row.status));
   currentX += flagWidth + gap;
   doc
     .font("Helvetica")
     .fontSize(10)
-    .fillColor("#dc2626")
+    .fillColor(reportStatusColor(row.status))
     .text(reasonText, currentX, y, {
       width: Math.max(20, x + width - currentX),
       height: 14,
@@ -3832,7 +3823,7 @@ function drawIndexPage(doc, entries, pageIndex = 0) {
   const textX = 49;
   const textWidth = 454;
   entries.forEach((entry) => {
-    drawIndexFlagIcon(doc, 40, y);
+    drawIndexFlagIcon(doc, 40, y, reportStatusColor(entry.row.status));
     doc.font("Helvetica").fontSize(9.5).fillColor("#000000");
     const label = truncateTextToWidth(doc, indexEntryText(entry.row), textWidth);
     doc.text(label, textX, y, { width: textWidth, height: 11, lineBreak: false });
@@ -4076,9 +4067,9 @@ export function completeReportPagePlans(doc, rows) {
 }
 
 function completeStatus(row) {
-  if (row.status === 'resolved') return { label: 'Resolved', ink: '#166534', background: '#ecfdf5' };
-  if (row.status === 'pending_review') return { label: 'Pending Review', ink: '#92400e', background: '#fffbeb' };
-  return { label: 'Open', ink: '#b91c1c', background: '#fef2f2' };
+  if (row.status === 'resolved') return { label: 'Resolved', ink: reportStatusColor(row.status), background: '#f0fdf4' };
+  if (row.status === 'pending_review') return { label: 'Pending Review', ink: reportStatusColor(row.status), background: '#fff7ed' };
+  return { label: 'Open', ink: reportStatusColor(row.status), background: '#fef2f2' };
 }
 
 function drawCompleteItemHeader(doc, row, tradeOptions, continued = false) {
@@ -4087,13 +4078,19 @@ function drawCompleteItemHeader(doc, row, tradeOptions, continued = false) {
     .text([propertyName(row), propertyAddress(row)].filter(Boolean).join(' | '), 42, 74, { width: 528, height: 14, align: 'center', ellipsis: true });
   doc.font('Helvetica-Bold').fontSize(11).fillColor(SCOUT_NAVY)
     .text(`${locationCode(row)}${continued ? ' | Notes continued' : ''}`, 42, 95, { width: 528, height: 17, align: 'center', ellipsis: true });
-  doc.font('Helvetica').fontSize(7.5).fillColor('#64748b')
-    .text(`Item: ${row.observationId || row.issueId || row.shotId || row.id} | Times: Eastern (ET)`, 42, 110, { width: 528, height: 8, align: 'center' });
   const status = completeStatus(row);
   doc.roundedRect(42, 119, 136, 23, 6).fill(status.background);
-  doc.font('Helvetica-Bold').fontSize(9).fillColor(status.ink).text(status.label.toUpperCase(), 52, 126, { width: 118, height: 12 });
-  doc.font('Helvetica').fontSize(9).fillColor('#64748b')
-    .text(`Trade: ${tradeLabelFromOptions(row.trade, tradeOptions)} | Priority: ${titleCaseWords(row.priority)}${row.dueDate ? ` | Due: ${formatPdfDueDate(row.dueDate)}` : ''}`, 193, 126, { width: 377, height: 14, ellipsis: true });
+  drawCaptionFlagIcon(doc, 51, 126, status.ink);
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(status.ink).text(status.label.toUpperCase(), 68, 126, { width: 104, height: 12 });
+  doc.font('Helvetica-Bold').fontSize(8).fillColor('#64748b').text('TRADE', 193, 117, { width: 215, height: 11 });
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(SCOUT_NAVY)
+    .text(tradeLabelFromOptions(row.trade, tradeOptions), 193, 130, { width: 215, height: 15, ellipsis: true });
+  doc.font('Helvetica-Bold').fontSize(8).fillColor('#64748b').text('PRIORITY', 430, 117, { width: 140, height: 11 });
+  doc.circle(435, 136, 4).fill(priorityBorderColor(row.priority));
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(SCOUT_NAVY)
+    .text(titleCaseWords(row.priority), 447, 130, { width: 123, height: 15, ellipsis: true });
+  doc.font('Helvetica').fontSize(7).fillColor('#64748b')
+    .text('Photo and note dates shown in Eastern Time.', 42, 712, { width: 528, height: 10, align: 'center' });
 }
 
 function drawCompletePhoto(doc, source, buffer, x, placeholder) {

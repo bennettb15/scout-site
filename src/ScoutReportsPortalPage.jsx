@@ -138,12 +138,6 @@ function packageDateTime(reportPackage) {
   return [formatDate(timestamp), time].filter(Boolean).join(" · ");
 }
 
-function packageSubtitle(reportPackage) {
-  return [packageTitle(reportPackage), packageDateTime(reportPackage)]
-    .filter(Boolean)
-    .join(" · ");
-}
-
 function packageTimestampMs(reportPackage) {
   const date = new Date(packageDisplayTimestamp(reportPackage));
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
@@ -1438,10 +1432,7 @@ export default function ScoutReportsPortalPage() {
 
             {reportsViewSettled && propertyGroups.map((group) => (
               <div key={group.id} className="grid gap-3">
-                {group.property?.id && group.org?.id && <TenantComparisonControl
-                  propertyId={group.property.id} propertyName={group.property.name} orgId={group.org.id} accessToken={session.access_token}
-                />}
-                {group.packages.map((reportPackage) => (
+                {group.packages.map((reportPackage, packageIndex) => (
                   <article
                     key={reportPackage.id}
                     className="rounded-lg border border-border bg-background p-5 shadow-sm"
@@ -1518,6 +1509,9 @@ export default function ScoutReportsPortalPage() {
                       </div>
                     </div>
 
+                    {packageIndex === 0 && group.property?.id && group.org?.id && <TenantComparisonControl
+                      propertyId={group.property.id} propertyName={group.property.name} orgId={group.org.id} accessToken={session.access_token}
+                    />}
                     {isPackageExpanded(reportPackage) && (
                       <div className="mt-4 grid gap-3">
                         <section>

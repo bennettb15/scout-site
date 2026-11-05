@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { FileText, ChevronDown } from 'lucide-react';
 
 const dateLabel = (value) => value ? new Date(value).toLocaleString() : 'Unknown date';
 
@@ -54,7 +55,7 @@ export default function TenantComparisonControl({ orgId, propertyId, propertyNam
           return;
         }
         if (Date.now() - started > 20 * 60 * 1000) throw new Error('Generation is taking longer than expected. Try Generate again to check the existing request.');
-        setMessage(body.status === 'queued' ? 'Waiting to generate your comparison. You can keep this page open.' : 'Preparing your comparison PDF…');
+        setMessage(body.status === 'queued' ? (body.dispatch === 'retrying' || body.dispatchDelayed ? 'Report startup is delayed; retrying automatically. You can keep this page open.' : 'Starting the report worker…') : 'Loading the selected photos and generating your comparison PDF…');
         timer = setTimeout(poll, 4000);
       } catch (e) {
         if (e.name !== 'AbortError') { setError(e.message); setBusy(false); setRequestId(''); }
@@ -77,8 +78,10 @@ export default function TenantComparisonControl({ orgId, propertyId, propertyNam
     } catch (e) { setError(e.message); setBusy(false); setMessage(''); }
   }
 
-  return <section className="rounded-lg border border-border bg-white p-4 shadow-sm">
-    <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="text-sm font-semibold text-[var(--brand)]">Tenant Comparison PDF{propertyName ? ` · ${propertyName}` : ''}</button>
+  return <section className="mt-4 border-t border-border pt-4">
+    <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={`Tenant Comparison PDF for ${propertyName || 'this property'}`} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90">
+      <FileText className="h-4 w-4" />Tenant Comparison PDF<ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+    </button>
     {open && <div className="mt-3 grid gap-3">
       <p className="text-sm text-foreground/65">Compare a full documentation baseline with the latest Property Report, including punchlist updates. Each photo keeps its capture date.</p>
       <label className="grid gap-1 text-sm font-medium">Compare from

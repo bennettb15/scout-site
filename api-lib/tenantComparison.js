@@ -1,4 +1,5 @@
 export const TENANT_BUCKET = 'scoutcapture-on-demand';
+export const TENANT_RENDER_VERSION = 'tenant-comparison-v2';
 export const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
 export function tenantPath(row) {
   const folder = row.kind === 'punchlist_all' ? 'punchlists' : 'tenant-comparisons';
