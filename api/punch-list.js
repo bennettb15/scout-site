@@ -3197,19 +3197,22 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     if (!complete && rows.length >= MAX_ROWS) break;
   }
 
-  if (complete) {
+  if (includeCoverPhoto || complete) {
     const sourceShots = Array.from(shotsById.values());
     await mapWithConcurrency(rows, 4, async (row) => {
       const sources = selectCompleteReportSources({ status: row.status, issueId: row.issueId, observationId: row.observationId,
         shotId: row.shotId, orgId: row.org?.id, propertyId: row.property?.id, shots: sourceShots,
         activity: attributedPunchListActivity.filter((event) => event.observation_id === row.observationId) });
+      row.originalReason = sources.original?.reason || row.reason;
+      row.updatedReason = sourceShots.find((shot) => shot.id === row.shotId)?.reason || row.reason;
+      if (!complete) return;
       const shotPhoto = async (shot) => shot ? ({ shotId: shot.id, capturedAt: shot.captured_at || shot.created_at,
         dateKind: 'Captured', reason: shot.reason, actorEmail: shot.captured_by_email || '',
         preview: { previewUrl: await previewForShot(shot) } }) : null;
       const submission = sources.submission;
       row.reportPair = {
         original: await shotPhoto(sources.original),
-        completion: submission ? { activityId: submission.id, capturedAt: submission.created_at, dateKind: 'Uploaded',
+        completion: submission ? { activityId: submission.id, capturedAt: submission.created_at, dateKind: 'Uploaded', reason: submission.note,
           preview: { previewUrl: completionPreviewUrlByActivityId.get(submission.id) || null } } : await shotPhoto(sources.captured),
         approvedAt: sources.approval?.created_at || null,
         hasApproval: Boolean(sources.approval),
@@ -3736,7 +3739,10 @@ function drawSidebarItem(doc, label, value, x, y, width, options = {}) {
 
 function drawIssueSidebar(doc, row, tradeLabel, x, y, width, height) {
   const dueDate = formatPdfDueDate(row.dueDate);
-  const notes = truncateTextForLines(doc, noteSummary(row), {
+  const original = compactText(row.originalReason);
+  const updated = compactText(row.updatedReason);
+  const reasonHistory = original && updated && original !== updated ? `Original issue: ${original}\nUpdated note: ${updated}\n` : '';
+  const notes = truncateTextForLines(doc, reasonHistory + noteSummary(row), {
     width,
     maxLines: 7,
     font: "Helvetica",
