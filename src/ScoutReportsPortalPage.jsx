@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import AccountMenu from "./components/AccountMenu";
+import TenantComparisonControl from "./components/TenantComparisonControl";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
   reportPackageTypeLabel,
@@ -1437,6 +1438,9 @@ export default function ScoutReportsPortalPage() {
 
             {reportsViewSettled && propertyGroups.map((group) => (
               <div key={group.id} className="grid gap-3">
+                {group.property?.id && group.org?.id && <TenantComparisonControl
+                  propertyId={group.property.id} propertyName={group.property.name} orgId={group.org.id} accessToken={session.access_token}
+                />}
                 {group.packages.map((reportPackage) => (
                   <article
                     key={reportPackage.id}

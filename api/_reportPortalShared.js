@@ -533,6 +533,10 @@ export function buildSnapshotPhotoMetadata(rawSession) {
     byFilename,
     rows,
     sessionType: reportPackageSessionTypeFromSources(rawSession),
+    isFullBaseline: reportPackageSessionTypeFromSources(rawSession) === 'full_documentation' && Boolean(
+      rawSession.sessionType === 'full_documentation' || rawSession.session_type === 'full_documentation' ||
+      rawSession.guidedShots?.length || shots.some((shot) => shot.isGuided === true)
+    ),
     capturedByEmail,
     firstPhotoCapturedByEmail: firstPhoto?.captured_by_email || "",
     firstPhotoActorId: firstPhoto?.captured_by_user_id || "",

@@ -29,6 +29,7 @@ import { latestStatusOverride, normalizedExplicitStatus, packageTimestamp } from
 import { mapWithConcurrency } from "../api-lib/mapWithConcurrency.js";
 import { loadActiveAttributionEmails } from "../api-lib/activeAttributionEmails.js";
 import { startPortalRequestTiming } from "../api-lib/portalRequestTiming.js";
+import { TENANT_BUCKET, tenantPath } from "../api-lib/tenantComparison.js";
 import {
   PUNCH_LIST_WORK_ROLES,
   portalAccessCanReviewCompletion,
@@ -471,12 +472,29 @@ async function safeRows(query) {
   return data || [];
 }
 
-async function safePunchListActivityRows(buildQuery) {
-  const { data, error } = await buildQuery(PUNCHLIST_ACTIVITY_SELECT);
+export async function pagedRowsResult(query) {
+  const rows = [];
+  if (typeof query.order === 'function') query.order('id', { ascending: true });
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await query.range(offset, offset + 499);
+    if (error) return { data: null, error };
+    rows.push(...(data || []));
+    if ((data || []).length < 500) return { data: rows, error: null };
+  }
+}
+async function allRows(query) {
+  const { data, error } = await pagedRowsResult(query);
+  if (error) throw error;
+  return data;
+}
+
+async function safePunchListActivityRows(buildQuery, complete = false) {
+  const run = complete ? pagedRowsResult : (query) => query;
+  const { data, error } = await run(buildQuery(PUNCHLIST_ACTIVITY_SELECT));
   if (!error) return data || [];
 
-  const { data: fallbackData, error: fallbackError } = await buildQuery(PUNCHLIST_ACTIVITY_BASE_SELECT);
-  if (fallbackError) return [];
+  const { data: fallbackData, error: fallbackError } = await run(buildQuery(PUNCHLIST_ACTIVITY_BASE_SELECT));
+  if (fallbackError) { if (complete) throw fallbackError; return []; }
   return fallbackData || [];
 }
 
@@ -2586,13 +2604,14 @@ async function handleDeleteNote(req, res) {
   }
 }
 
-async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URLS, includeCoverPhoto = false, timing = null } = {}) {
+async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URLS, includeCoverPhoto = false, timing = null, complete = false } = {}) {
+  const loadRows = complete ? allRows : safeRows;
   const { client } = auth;
   const service = await maybeServiceClient();
   const queryClient = service || client;
   const [portalAccess, packageRows, observations] = await Promise.all([
     service ? loadUserPortalPropertyAccess(service, auth.user) : null,
-    safeRows(
+    loadRows(
       applyScope(
         queryClient
           .from("report_packages")
@@ -2604,7 +2623,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
         .order("session_completed_at", { ascending: false })
         .limit(100)
     ),
-    safeRows(
+    loadRows(
       applyScope(
         queryClient
           .from("observations")
@@ -2622,7 +2641,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     ...observations.map((row) => row.property_id),
   ]);
   const propertyRows = scopedPropertyIds.length
-    ? await safeRows(
+    ? await loadRows(
         queryClient
           .from("properties")
           .select("id,org_id,name,address_line1,city,state,postal_code")
@@ -2667,7 +2686,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   const observationIds = visibleObservations.map((row) => row.id);
   const [observationUpdates, punchListActivity] = await Promise.all([
     observationIds.length
-      ? safeRows(
+      ? loadRows(
           queryClient
             .from("observation_updates")
             .select("id,org_id,property_id,observation_id,session_id,shot_id,update_type,status,message,note,priority,trade,captured_at,created_at,updated_at,deleted_at")
@@ -2685,7 +2704,8 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
             .in("observation_id", observationIds)
             .is("deleted_at", null)
             .order("created_at", { ascending: false })
-            .limit(MAX_ACTIVITY_ROWS)
+            .limit(MAX_ACTIVITY_ROWS),
+          complete
         )
       : [],
   ]);
@@ -2704,7 +2724,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
 
   const [packageSessionShots, observationShots] = await Promise.all([
     sessionIds.length
-      ? safeRows(
+      ? loadRows(
           queryClient
             .from("shots")
             .select(shotSelect())
@@ -2719,7 +2739,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
         )
       : [],
     shotIds.length
-      ? safeRows(
+      ? loadRows(
           queryClient
             .from("shots")
             .select(shotSelect())
@@ -3122,7 +3142,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     const duplicate =
       (candidate.shotId && dedupKeys.has(`shot:${keyValue(candidate.shotId)}`)) ||
       (candidate.issueId && dedupKeys.has(`issue:${keyValue(candidate.issueId)}`)) ||
-      (candidate.locationKey && dedupKeys.has(`loc:${candidate.locationKey}`));
+      ((!complete || !candidate.issueId) && candidate.locationKey && dedupKeys.has(`loc:${candidate.locationKey}`));
     if (duplicate) continue;
 
     const reportPackage = packageBySession.get(shot.session_id) || null;
@@ -3155,11 +3175,11 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     }
     addDedupKeys(dedupKeys, row);
     rows.push(row);
-    if (rows.length >= MAX_ROWS) break;
+    if (!complete && rows.length >= MAX_ROWS) break;
   }
 
   rows.sort(compareFieldReviewOrder);
-  const limitedRows = rows.slice(0, MAX_ROWS);
+  const limitedRows = complete ? rows : rows.slice(0, MAX_ROWS);
   timing?.mark("build_rows_and_previews");
   return includeCoverPhoto ? { rows: limitedRows, coverPhoto } : limitedRows;
 }
@@ -3697,7 +3717,7 @@ function drawIssueSidebar(doc, row, tradeLabel, x, y, width, height) {
     .stroke();
   doc.restore();
 
-  drawSidebarItem(doc, "Trade", tradeLabel, x, y + 4, width, { height: 32 });
+  drawSidebarItem(doc, row.pdfStatusGroup ? "Status / Trade" : "Trade", row.pdfStatusGroup ? `${row.status === "pending_review" ? "Pending Review" : row.pdfStatusGroup} / ${tradeLabel}` : tradeLabel, x, y + 4, width, { height: 32 });
   drawSidebarItem(doc, "Due Date", dueDate, x, y + 52, width, { height: 36 });
   drawSidebarItem(doc, "Notes", notes, x, y + 101, width, {
     height: 118,
@@ -3709,16 +3729,17 @@ function reportTradeGroups(rows) {
   const rowsByTrade = new Map();
   for (const row of rows) {
     const tradeKey = normalizedTrade(row.trade);
-    const group = rowsByTrade.get(tradeKey) || [];
+    const key = row.pdfStatusGroup ? `${row.pdfStatusGroup}|${tradeKey}` : tradeKey;
+    const group = rowsByTrade.get(key) || [];
     group.push(row);
-    rowsByTrade.set(tradeKey, group);
+    rowsByTrade.set(key, group);
   }
-  return Array.from(rowsByTrade.entries()).map(([tradeKey, tradeRows]) => ({ tradeKey, rows: tradeRows }));
+  return Array.from(rowsByTrade.values()).map((tradeRows) => ({ tradeKey: normalizedTrade(tradeRows[0].trade), statusGroup: tradeRows[0].pdfStatusGroup, rows: tradeRows }));
 }
 
 function indexEntryText(row) {
-  const monthYear = formatPdfMonthYear(row?.capturedAt || row?.updatedAt);
-  return [locationCode(row), monthYear].filter(Boolean).join(" | ");
+  const monthYear = formatPdfMonthYear(row?.capturedAt || (!row?.pdfStatusGroup ? row?.updatedAt : null));
+  return [row.pdfStatusGroup, locationCode(row), monthYear].filter(Boolean).join(" | ");
 }
 
 function truncateTextToWidth(doc, value, width) {
@@ -3843,7 +3864,7 @@ function drawIssueBlock(
     .font("Helvetica")
     .fontSize(9.5)
     .fillColor("#111827")
-    .text(formatPdfLongDateTime(row.capturedAt || row.updatedAt) || "Unknown", ISSUE_PHOTO_SLOT_X, captionY + 29, {
+    .text(formatPdfLongDateTime(row.capturedAt || (!row.pdfStatusGroup ? row.updatedAt : null)) || "Unknown", ISSUE_PHOTO_SLOT_X, captionY + 29, {
       width: ISSUE_PHOTO_SLOT_WIDTH,
       align: "center",
       height: 14,
@@ -3934,7 +3955,7 @@ function drawCoverCenteredText(doc, value, y, options = {}) {
     });
 }
 
-function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto) {
+function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto, complete = false) {
   const context = coverContext(rows, coverPhoto);
   const contextRow = { property: context.property, org: context.org, session: context.session };
   const { serviceDate, timeWindow } = coverServiceWindow(rows, coverPhoto);
@@ -3952,16 +3973,17 @@ function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto) {
     .font("Helvetica-Bold")
     .fontSize(20)
     .fillColor("#000000")
-    .text(PDF_REPORT_TITLE, 72, 386, { width: 468, align: "center", height: 28 });
+    .text(complete ? "Complete Property Punchlist" : PDF_REPORT_TITLE, 72, 386, { width: 468, align: "center", height: 28 });
 
   let y = 440;
+  const photoDates = rows.map((row) => row.capturedAt).filter(Boolean).sort();
   const coverRows = [
     ["Property Name:", propertyName(contextRow)],
     ["Property Address:", propertyAddress(contextRow)],
-    ["Date of Service:", serviceDate],
-    ["Time Window:", timeWindow],
+    ...(complete ? [["Photo Date Range:", [formatPdfDate(photoDates[0]), formatPdfDate(photoDates.at(-1))].filter(Boolean).join(" to ") || "Unknown"]] : [["Date of Service:", serviceDate], ["Time Window:", timeWindow]]),
     ["Organization:", context.org?.name || ""],
-    ["Open Issues:", String(rows.length)],
+    ["Open Issues:", String(rows.filter((row) => row.status !== "resolved").length)],
+    ...(complete ? [["Resolved Issues:", String(rows.filter((row) => row.status === "resolved").length)]] : []),
     ["Report Reference ID:", context.packageId],
     ["Report Date:", formatPdfDate(new Date())],
   ];
@@ -3983,30 +4005,28 @@ function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto) {
     .text(PUNCHLIST_COORDINATION_NOTE, 94, y + 70, { width: 424, height: 42, align: "center", lineGap: 2 });
 }
 
-async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null) {
+export async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null, complete = false) {
   const doc = new PDFDocument({ autoFirstPage: false, bufferPages: true, size: "LETTER", margin: 42 });
-  doc.info.Title = PDF_REPORT_TITLE;
+  doc.info.Title = complete ? 'Complete Property Punchlist' : PDF_REPORT_TITLE;
   const result = collectPdf(doc);
   const imageBuffers = new Map();
   const coverImagePromise = imageBufferFromUrl(coverPhoto?.previewUrl);
-  await Promise.all(
-    rows.map(async (row) => {
+  await mapWithConcurrency(rows, 4, async (row) => {
       const buffer = await imageBufferFromUrl(row.preview?.previewUrl);
       if (buffer) imageBuffers.set(row.id, buffer);
-    })
-  );
+  });
   const coverImageBuffer = await coverImagePromise;
 
-  drawCoverPage(doc, rows, coverImageBuffer || imageBuffers.get(rows[0]?.id) || null, coverPhoto);
+  drawCoverPage(doc, rows, coverImageBuffer || imageBuffers.get(rows[0]?.id) || null, coverPhoto, complete);
   const tradeGroups = reportTradeGroups(rows);
   drawIndexPages(doc, tradeGroups);
 
   const reportSidebarX = issuePageSidebarX(doc, rows, imageBuffers);
-  for (const { tradeKey, rows: tradeRows } of tradeGroups) {
+  for (const { tradeKey, statusGroup, rows: tradeRows } of tradeGroups) {
     const label = tradeLabelFromOptions(tradeKey, tradeOptions);
     for (let index = 0; index < tradeRows.length; index += 2) {
       const pageRows = tradeRows.slice(index, index + 2);
-      addReportPage(doc, tradePageTitle(label), pageRows[0]);
+      addReportPage(doc, statusGroup ? `${statusGroup} Items - ${label}` : tradePageTitle(label), pageRows[0]);
       pageRows.forEach((row, offset) => {
         const blockY = offset === 0 ? 98 : 410;
         drawIssueBlock(doc, row, label, imageBuffers.get(row.id) || null, blockY, reportSidebarX);
@@ -4028,6 +4048,12 @@ async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null) {
   return result;
 }
 
+export function completePunchListRows(rows) {
+  return rows.map((row) => ({ ...row, pdfStatusGroup: row.status === 'resolved' ? 'Resolved' : 'Open' }))
+    .sort((a, b) => Number(a.status === 'resolved') - Number(b.status === 'resolved') ||
+      normalizedTrade(a.trade).localeCompare(normalizedTrade(b.trade)) || comparePunchReportRows(a, b));
+}
+
 async function handleGeneratePdf(req, res) {
   let body = {};
   try {
@@ -4042,31 +4068,55 @@ async function handleGeneratePdf(req, res) {
 
     const scope = validatePdfScope(body);
     const tradeOptions = await loadTradeOptions();
-    const selectedTrades = validateSelectedTrades(body.trades, tradeOptions);
+    const complete = body.scope === "all_items";
+    if (complete && !scope.propertyId) return sendJson(res, 400, { error: "Choose one property for the complete punchlist." });
+    const selectedTrades = complete ? tradeOptions.map((option) => option.key) : validateSelectedTrades(body.trades, tradeOptions);
     const selectedTradeSet = new Set(selectedTrades);
     const punchListData = await loadPunchListRows(auth, scope, {
-      maxPreviewUrls: MAX_PDF_PREVIEW_URLS + 1,
+      maxPreviewUrls: complete ? Number.MAX_SAFE_INTEGER : MAX_PDF_PREVIEW_URLS + 1,
       includeCoverPhoto: true,
+      complete,
     });
     const { rows, coverPhoto } = punchListData;
-    const activeRows = rows.filter((row) => row.status !== "resolved");
+    const activeRows = complete ? rows : rows.filter((row) => row.status !== "resolved");
     const openTradeSet = new Set(activeRows.map((row) => normalizedTrade(row.trade)));
     const reportTradeOrder = tradeOptions
       .map((option) => option.key)
       .filter((key) => selectedTradeSet.has(key) && openTradeSet.has(key));
 
-    const reportRows = reportTradeOrder.flatMap((trade) =>
+    const reportRows = complete ? completePunchListRows(rows) : reportTradeOrder.flatMap((trade) =>
       activeRows
         .filter((row) => normalizedTrade(row.trade) === trade)
         .sort(comparePunchReportRows)
     );
 
     if (reportRows.length === 0) {
-      return sendJson(res, 400, { error: "No open punch list issues found for the selected trades." });
+      return sendJson(res, 400, { error: complete ? "No punchlist items found for this property." : "No open punch list issues found for the selected trades." });
     }
 
-    const pdf = await buildPunchListPdf(reportRows, tradeOptions, coverPhoto);
-    const filename = punchListReportFilename(reportRows);
+    const pdf = await buildPunchListPdf(reportRows, tradeOptions, coverPhoto, complete);
+    const filename = complete ? punchListReportFilename(reportRows).replace('_Punch_List_Report_', '_Complete_Punchlist_') : punchListReportFilename(reportRows);
+    if (complete) {
+      const service = createServiceClient();
+      const access = await loadUserPortalPropertyAccess(service, auth.user);
+      if (!access.canAccessProperty(scope.orgId, scope.propertyId)) return sendJson(res, 404, { error: "Property not found." });
+      const row = { id: randomUUID(), org_id: scope.orgId, property_id: scope.propertyId,
+        requested_by: auth.user.id, kind: 'punchlist_all', status: 'generating', filename, locked_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString() };
+      row.storage_path = tenantPath(row);
+      const { error: recordError } = await service.from('on_demand_report_requests').insert(row);
+      if (recordError) throw recordError;
+      const { error: uploadError } = await service.storage.from(TENANT_BUCKET).upload(row.storage_path, pdf, { contentType: 'application/pdf', upsert: false });
+      if (uploadError) {
+        await service.from('on_demand_report_requests').update({ status: 'failed', locked_at: null }).eq('id', row.id);
+        throw uploadError;
+      }
+      const { error: readyError } = await service.from('on_demand_report_requests').update({ status: 'ready', locked_at: null }).eq('id', row.id);
+      if (readyError) throw readyError;
+      const { data, error } = await service.storage.from(TENANT_BUCKET).createSignedUrl(row.storage_path, 300, { download: filename });
+      if (error) throw error;
+      return sendJson(res, 200, { downloadUrl: data.signedUrl, filename });
+    }
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
