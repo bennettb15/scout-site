@@ -68,14 +68,14 @@ test("snapshot metadata exposes punchlist_visit session type", () => {
   assert.equal(metadata.sessionType, PUNCHLIST_VISIT_SESSION_TYPE);
 });
 
-test("punchlist_visit packages are labeled Punchlist and hide Property Report", () => {
+test("punchlist_visit packages show a generated Property Report", () => {
   const punchlistPackage = reportPackage({ sessionType: PUNCHLIST_VISIT_SESSION_TYPE });
 
   assert.equal(reportPackageTypeLabel(punchlistPackage), "Punchlist");
-  assert.equal(packageShowsPropertyReport(punchlistPackage), false);
+  assert.equal(packageShowsPropertyReport(punchlistPackage), true);
   assert.deepEqual(
     visibleReportFilesForPackage(punchlistPackage).map((file) => file.reportType),
-    ["flagged_observations", "flagged_comparison"]
+    ["property_report", "flagged_observations", "flagged_comparison"]
   );
 });
 
