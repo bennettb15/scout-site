@@ -508,6 +508,8 @@ export function buildSnapshotPhotoMetadata(rawSession) {
       detail_type: textValue(shot?.detailType || shot?.detail_type || shot?.type),
       angle_index: safeAngleIndex(shot?.angleIndex || shot?.angle_index),
       shot_key: textValue(shot?.shotKey || shot?.shot_key),
+      capture_kind: textValue(shot?.captureKind || shot?.capture_kind),
+      first_capture_kind: textValue(shot?.firstCaptureKind || shot?.first_capture_kind),
       captured_at: snapshotCapturedAt(shot),
       captured_by_email: actorEmailFromShotSnapshot(shot, capturedByEmail),
       captured_by_user_id: actorIdFromShotSnapshot(shot) || null,
@@ -533,6 +535,10 @@ export function buildSnapshotPhotoMetadata(rawSession) {
     byFilename,
     rows,
     sessionType: reportPackageSessionTypeFromSources(rawSession),
+    isFullBaseline: reportPackageSessionTypeFromSources(rawSession) === 'full_documentation' && Boolean(
+      rawSession.sessionType === 'full_documentation' || rawSession.session_type === 'full_documentation' ||
+      rawSession.guidedShots?.length || shots.some((shot) => shot.isGuided === true)
+    ),
     capturedByEmail,
     firstPhotoCapturedByEmail: firstPhoto?.captured_by_email || "",
     firstPhotoActorId: firstPhoto?.captured_by_user_id || "",
@@ -670,6 +676,8 @@ export function enrichPhotoRowWithSnapshotMetadata(row, snapshotMetadata) {
     detail_type: metadata.detail_type || row.detail_type,
     angle_index: metadata.angle_index || row.angle_index,
     shot_key: metadata.shot_key || row.shot_key,
+    capture_kind: metadata.capture_kind || row.capture_kind || null,
+    first_capture_kind: metadata.first_capture_kind || row.first_capture_kind || null,
     captured_at: metadata.captured_at || row.captured_at,
     captured_by_email: metadata.captured_by_email || row.captured_by_email || null,
     captured_by_user_id: metadata.captured_by_user_id || row.captured_by_user_id || null,

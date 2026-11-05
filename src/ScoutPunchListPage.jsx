@@ -4576,7 +4576,7 @@ function IssueRow({
                 label="Status"
                 value={row.status === "resolved" ? "resolved" : "active"}
                 displayValue={statusLabel(row.status)}
-                options={STATUS_OPTIONS}
+                options={STATUS_OPTIONS.filter((option) => row.status === 'resolved' || option.id !== 'resolved')}
                 style={statusStyle(row.status)}
                 canEdit={canEditStatus}
                 saving={workflowSavingKey === `${row.id}:status`}
@@ -4591,7 +4591,7 @@ function IssueRow({
               label="Status"
               value={row.status === "resolved" ? "resolved" : "active"}
               displayValue={statusLabel(row.status)}
-              options={STATUS_OPTIONS}
+              options={STATUS_OPTIONS.filter((option) => row.status === 'resolved' || option.id !== 'resolved')}
               style={statusStyle(row.status)}
               canEdit={canEditStatus}
               saving={workflowSavingKey === `${row.id}:status`}
@@ -5855,8 +5855,8 @@ export default function ScoutPunchListPage() {
             },
             body: JSON.stringify({
               observationId: row.observationId,
-              shotId: row.observationId ? null : row.shotId,
-              packageId: row.observationId ? null : row.packageId,
+              shotId: row.shotId,
+              packageId: row.packageId,
               action: normalizedAction,
               fromValue: "pending_review",
               note,
@@ -5984,8 +5984,9 @@ export default function ScoutPunchListPage() {
     }));
   }
 
-  async function handleGenerateReport() {
-    if (!session?.access_token || !selectedOrgId || selectedReportTradeIds.length === 0) return;
+  async function handleGenerateReport(complete = false) {
+    if (!session?.access_token || !selectedOrgId || (!complete && selectedReportTradeIds.length === 0)) return;
+    if (complete && (!selectedPropertyId || selectedPropertyId === ALL)) return;
     setReportGenerating(true);
     setPunchListError("");
     try {
@@ -5999,6 +6000,7 @@ export default function ScoutPunchListPage() {
           orgId: selectedOrgId,
           propertyId: selectedPropertyId || ALL,
           trades: selectedReportTradeIds,
+          scope: complete ? "all_items" : "open_items",
         }),
       });
 
@@ -6010,6 +6012,12 @@ export default function ScoutPunchListPage() {
         throw new Error(body.error || "Unable to generate punch list PDF.");
       }
 
+      if (complete) {
+        const body = await response.json();
+        if (!body.downloadUrl) throw new Error('Unable to prepare complete punchlist download.');
+        window.location.assign(body.downloadUrl);
+        return;
+      }
       const blob = await response.blob();
       const filename = filenameFromContentDisposition(
         response.headers.get("content-disposition"),
@@ -6613,6 +6621,16 @@ export default function ScoutPunchListPage() {
                   <Download className="h-4 w-4" />
                   Generate Punchlist
                 </button>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateReport(true)}
+                  disabled={filtersLoading || punchListLoading || reportGenerating || !selectedOrgId || !selectedPropertyId || selectedPropertyId === ALL}
+                  title="Select one property to download all open and resolved items"
+                  className="punch-report-button"
+                >
+                  <Download className="h-4 w-4" />
+                  {reportGenerating ? "Preparing PDF…" : "All Open & Resolved PDF"}
+                </button>
                 <div className="inline-flex w-fit rounded-lg border border-border bg-slate-50 p-1">
                   <button
                     type="button"
@@ -6761,7 +6779,7 @@ export default function ScoutPunchListPage() {
         selectedTrades={reportSelectedTrades}
         generating={reportGenerating}
         onToggleTrade={handleToggleReportTrade}
-        onGenerate={handleGenerateReport}
+        onGenerate={() => handleGenerateReport(false)}
         onClose={() => setReportModalOpen(false)}
       />
       <ImagePreviewModal target={previewRow} onClose={() => setPreviewRow(null)} />

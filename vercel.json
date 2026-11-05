@@ -2,13 +2,17 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "api/punch-list.js": {
-      "includeFiles": "{node_modules/pdfkit/js/standard-fonts/**,public/Scout Only Logo Navy Dark NEW.png}"
+      "includeFiles": "{node_modules/pdfkit/js/standard-fonts/**,public/Scout Only Logo Navy Dark NEW.png}",
+      "maxDuration": 300
     },
     "api/cron/account-deletion.js": {
       "maxDuration": 300
     },
     "api/account-deletion.js": {
       "maxDuration": 300
+    },
+    "api/tenant-comparison.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [
