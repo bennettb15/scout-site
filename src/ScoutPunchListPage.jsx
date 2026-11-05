@@ -4576,7 +4576,7 @@ function IssueRow({
                 label="Status"
                 value={row.status === "resolved" ? "resolved" : "active"}
                 displayValue={statusLabel(row.status)}
-                options={STATUS_OPTIONS}
+                options={STATUS_OPTIONS.filter((option) => row.status === 'resolved' || option.id !== 'resolved')}
                 style={statusStyle(row.status)}
                 canEdit={canEditStatus}
                 saving={workflowSavingKey === `${row.id}:status`}
@@ -4591,7 +4591,7 @@ function IssueRow({
               label="Status"
               value={row.status === "resolved" ? "resolved" : "active"}
               displayValue={statusLabel(row.status)}
-              options={STATUS_OPTIONS}
+              options={STATUS_OPTIONS.filter((option) => row.status === 'resolved' || option.id !== 'resolved')}
               style={statusStyle(row.status)}
               canEdit={canEditStatus}
               saving={workflowSavingKey === `${row.id}:status`}
@@ -5855,8 +5855,8 @@ export default function ScoutPunchListPage() {
             },
             body: JSON.stringify({
               observationId: row.observationId,
-              shotId: row.observationId ? null : row.shotId,
-              packageId: row.observationId ? null : row.packageId,
+              shotId: row.shotId,
+              packageId: row.packageId,
               action: normalizedAction,
               fromValue: "pending_review",
               note,

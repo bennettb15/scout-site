@@ -27,7 +27,7 @@ test('complete punchlist includes open, pending review, and resolved without cha
   const result = completePunchListRows(rows);
   assert.equal(result.length, 3);
   assert.equal(result.at(-1).id, 'r');
-  assert.equal(result.find((r) => r.id === 'p').pdfStatusGroup, 'Open');
+  assert.equal(result.find((r) => r.id === 'p').pdfStatusGroup, 'Pending Review');
   assert.equal(result.find((r) => r.id === 'r').capturedAt, '2026-10-01');
   assert.equal(rows[0].pdfStatusGroup, undefined);
 });

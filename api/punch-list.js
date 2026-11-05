@@ -30,6 +30,7 @@ import { mapWithConcurrency } from "../api-lib/mapWithConcurrency.js";
 import { loadActiveAttributionEmails } from "../api-lib/activeAttributionEmails.js";
 import { startPortalRequestTiming } from "../api-lib/portalRequestTiming.js";
 import { TENANT_BUCKET, tenantPath } from "../api-lib/tenantComparison.js";
+import { selectCompleteReportSources, completeReportNoteRecords, wrapReportText, requiresCompletionApproval, isCompletionCapture } from "../api-lib/completePunchlistReport.js";
 import {
   PUNCH_LIST_WORK_ROLES,
   portalAccessCanReviewCompletion,
@@ -2252,6 +2253,21 @@ async function handleReviewCompletion(req, res, body = null) {
         return sendJson(res, 400, { error: "This field-resolved item is not pending review." });
       }
 
+      const reviewShotId = shotId || observation.shot_id;
+      const reviewedShot = reviewShotId ? await loadAccessibleFallbackShot(auth, service, reviewShotId, packageId) : null;
+      let linkedIssueId = null;
+      if (reviewedShot && observation.shot_id && reviewedShot.id !== observation.shot_id && keyValue(reviewedShot.issue_id) !== keyValue(observation.id)) {
+        const { data: originalIdentity } = await service.from('shots').select('issue_id')
+          .eq('id', observation.shot_id).eq('org_id', observation.org_id).eq('property_id', observation.property_id).is('deleted_at', null).maybeSingle();
+        linkedIssueId = originalIdentity?.issue_id || null;
+      }
+      const matchesItem = reviewedShot && reviewedShot.org_id === observation.org_id && reviewedShot.property_id === observation.property_id &&
+        (keyValue(reviewedShot.issue_id) === keyValue(observation.id) || reviewedShot.id === observation.shot_id ||
+          (linkedIssueId && keyValue(reviewedShot.issue_id) === keyValue(linkedIssueId)));
+      if (action === 'approve' && (!matchesItem || !isCompletionCapture(reviewedShot) || reviewedShot.upload_state !== 'uploaded' || !originalPathIsExpected(reviewedShot))) {
+        return sendJson(res, 400, { error: 'A completion capture is required for approval. Refresh the item and review its latest completion photo.' });
+      }
+      if (shotId && !matchesItem) return sendJson(res, 404, { error: 'Completion photo not found for this item.' });
       const nextStatus = action === "approve" ? "resolved" : "active";
       const { data: activity, error: activityError } = await service
         .from("punchlist_activity")
@@ -2259,7 +2275,7 @@ async function handleReviewCompletion(req, res, body = null) {
           org_id: observation.org_id,
           property_id: observation.property_id,
           observation_id: observation.id,
-          shot_id: observation.shot_id || null,
+          shot_id: matchesItem ? reviewedShot.id : observation.shot_id || null,
           activity_type: action === "approve" ? "completion_approved" : "completion_rejected",
           from_value: "pending_review",
           to_value: nextStatus,
@@ -2274,7 +2290,7 @@ async function handleReviewCompletion(req, res, body = null) {
         return sendJson(res, 500, { error: "Unable to review completion submission." });
       }
 
-      await syncObservationReviewStatus(service, observation, nextStatus, auth.user.id);
+      await syncObservationReviewStatus(service, matchesItem ? { ...observation, shot_id: reviewedShot.id } : observation, nextStatus, auth.user.id);
 
       return sendJson(res, 200, {
         reviewed: true,
@@ -2503,6 +2519,9 @@ async function handleUpdateWorkflowField(req, res, body = null) {
         unchanged: true,
         observationId: observation.id,
       });
+    }
+    if (field === 'status' && requiresCompletionApproval(currentValue, nextValue)) {
+      return sendJson(res, 400, { error: 'Resolve this item by submitting a completion photo and approving it from review.' });
     }
     if (field === "trade" && !(await tradeOptionExists(service, nextValue))) {
       return sendJson(res, 400, { error: "Trade must be an active punch list trade option." });
@@ -3178,6 +3197,25 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     if (!complete && rows.length >= MAX_ROWS) break;
   }
 
+  if (complete) {
+    const sourceShots = Array.from(shotsById.values());
+    await mapWithConcurrency(rows, 4, async (row) => {
+      const sources = selectCompleteReportSources({ status: row.status, issueId: row.issueId, observationId: row.observationId,
+        shotId: row.shotId, orgId: row.org?.id, propertyId: row.property?.id, shots: sourceShots,
+        activity: attributedPunchListActivity.filter((event) => event.observation_id === row.observationId) });
+      const shotPhoto = async (shot) => shot ? ({ shotId: shot.id, capturedAt: shot.captured_at || shot.created_at,
+        dateKind: 'Captured', reason: shot.reason, actorEmail: shot.captured_by_email || '',
+        preview: { previewUrl: await previewForShot(shot) } }) : null;
+      const submission = sources.submission;
+      row.reportPair = {
+        original: await shotPhoto(sources.original),
+        completion: submission ? { activityId: submission.id, capturedAt: submission.created_at, dateKind: 'Uploaded',
+          preview: { previewUrl: completionPreviewUrlByActivityId.get(submission.id) || null } } : await shotPhoto(sources.captured),
+        approvedAt: sources.approval?.created_at || null,
+        hasApproval: Boolean(sources.approval),
+      };
+    });
+  }
   rows.sort(compareFieldReviewOrder);
   const limitedRows = complete ? rows : rows.slice(0, MAX_ROWS);
   timing?.mark("build_rows_and_previews");
@@ -3200,6 +3238,7 @@ function formatPdfDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
     month: "2-digit",
     day: "2-digit",
     year: "numeric",
@@ -3211,6 +3250,7 @@ function formatPdfTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
@@ -3220,7 +3260,8 @@ function clockMinutes(value) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return date.getHours() * 60 + date.getMinutes();
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(date);
+  return Number(parts.find((part) => part.type === 'hour').value) * 60 + Number(parts.find((part) => part.type === 'minute').value);
 }
 
 function formatPdfDateTime(value) {
@@ -3234,11 +3275,13 @@ function formatPdfLongDateTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   const dateText = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
     month: "long",
     day: "numeric",
     year: "numeric",
   }).format(date);
   const timeText = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
@@ -3250,6 +3293,7 @@ function formatPdfMonthYear(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
     month: "long",
     year: "numeric",
   }).format(date);
@@ -3976,7 +4020,8 @@ function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto, complete = false
     .text(complete ? "Complete Property Punchlist" : PDF_REPORT_TITLE, 72, 386, { width: 468, align: "center", height: 28 });
 
   let y = 440;
-  const photoDates = rows.map((row) => row.capturedAt).filter(Boolean).sort();
+  const photoDates = rows.flatMap((row) => row.reportPair ? [row.reportPair.original?.capturedAt, row.reportPair.completion?.capturedAt] : [row.capturedAt])
+    .filter((value) => value && Number.isFinite(Date.parse(value))).sort((a, b) => Date.parse(a) - Date.parse(b));
   const coverRows = [
     ["Property Name:", propertyName(contextRow)],
     ["Property Address:", propertyAddress(contextRow)],
@@ -4005,32 +4050,144 @@ function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto, complete = false
     .text(PUNCHLIST_COORDINATION_NOTE, 94, y + 70, { width: 424, height: 42, align: "center", lineGap: 2 });
 }
 
+export function completeReportPagePlans(doc, rows) {
+  return rows.map((row) => {
+    const lines = completeReportNoteRecords(row).flatMap((record) => [
+      ...wrapReportText(doc, [record.label, record.createdAt ? formatPdfLongDateTime(record.createdAt) : '', record.actorEmail].filter(Boolean).join(' | '), 500, 9)
+        .map((text) => ({ text, kind: 'meta' })),
+      ...wrapReportText(doc, record.note, 500, 10).map((text) => ({ text, kind: 'body' })),
+      { text: '', kind: 'space' },
+    ]);
+    const pages = [];
+    let offset = 0;
+    do {
+      const capacity = pages.length ? 46 : 9;
+      let end = Math.min(lines.length, offset + capacity);
+      // Keep a note's metadata with at least its first body line.
+      if (end < lines.length) {
+        while (end > offset && lines[end - 1].kind === 'meta') end--;
+      }
+      if (end === offset) end = Math.min(lines.length, offset + capacity);
+      pages.push(lines.slice(offset, end));
+      offset = end;
+    } while (offset < lines.length);
+    return { row, pages };
+  });
+}
+
+function completeStatus(row) {
+  if (row.status === 'resolved') return { label: 'Resolved', ink: '#166534', background: '#ecfdf5' };
+  if (row.status === 'pending_review') return { label: 'Pending Review', ink: '#92400e', background: '#fffbeb' };
+  return { label: 'Open', ink: '#b91c1c', background: '#fef2f2' };
+}
+
+function drawCompleteItemHeader(doc, row, tradeOptions, continued = false) {
+  addReportPage(doc, 'Complete Property Punchlist', row);
+  doc.font('Helvetica').fontSize(9).fillColor('#475569')
+    .text([propertyName(row), propertyAddress(row)].filter(Boolean).join(' | '), 42, 74, { width: 528, height: 14, align: 'center', ellipsis: true });
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(SCOUT_NAVY)
+    .text(`${locationCode(row)}${continued ? ' | Notes continued' : ''}`, 42, 95, { width: 528, height: 17, align: 'center', ellipsis: true });
+  doc.font('Helvetica').fontSize(7.5).fillColor('#64748b')
+    .text(`Item: ${row.observationId || row.issueId || row.shotId || row.id} | Times: Eastern (ET)`, 42, 110, { width: 528, height: 8, align: 'center' });
+  const status = completeStatus(row);
+  doc.roundedRect(42, 119, 136, 23, 6).fill(status.background);
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(status.ink).text(status.label.toUpperCase(), 52, 126, { width: 118, height: 12 });
+  doc.font('Helvetica').fontSize(9).fillColor('#64748b')
+    .text(`Trade: ${tradeLabelFromOptions(row.trade, tradeOptions)} | Priority: ${titleCaseWords(row.priority)}${row.dueDate ? ` | Due: ${formatPdfDueDate(row.dueDate)}` : ''}`, 193, 126, { width: 377, height: 14, ellipsis: true });
+}
+
+function drawCompletePhoto(doc, source, buffer, x, placeholder) {
+  if (buffer) return drawIssuePhoto(doc, buffer, x, 180, 255, 340, { radius: 10, borderColor: '#cbd5e1', borderWidth: 0.7, backgroundColor: '#ffffff' });
+  doc.save();
+  doc.roundedRect(x, 180, 255, 340, 10).fill('#f8fafc');
+  doc.dash(4, { space: 3 }).roundedRect(x, 180, 255, 340, 10).stroke('#cbd5e1').undash();
+  doc.font('Helvetica').fontSize(11).fillColor('#64748b').text(source ? 'Photo unavailable' : placeholder, x + 12, 338, { width: 231, height: 44, align: 'center' });
+  doc.restore();
+}
+
+function drawCompleteNoteLines(doc, lines, y) {
+  for (const line of lines) {
+    doc.font('Helvetica').fontSize(line.kind === 'meta' ? 9 : 10).fillColor(line.kind === 'meta' ? '#64748b' : SCOUT_NAVY)
+      .text(line.text || ' ', 56, y, { width: 500, height: 12, lineBreak: false });
+    y += 12;
+  }
+}
+
+function drawCompleteItemPages(doc, plan, buffers, tradeOptions) {
+  const { row, pages } = plan;
+  const pair = row.reportPair || {};
+  drawCompleteItemHeader(doc, row, tradeOptions);
+  const rightLabel = row.status === 'resolved' ? 'Approved completion photo' : row.status === 'pending_review' ? 'Latest submitted photo' : 'Completion photo';
+  for (const [x, label] of [[42, 'Original flagged photo'], [315, rightLabel]]) {
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(SCOUT_NAVY).text(label, x, 155, { width: 255, height: 16, align: 'center' });
+  }
+  drawCompletePhoto(doc, pair.original, buffers?.original, 42, 'Original flagged photo unavailable');
+  drawCompletePhoto(doc, pair.completion, buffers?.completion, 315,
+    row.status === 'resolved' ? 'Approved completion photo unavailable' : row.status === 'pending_review' ? 'Submitted completion photo unavailable' : 'Awaiting completion photo');
+  for (const [x, source] of [[42, pair.original], [315, pair.completion]]) {
+    const date = source?.capturedAt ? `${source.dateKind || 'Captured'}: ${formatPdfLongDateTime(source.capturedAt)}` : 'No photo available';
+    doc.font('Helvetica').fontSize(9).fillColor('#64748b').text(x === 315 && row.status === 'active' ? 'No completion photo submitted' : date, x, 534, { width: 255, height: 25, align: 'center' });
+  }
+  doc.roundedRect(42, 568, 528, 142, 8).fillAndStroke('#f8fafc', '#e2e8f0');
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(SCOUT_NAVY).text('Notes & tracking', 56, 579, { width: 170, height: 14 });
+  if (pair.approvedAt && pair.completion) {
+    doc.font('Helvetica').fontSize(8).fillColor('#166534').text(`Approved: ${formatPdfLongDateTime(pair.approvedAt)}`, 232, 580, { width: 324, height: 13, align: 'right' });
+  }
+  drawCompleteNoteLines(doc, pages[0], 598);
+  for (const lines of pages.slice(1)) {
+    drawCompleteItemHeader(doc, row, tradeOptions, true);
+    drawCompleteNoteLines(doc, lines, 156);
+  }
+}
+
 export async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null, complete = false) {
   const doc = new PDFDocument({ autoFirstPage: false, bufferPages: true, size: "LETTER", margin: 42 });
   doc.info.Title = complete ? 'Complete Property Punchlist' : PDF_REPORT_TITLE;
   const result = collectPdf(doc);
   const imageBuffers = new Map();
+  const pairedBuffers = new Map();
   const coverImagePromise = imageBufferFromUrl(coverPhoto?.previewUrl);
   await mapWithConcurrency(rows, 4, async (row) => {
+      if (complete) {
+        const [original, completion] = await Promise.all([
+          imageBufferFromUrl(row.reportPair?.original?.preview?.previewUrl),
+          imageBufferFromUrl(row.reportPair?.completion?.preview?.previewUrl),
+        ]);
+        pairedBuffers.set(row.id, { original, completion });
+        if (original) imageBuffers.set(row.id, original);
+        return;
+      }
       const buffer = await imageBufferFromUrl(row.preview?.previewUrl);
       if (buffer) imageBuffers.set(row.id, buffer);
   });
   const coverImageBuffer = await coverImagePromise;
 
   drawCoverPage(doc, rows, coverImageBuffer || imageBuffers.get(rows[0]?.id) || null, coverPhoto, complete);
-  const tradeGroups = reportTradeGroups(rows);
-  drawIndexPages(doc, tradeGroups);
-
-  const reportSidebarX = issuePageSidebarX(doc, rows, imageBuffers);
-  for (const { tradeKey, statusGroup, rows: tradeRows } of tradeGroups) {
-    const label = tradeLabelFromOptions(tradeKey, tradeOptions);
-    for (let index = 0; index < tradeRows.length; index += 2) {
-      const pageRows = tradeRows.slice(index, index + 2);
-      addReportPage(doc, statusGroup ? `${statusGroup} Items - ${label}` : tradePageTitle(label), pageRows[0]);
-      pageRows.forEach((row, offset) => {
-        const blockY = offset === 0 ? 98 : 410;
-        drawIssueBlock(doc, row, label, imageBuffers.get(row.id) || null, blockY, reportSidebarX);
-      });
+  if (complete) {
+    const plans = completeReportPagePlans(doc, rows);
+    const indexCount = Math.max(1, Math.ceil(rows.length / INDEX_ENTRIES_PER_PAGE));
+    let pageNumber = 2 + indexCount;
+    const entries = plans.map((plan) => {
+      const entry = { row: plan.row, pageNumber };
+      pageNumber += plan.pages.length;
+      return entry;
+    });
+    for (let i = 0; i < indexCount; i++) drawIndexPage(doc, entries.slice(i * INDEX_ENTRIES_PER_PAGE, (i + 1) * INDEX_ENTRIES_PER_PAGE), i);
+    for (const plan of plans) drawCompleteItemPages(doc, plan, pairedBuffers.get(plan.row.id), tradeOptions);
+  } else {
+    const tradeGroups = reportTradeGroups(rows);
+    drawIndexPages(doc, tradeGroups);
+    const reportSidebarX = issuePageSidebarX(doc, rows, imageBuffers);
+    for (const { tradeKey, statusGroup, rows: tradeRows } of tradeGroups) {
+      const label = tradeLabelFromOptions(tradeKey, tradeOptions);
+      for (let index = 0; index < tradeRows.length; index += 2) {
+        const pageRows = tradeRows.slice(index, index + 2);
+        addReportPage(doc, statusGroup ? `${statusGroup} Items - ${label}` : tradePageTitle(label), pageRows[0]);
+        pageRows.forEach((row, offset) => {
+          const blockY = offset === 0 ? 98 : 410;
+          drawIssueBlock(doc, row, label, imageBuffers.get(row.id) || null, blockY, reportSidebarX);
+        });
+      }
     }
   }
 
@@ -4049,8 +4206,9 @@ export async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null, c
 }
 
 export function completePunchListRows(rows) {
-  return rows.map((row) => ({ ...row, pdfStatusGroup: row.status === 'resolved' ? 'Resolved' : 'Open' }))
-    .sort((a, b) => Number(a.status === 'resolved') - Number(b.status === 'resolved') ||
+  const rank = (row) => row.status === 'resolved' ? 2 : row.status === 'pending_review' ? 1 : 0;
+  return rows.map((row) => ({ ...row, pdfStatusGroup: row.status === 'resolved' ? 'Resolved' : row.status === 'pending_review' ? 'Pending Review' : 'Open' }))
+    .sort((a, b) => rank(a) - rank(b) ||
       normalizedTrade(a.trade).localeCompare(normalizedTrade(b.trade)) || comparePunchReportRows(a, b));
 }
 
