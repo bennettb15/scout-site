@@ -4100,13 +4100,53 @@ function drawCompleteItemHeader(doc, row, tradeOptions, continued = false) {
     .text('Photo and note dates shown in Eastern Time.', 42, 712, { width: 528, height: 10, align: 'center' });
 }
 
-function drawCompletePhoto(doc, source, buffer, x, placeholder) {
-  if (buffer) return drawIssuePhoto(doc, buffer, x, 180, 255, 340, { radius: 10, borderColor: '#cbd5e1', borderWidth: 0.7, backgroundColor: '#ffffff' });
+function drawCompletePhoto(doc, source, buffer, x, placeholder, borderColor) {
+  if (buffer) {
+    const frame = issuePhotoFitRect(doc, buffer, x, 180, 255, 340);
+    drawIssuePhoto(doc, buffer, x, 180, 255, 340, { radius: 10, borderColor, borderWidth: 2.5, backgroundColor: '#ffffff' });
+    return frame;
+  }
   doc.save();
   doc.roundedRect(x, 180, 255, 340, 10).fill('#f8fafc');
   doc.dash(4, { space: 3 }).roundedRect(x, 180, 255, 340, 10).stroke('#cbd5e1').undash();
   doc.font('Helvetica').fontSize(11).fillColor('#64748b').text(source ? 'Photo unavailable' : placeholder, x + 12, 338, { width: 231, height: 44, align: 'center' });
   doc.restore();
+  return { x, y: 180, width: 255, height: 340 };
+}
+
+function drawCompleteCheckIcon(doc, x, y, color) {
+  doc.save();
+  doc.translate(x - 2.6, y - 3.3).scale(0.55);
+  doc.path('M5.2 12.6 L9.4 16.8 L18.8 7.2')
+    .lineWidth(3.2).lineCap('round').lineJoin('round').strokeColor(color).stroke();
+  doc.restore();
+}
+
+function drawCompletePhotoCaption(doc, row, source, x, original, frame) {
+  const status = original ? 'active' : row.status;
+  const color = reportStatusColor(status);
+  const reason = singleLine(source?.reason, original ? singleLine(row.originalReason || row.reason) : '');
+  const label = status === 'resolved' ? 'Resolved' : status === 'pending_review' ? 'Pending Review' : 'Open';
+  const note = original ? (reason || 'Flagged') : [label, reason].filter(Boolean).join(' - ');
+  const noteY = Math.min(525, frame.y + frame.height + 4);
+  if (source) {
+    const lines = truncateTextForLines(doc, note, { width: 230, maxLines: 2, fontSize: 9 }).split('\n');
+    doc.font('Helvetica').fontSize(9).fillColor('#111827');
+    lines.forEach((line, index) => {
+      const textWidth = doc.widthOfString(line);
+      const iconWidth = index === 0 ? 13 : 0;
+      const startX = x + Math.max(0, (255 - textWidth - iconWidth) / 2);
+      if (index === 0) {
+        if (status === 'resolved') drawCompleteCheckIcon(doc, startX, noteY + 4, color);
+        else drawCaptionFlagIcon(doc, startX, noteY + 4, color);
+      }
+      doc.text(line, startX + iconWidth, noteY + index * 11, { width: 255 - (startX - x) - iconWidth, height: 11, lineBreak: false });
+    });
+  }
+  const date = source?.capturedAt ? (source.dateKind || 'Captured') + ': ' + formatPdfLongDateTime(source.capturedAt)
+    : original ? 'No photo available' : row.status === 'active' ? 'No completion photo submitted' : 'No photo available';
+  doc.font('Helvetica').fontSize(9).fillColor('#64748b')
+    .text(date, x, noteY + 26, { width: 255, height: 14, align: 'center', ellipsis: true });
 }
 
 function drawCompleteNoteLines(doc, lines, y) {
@@ -4125,13 +4165,12 @@ function drawCompleteItemPages(doc, plan, buffers, tradeOptions) {
   for (const [x, label] of [[42, 'Original flagged photo'], [315, rightLabel]]) {
     doc.font('Helvetica-Bold').fontSize(11).fillColor(SCOUT_NAVY).text(label, x, 155, { width: 255, height: 16, align: 'center' });
   }
-  drawCompletePhoto(doc, pair.original, buffers?.original, 42, 'Original flagged photo unavailable');
-  drawCompletePhoto(doc, pair.completion, buffers?.completion, 315,
-    row.status === 'resolved' ? 'Approved completion photo unavailable' : row.status === 'pending_review' ? 'Submitted completion photo unavailable' : 'Awaiting completion photo');
-  for (const [x, source] of [[42, pair.original], [315, pair.completion]]) {
-    const date = source?.capturedAt ? `${source.dateKind || 'Captured'}: ${formatPdfLongDateTime(source.capturedAt)}` : 'No photo available';
-    doc.font('Helvetica').fontSize(9).fillColor('#64748b').text(x === 315 && row.status === 'active' ? 'No completion photo submitted' : date, x, 534, { width: 255, height: 25, align: 'center' });
-  }
+  const originalFrame = drawCompletePhoto(doc, pair.original, buffers?.original, 42, 'Original flagged photo unavailable', reportStatusColor('active'));
+  const completionFrame = drawCompletePhoto(doc, pair.completion, buffers?.completion, 315,
+    row.status === 'resolved' ? 'Approved completion photo unavailable' : row.status === 'pending_review' ? 'Submitted completion photo unavailable' : 'Awaiting completion photo',
+    reportStatusColor(row.status));
+  drawCompletePhotoCaption(doc, row, pair.original, 42, true, originalFrame);
+  drawCompletePhotoCaption(doc, row, pair.completion, 315, false, completionFrame);
   doc.roundedRect(42, 568, 528, 142, 8).fillAndStroke('#f8fafc', '#e2e8f0');
   doc.font('Helvetica-Bold').fontSize(11).fillColor(SCOUT_NAVY).text('Notes & tracking', 56, 579, { width: 170, height: 14 });
   if (pair.approvedAt && pair.completion) {
