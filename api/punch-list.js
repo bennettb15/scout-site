@@ -31,6 +31,7 @@ import { loadActiveAttributionEmails } from "../api-lib/activeAttributionEmails.
 import { startPortalRequestTiming } from "../api-lib/portalRequestTiming.js";
 import { TENANT_BUCKET, tenantPath } from "../api-lib/tenantComparison.js";
 import { selectCompleteReportSources, completeReportNoteRecords, wrapReportText, requiresCompletionApproval, isCompletionCapture, reportStatusColor } from "../api-lib/completePunchlistReport.js";
+import { compactCompleteReportPhoto, completeReportPhotoByteLimit } from "../api-lib/completeReportPhoto.js";
 import {
   PUNCH_LIST_WORK_ROLES,
   portalAccessCanReviewCompletion,
@@ -3443,17 +3444,19 @@ function validateSelectedTrades(value, tradeOptions) {
   return selected;
 }
 
-async function imageBufferFromUrl(url) {
+async function imageBufferFromUrl(url, maxBytes = null) {
   if (!url || typeof fetch !== "function") return null;
+  let buffer;
   try {
     const response = await fetch(url);
     if (!response.ok) return null;
     const type = response.headers.get("content-type") || "";
     if (!type.includes("image/jpeg") && !type.includes("image/png")) return null;
-    return Buffer.from(await response.arrayBuffer());
+    buffer = Buffer.from(await response.arrayBuffer());
   } catch {
     return null;
   }
+  return maxBytes ? compactCompleteReportPhoto(buffer, maxBytes) : buffer;
 }
 
 function collectPdf(doc) {
@@ -4150,18 +4153,25 @@ export async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null, c
   const result = collectPdf(doc);
   const imageBuffers = new Map();
   const pairedBuffers = new Map();
-  const coverImagePromise = imageBufferFromUrl(coverPhoto?.previewUrl);
-  await mapWithConcurrency(rows, 4, async (row) => {
+  const imageCache = new Map();
+  const maxImageBytes = complete ? completeReportPhotoByteLimit(rows.length) : null;
+  const getImage = (url) => {
+    if (!url) return Promise.resolve(null);
+    if (!imageCache.has(url)) imageCache.set(url, imageBufferFromUrl(url, maxImageBytes));
+    return imageCache.get(url);
+  };
+  const coverImagePromise = getImage(coverPhoto?.previewUrl);
+  await mapWithConcurrency(rows, complete ? 2 : 4, async (row) => {
       if (complete) {
         const [original, completion] = await Promise.all([
-          imageBufferFromUrl(row.reportPair?.original?.preview?.previewUrl),
-          imageBufferFromUrl(row.reportPair?.completion?.preview?.previewUrl),
+          getImage(row.reportPair?.original?.preview?.previewUrl),
+          getImage(row.reportPair?.completion?.preview?.previewUrl),
         ]);
         pairedBuffers.set(row.id, { original, completion });
         if (original) imageBuffers.set(row.id, original);
         return;
       }
-      const buffer = await imageBufferFromUrl(row.preview?.previewUrl);
+      const buffer = await getImage(row.preview?.previewUrl);
       if (buffer) imageBuffers.set(row.id, buffer);
   });
   const coverImageBuffer = await coverImagePromise;
