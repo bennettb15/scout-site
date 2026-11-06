@@ -5,18 +5,21 @@ import sharp from 'sharp';
 import { buildPunchListPdf } from '../api/punch-list.js';
 import { compactCompleteReportPhoto, completeReportPhotoByteLimit } from '../api-lib/completeReportPhoto.js';
 
-test('ten large flagged photos produce a complete punchlist PDF small enough to upload', async () => {
-  const photos = await Promise.all(Array.from({ length: 10 }, () =>
+test('twenty-four large photos produce a complete punchlist PDF below four MiB', async () => {
+  const photos = await Promise.all(Array.from({ length: 24 }, () =>
     sharp(randomBytes(1200 * 900 * 3), { raw: { width: 1200, height: 900, channels: 3 } })
       .jpeg({ quality: 95 }).toBuffer()));
   assert.ok(photos.every((photo) => photo.length > 500 * 1024));
-  const rows = photos.map((_, index) => ({
+  const rows = Array.from({ length: 12 }, (_, index) => ({
     id: `item-${index}`,
     status: 'active',
     property: { name: 'Sample Property' },
     trade: 'general',
     priority: 'medium',
-    reportPair: { original: { preview: { previewUrl: `https://photos.example/${index}` } }, completion: null },
+    reportPair: {
+      original: { preview: { previewUrl: `https://photos.example/${index * 2}` } },
+      completion: { preview: { previewUrl: `https://photos.example/${index * 2 + 1}` } },
+    },
   }));
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => new Response(photos[Number(new URL(url).pathname.slice(1))], {
@@ -25,7 +28,7 @@ test('ten large flagged photos produce a complete punchlist PDF small enough to 
   try {
     const pdf = await buildPunchListPdf(rows, [], null, true);
     assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
-    assert.ok(pdf.length < 4.5 * 1024 * 1024, `PDF was ${(pdf.length / 1024 / 1024).toFixed(1)} MB`);
+    assert.ok(pdf.length < 4 * 1024 * 1024, `PDF was ${(pdf.length / 1024 / 1024).toFixed(1)} MB`);
   } finally {
     globalThis.fetch = originalFetch;
   }

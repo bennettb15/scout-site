@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 
-const IMAGE_BUDGET_BYTES = 24 * 1024 * 1024;
+const IMAGE_BUDGET_BYTES = 3 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 350 * 1024;
 const ENCODING_ATTEMPTS = [
   [1200, 76],
