@@ -4131,10 +4131,10 @@ function drawCompletePhotoCaption(doc, row, source, x, original, frame) {
   const reason = singleLine(source?.reason, original ? singleLine(row.originalReason || row.reason) : '');
   const label = status === 'resolved' ? 'Resolved' : status === 'pending_review' ? 'Pending Review' : 'Open';
   const note = original ? (reason || 'Flagged') : [label, reason].filter(Boolean).join(' - ');
-  const noteY = Math.min(525, frame.y + frame.height + 4);
+  const noteY = Math.min(528, frame.y + frame.height + 7);
   if (source) {
-    const lines = truncateTextForLines(doc, note, { width: 230, maxLines: 2, fontSize: 9 }).split('\n');
-    doc.font('Helvetica').fontSize(9).fillColor('#111827');
+    const lines = truncateTextForLines(doc, note, { width: 230, maxLines: 2, font: 'Helvetica-Bold', fontSize: 9.5 }).split('\n');
+    doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#111827');
     lines.forEach((line, index) => {
       const textWidth = doc.widthOfString(line);
       const iconWidth = index === 0 ? 13 : 0;
@@ -4143,7 +4143,7 @@ function drawCompletePhotoCaption(doc, row, source, x, original, frame) {
         if (status === 'resolved') drawCompleteCheckIcon(doc, startX, noteY, color);
         else drawCaptionFlagIcon(doc, startX, noteY, color);
       }
-      doc.text(line, startX + iconWidth, noteY + index * 11, { width: 255 - (startX - x) - iconWidth, height: 11, lineBreak: false });
+      doc.text(line, startX + iconWidth, noteY + index * 11.5, { width: 255 - (startX - x) - iconWidth, height: 12, lineBreak: false });
     });
   }
   const date = source?.capturedAt ? (source.dateKind || 'Captured') + ': ' + formatPdfLongDateTime(source.capturedAt)
