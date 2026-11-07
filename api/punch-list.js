@@ -3650,7 +3650,7 @@ function noteSummary(row) {
       const date = formatPdfDateTime(note.createdAt) || "Recent";
       return `${date}: ${singleLine(note.note)}`;
     });
-  return notes.length ? notes.join("  |  ") : "No notes recorded.";
+  return notes.join("  |  ");
 }
 
 function priorityBorderColor(priority) {
@@ -3747,12 +3747,13 @@ function drawIssueSidebar(doc, row, tradeLabel, x, y, width, height) {
   const dueDate = formatPdfDueDate(row.dueDate);
   const original = compactText(row.originalReason);
   const updated = compactText(row.updatedReason);
+  const activityNotes = noteSummary(row);
   const noteEntries = [
-    ...(original && updated && original !== updated
-      ? [`Original issue: ${original}`, `Updated note: ${updated}`]
-      : []),
-    noteSummary(row),
+    ...(original ? [`Original issue: ${original}`] : []),
+    ...(updated && updated !== original ? [`Updated note: ${updated}`] : []),
+    ...(activityNotes ? [activityNotes] : []),
   ];
+  if (noteEntries.length === 0) noteEntries.push("No notes recorded.");
   let remainingNoteLines = 7;
   const notes = noteEntries.flatMap((entry, index) => {
     const reservedLines = noteEntries.length - index - 1;
