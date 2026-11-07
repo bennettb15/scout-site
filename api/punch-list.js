@@ -3685,7 +3685,9 @@ function drawPriorityCaptionLine(doc, row, x, y, width) {
   const title = singleLine(row.title);
   const fallbackReason = title && title.toLowerCase() !== "flagged observation" ? title : "No reason recorded";
   const reason = singleLine(row.reason, fallbackReason);
-  const reasonText = truncatedLine(reason, 64);
+  const reasonText = row.status === "pending_review"
+    ? `Pending Review - ${truncatedLine(reason, 64)}`
+    : truncatedLine(reason, 64);
   const dotSize = 7;
   const gap = 5;
   const flagWidth = 9;
@@ -3745,13 +3747,25 @@ function drawIssueSidebar(doc, row, tradeLabel, x, y, width, height) {
   const dueDate = formatPdfDueDate(row.dueDate);
   const original = compactText(row.originalReason);
   const updated = compactText(row.updatedReason);
-  const reasonHistory = original && updated && original !== updated ? `Original issue: ${original}\nUpdated note: ${updated}\n` : '';
-  const notes = truncateTextForLines(doc, reasonHistory + noteSummary(row), {
-    width,
-    maxLines: 7,
-    font: "Helvetica",
-    fontSize: 9.5,
-  });
+  const noteEntries = [
+    ...(original && updated && original !== updated
+      ? [`Original issue: ${original}`, `Updated note: ${updated}`]
+      : []),
+    noteSummary(row),
+  ];
+  let remainingNoteLines = 7;
+  const notes = noteEntries.flatMap((entry, index) => {
+    const reservedLines = noteEntries.length - index - 1;
+    const maxLines = Math.max(1, remainingNoteLines - reservedLines);
+    const lines = truncateTextForLines(doc, entry, {
+      width,
+      maxLines,
+      font: "Helvetica",
+      fontSize: 9.5,
+    }).split("\n");
+    remainingNoteLines -= lines.length;
+    return lines;
+  }).join("\n");
 
   doc.save();
   doc
@@ -3784,7 +3798,8 @@ function reportTradeGroups(rows) {
 
 function indexEntryText(row) {
   const monthYear = formatPdfMonthYear(row?.capturedAt || (!row?.pdfStatusGroup ? row?.updatedAt : null));
-  return [row.pdfStatusGroup, locationCode(row), monthYear].filter(Boolean).join(" | ");
+  const status = row.pdfStatusGroup || (row.status === "pending_review" ? "Pending Review" : "");
+  return [status, locationCode(row), monthYear].filter(Boolean).join(" | ");
 }
 
 function truncateTextToWidth(doc, value, width) {
@@ -3889,7 +3904,7 @@ function drawIssueBlock(
   const captionY = y + ISSUE_PHOTO_SLOT_HEIGHT + photoCaptionGap;
   drawIssuePhoto(doc, imageBuffer, ISSUE_PHOTO_SLOT_X, y, ISSUE_PHOTO_SLOT_WIDTH, ISSUE_PHOTO_SLOT_HEIGHT, {
     radius: 12,
-    borderColor: priorityBorderColor(row.priority),
+    borderColor: row.status === "pending_review" ? reportStatusColor(row.status) : priorityBorderColor(row.priority),
     borderWidth: 2,
     backgroundColor: "#f2f2f2",
   });
