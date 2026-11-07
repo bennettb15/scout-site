@@ -4140,8 +4140,8 @@ function drawCompletePhotoCaption(doc, row, source, x, original, frame) {
       const iconWidth = index === 0 ? 13 : 0;
       const startX = x + Math.max(0, (255 - textWidth - iconWidth) / 2);
       if (index === 0) {
-        if (status === 'resolved') drawCompleteCheckIcon(doc, startX, noteY + 4, color);
-        else drawCaptionFlagIcon(doc, startX, noteY + 4, color);
+        if (status === 'resolved') drawCompleteCheckIcon(doc, startX, noteY, color);
+        else drawCaptionFlagIcon(doc, startX, noteY, color);
       }
       doc.text(line, startX + iconWidth, noteY + index * 11, { width: 255 - (startX - x) - iconWidth, height: 11, lineBreak: false });
     });
