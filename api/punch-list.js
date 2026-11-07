@@ -3686,8 +3686,8 @@ function drawPriorityCaptionLine(doc, row, x, y, width) {
   const fallbackReason = title && title.toLowerCase() !== "flagged observation" ? title : "No reason recorded";
   const reason = singleLine(row.reason, fallbackReason);
   const reasonText = row.status === "pending_review"
-    ? `Pending Review - ${truncatedLine(reason, 64)}`
-    : truncatedLine(reason, 64);
+    ? `Pending Review - ${reason}`
+    : reason;
   const dotSize = 7;
   const gap = 5;
   const flagWidth = 9;
@@ -3696,8 +3696,15 @@ function drawPriorityCaptionLine(doc, row, x, y, width) {
   doc.font("Helvetica").fontSize(10);
   const priorityWidth = doc.widthOfString(priority);
   const separatorWidth = doc.widthOfString(separator);
-  const reasonWidth = doc.widthOfString(reasonText);
-  const totalWidth = dotSize + gap + priorityWidth + separatorWidth + flagWidth + gap + reasonWidth;
+  const prefixWidth = dotSize + gap + priorityWidth + separatorWidth + flagWidth + gap;
+  const reasonLineWidth = Math.min(width, 340) - prefixWidth;
+  const reasonLines = truncateTextForLines(doc, reasonText, {
+    width: reasonLineWidth,
+    maxLines: 2,
+    font: "Helvetica",
+    fontSize: 10,
+  }).split("\n").map((line) => truncateTextToWidth(doc, line, reasonLineWidth));
+  const totalWidth = prefixWidth + doc.widthOfString(reasonLines[0]);
   let currentX = x + Math.max(0, (width - totalWidth) / 2);
 
   doc.circle(currentX + dotSize / 2, y + 3.8, dotSize / 2).fillColor(priorityBorderColor(priorityKey)).fill();
@@ -3712,16 +3719,12 @@ function drawPriorityCaptionLine(doc, row, x, y, width) {
   currentX += separatorWidth;
   drawCaptionFlagIcon(doc, currentX, y, reportStatusColor(row.status));
   currentX += flagWidth + gap;
-  doc
-    .font("Helvetica")
-    .fontSize(10)
-    .fillColor(reportStatusColor(row.status))
-    .text(reasonText, currentX, y, {
-      width: Math.max(20, x + width - currentX),
-      height: 14,
-      lineBreak: false,
-      ellipsis: true,
-    });
+  doc.font("Helvetica").fontSize(10).fillColor(reportStatusColor(row.status));
+  reasonLines.forEach((line, index) => {
+    const lineX = index === 0 ? currentX : x + Math.max(0, (width - doc.widthOfString(line)) / 2);
+    doc.text(line, lineX, y + index * 14, { width: width - (lineX - x), height: 14, lineBreak: false });
+  });
+  return reasonLines.length;
 }
 
 function drawSidebarItem(doc, label, value, x, y, width, options = {}) {
@@ -3920,12 +3923,12 @@ function drawIssueBlock(
       align: "center",
       height: 14,
     });
-  drawPriorityCaptionLine(doc, row, ISSUE_PHOTO_SLOT_X, captionY + 14, ISSUE_PHOTO_SLOT_WIDTH);
+  const captionLines = drawPriorityCaptionLine(doc, row, ISSUE_PHOTO_SLOT_X, captionY + 14, ISSUE_PHOTO_SLOT_WIDTH);
   doc
     .font("Helvetica")
     .fontSize(9.5)
     .fillColor("#111827")
-    .text(formatPdfLongDateTime(row.capturedAt || (!row.pdfStatusGroup ? row.updatedAt : null)) || "Unknown", ISSUE_PHOTO_SLOT_X, captionY + 29, {
+    .text(formatPdfLongDateTime(row.capturedAt || (!row.pdfStatusGroup ? row.updatedAt : null)) || "Unknown", ISSUE_PHOTO_SLOT_X, captionY + 29 + (captionLines - 1) * 14, {
       width: ISSUE_PHOTO_SLOT_WIDTH,
       align: "center",
       height: 14,
