@@ -3881,7 +3881,7 @@ function drawIndexPage(doc, entries, pageIndex = 0) {
   const textX = 49;
   const textWidth = 454;
   entries.forEach((entry) => {
-    if (entry.row.status === 'resolved') drawCompleteCheckIcon(doc, 42, y + 4, reportStatusColor(entry.row.status));
+    if (entry.row.status === 'resolved') drawCompleteCheckIcon(doc, 39, y, reportStatusColor(entry.row.status));
     else drawIndexFlagIcon(doc, 40, y, reportStatusColor(entry.row.status));
     doc.font("Helvetica").fontSize(9.5).fillColor("#000000");
     const label = truncateTextToWidth(doc, indexEntryText(entry.row), textWidth);
@@ -4217,7 +4217,7 @@ function drawCompleteItemPages(doc, plan, buffers, tradeOptions) {
   const pair = row.reportPair || {};
   const rightPhoto = pair.current || pair.completion || pair.latestObservation;
   drawCompleteItemHeader(doc, row, tradeOptions);
-  const leftLabel = pair.current ? 'Previous flagged photo' : 'Flagged photo before completion';
+  const leftLabel = 'Previous flagged photo';
   const rightLabel = pair.current ? 'Current flagged photo' : pair.completion?.kind === 'portal_photo' && row.status === 'resolved'
     ? 'Resolved photo' : row.status === 'resolved' ? 'Approved completion photo'
       : row.status === 'pending_review' ? 'Latest submitted photo' : 'Completion photo';

@@ -68,7 +68,7 @@ export function completeReportNoteRecords(row) {
     if (currentReason) records.push({ label: 'Current note', note: currentReason, createdAt: current.capturedAt || row.capturedAt, actorEmail: current.actorEmail || '' });
   } else {
     const reason = String(original?.reason || (!row.reportPair ? row.reason || row.title : '')).trim();
-    if (reason) records.push({ label: 'Original note', note: reason, createdAt: original?.capturedAt || row.capturedAt, actorEmail: original?.actorEmail || '' });
+    if (reason) records.push({ label: original ? 'Previous note' : 'Original note', note: reason, createdAt: original?.capturedAt || row.capturedAt, actorEmail: original?.actorEmail || '' });
     const followUp = row.reportPair?.completion;
     const followUpReason = String(followUp?.reason || '').trim();
     if (followUpReason) records.push({ label: 'Updated note', note: followUpReason, createdAt: followUp.capturedAt, actorEmail: followUp.actorEmail || '' });
