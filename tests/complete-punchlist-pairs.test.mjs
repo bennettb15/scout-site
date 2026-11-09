@@ -2,11 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import PDFDocument from 'pdfkit';
 import { selectCompleteReportSources, completeReportNoteRecords, wrapReportText, requiresCompletionApproval, isCompletionCapture, reportStatusColor } from '../api-lib/completePunchlistReport.js';
-import { completeReportPagePlans, completeReportPairForPortalRow, buildPunchListPdf } from '../api/punch-list.js';
+import { completeReportPagePlans, completeReportPairForPortalRow, buildPunchListPdf, punchListReportFilename } from '../api/punch-list.js';
 
 const photo = (id, date, status = 'active', issue = 'issue') => ({ id, captured_at: date, org_id: 'org', property_id: 'prop', issue_id: issue, issue_status: status });
 const event = (id, type, date, group, extra = {}) => ({ id, activity_type: type, created_at: date, from_value: group, org_id: 'org', property_id: 'prop', observation_id: 'issue', ...extra });
 const select = (status, shots, activity = []) => selectCompleteReportSources({ status, shots, activity, issueId: 'issue', observationId: 'issue', orgId: 'org', propertyId: 'prop' });
+test('punch list PDF filenames omit date and time stamps', () => {
+  const rows = [{ property: { name: 'QA Test 10.14' } }];
+  assert.equal(punchListReportFilename(rows), 'QA_Test_10_14_Punch_List_Report.pdf');
+  assert.equal(punchListReportFilename(rows, true), 'QA_Test_10_14_Complete_Punchlist.pdf');
+});
 test('report flags match the portal status colors', () => {
   assert.equal(reportStatusColor('active'), '#dc2626');
   assert.equal(reportStatusColor('pending_review'), '#ea580c');
