@@ -3501,11 +3501,6 @@ function addReportPage(doc, pageTitle = PDF_REPORT_TITLE, footerRow = null) {
     .text(pageTitle, 18, 18, { width: 220, height: 16 });
   doc
     .font("Helvetica")
-    .fontSize(7)
-    .fillColor("#000000")
-    .text(PUNCHLIST_COORDINATION_NOTE, 64, 724, { width: 484, height: 18, lineGap: 0.5 });
-  doc
-    .font("Helvetica")
     .fontSize(9)
     .fillColor("#111827")
     .text(footerPropertyLine(footerRow) || "Unknown property", 64, 748, { width: 380, height: 12 });
