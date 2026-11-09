@@ -468,6 +468,9 @@
   .h-12 {
     height: calc(var(--spacing) * 12);
   }
+  .h-24 {
+    height: calc(var(--spacing) * 24);
+  }
   .h-full {
     height: 100%;
   }
@@ -479,6 +482,9 @@
   }
   .max-h-\[85vh\] {
     max-height: 85vh;
+  }
+  .max-h-full {
+    max-height: 100%;
   }
   .min-h-0 {
     min-height: calc(var(--spacing) * 0);
@@ -542,6 +548,9 @@
   }
   .w-12 {
     width: calc(var(--spacing) * 12);
+  }
+  .w-56 {
+    width: calc(var(--spacing) * 56);
   }
   .w-\[13\%\] {
     width: 13%;
@@ -658,6 +667,9 @@
   }
   .animate-spin {
     animation: var(--animate-spin);
+  }
+  .cursor-not-allowed {
+    cursor: not-allowed;
   }
   .cursor-pointer {
     cursor: pointer;
@@ -1356,6 +1368,9 @@
   }
   .accent-\[var\(--brand\)\] {
     accent-color: var(--brand);
+  }
+  .opacity-60 {
+    opacity: 60%;
   }
   .opacity-70 {
     opacity: 70%;
