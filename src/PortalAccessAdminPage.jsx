@@ -15,6 +15,7 @@ import {
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import AccountMenu from "./components/AccountMenu";
+import ReportBrandingPanel from "./components/ReportBrandingPanel";
 import {
   canEditPortalPropertyScope,
   checkedPropertyIdsForScopeSelection,
@@ -61,19 +62,6 @@ function formatDate(value) {
   }).format(date);
 }
 
-function formatDateTime(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
-}
-
 function accessLabel(row) {
   const role = row.role || "viewer";
   return ACCESS_ROLE_LABELS[role] || role;
@@ -97,91 +85,53 @@ function accessRowKey(row) {
 
 function AccountStatus({ status }) {
   const accountStatus = status || {};
-  const state = accountStatus.state || "unknown";
-  const isConfirmed = state === "confirmed";
-  const isPending = state === "pending";
-  const badgeClass = isConfirmed
-    ? ""
-    : isPending
-      ? "border-amber-200 bg-amber-50 text-amber-900"
-      : "border-slate-200 bg-slate-50 text-foreground/65";
-  const badgeStyle = isConfirmed
-    ? {
-        backgroundColor: "#f0fdf4",
-        borderColor: "#15803d",
-        color: "#14532d",
-      }
-    : undefined;
+
+  if (accountStatus.state === "confirmed") {
+    const lastSignIn = formatDate(accountStatus.lastSignInAt);
+    return (
+      <div className="grid gap-1">
+        <span
+          className="inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-xs font-semibold leading-none"
+          style={{ backgroundColor: "#f0fdf4", borderColor: "#15803d", color: "#14532d" }}
+        >
+          Confirmed
+        </span>
+        <span className="text-xs leading-snug text-foreground/65">
+          {lastSignIn ? `Last sign-in ${lastSignIn}` : "No sign-in yet"}
+        </span>
+      </div>
+    );
+  }
 
   return (
-    <div className="grid gap-1">
-      <span
-        className={`inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-xs font-semibold leading-none ${badgeClass}`}
-        style={badgeStyle}
-      >
-        {accountStatus.label || "Status unavailable"}
-      </span>
-      <span className="text-xs leading-relaxed text-foreground/55">
-        {accountStatus.lastSignInAt
-          ? `Last sign-in ${formatDateTime(accountStatus.lastSignInAt)}`
-          : accountStatus.detail || "Last sign-in unavailable."}
-      </span>
-    </div>
+    <span className="text-xs leading-snug text-foreground/65">
+      {accountStatus.state === "pending" ? "Invite sent" : "Status unavailable"}
+    </span>
   );
 }
 
 function inviteStatusMeta(row) {
   if (row.state === "expired") {
-    return {
-      label: "Expired",
-      badgeClass: "border-red-200 bg-red-50 text-red-700",
-      detail: "Invite expired before acceptance.",
-    };
+    return { label: "Expired", badgeClass: "border-red-200 bg-red-50 text-red-700" };
   }
   if (row.state === "replaced") {
-    return {
-      label: "Replaced",
-      badgeClass: "border-slate-200 bg-slate-50 text-foreground/65",
-      detail: "A newer invite replaced this one.",
-    };
+    return { label: "Replaced", badgeClass: "border-slate-200 bg-slate-50 text-foreground/65" };
   }
-  if (row.state === "canceled") {
-    return {
-      label: "Canceled",
-      badgeClass: "border-slate-200 bg-slate-50 text-foreground/65",
-      detail: "Invite was canceled.",
-    };
+  if (row.state === "canceled" || row.state === "revoked") {
+    return { label: "Canceled", badgeClass: "border-slate-200 bg-slate-50 text-foreground/65" };
   }
-  if (row.state === "revoked") {
-    return {
-      label: "Canceled",
-      badgeClass: "border-slate-200 bg-slate-50 text-foreground/65",
-      detail: "Invite was canceled.",
-    };
-  }
-  return {
-    label: "Invited",
-    badgeClass: "border-amber-200 bg-amber-50 text-amber-900",
-    detail: row.hasActiveAccess
-      ? "Access is assigned; account setup is pending."
-      : "Invite sent; access activates after acceptance.",
-  };
+  return { label: "Invite sent", badgeClass: "border-amber-200 bg-amber-50 text-amber-900" };
 }
 
 function InviteStatus({ row }) {
   const meta = inviteStatusMeta(row);
 
   return (
-    <div className="grid gap-1">
-      <span
-        className={`inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-xs font-semibold leading-none ${meta.badgeClass}`}
-      >
-        {meta.label}
-      </span>
-      <span className="text-xs leading-relaxed text-foreground/55">
-        {meta.detail}
-      </span>
-    </div>
+    <span
+      className={`inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-xs font-semibold leading-none ${meta.badgeClass}`}
+    >
+      {meta.label}
+    </span>
   );
 }
 
@@ -191,17 +141,12 @@ function RoleSelect({ row, disabled, onChange }) {
 
   if (!canChange) {
     return (
-      <div className="grid gap-1">
-        <span className="font-medium text-foreground/75">{accessLabel(row)}</span>
-        <span className="text-xs text-foreground/45">
-          Role changes unavailable
-        </span>
-      </div>
+      <span className="font-medium text-foreground/75">{accessLabel(row)}</span>
     );
   }
 
   return (
-    <label className="grid max-w-[220px] gap-1">
+    <label className="block">
       <span className="sr-only">Role for {row.email || row.userId}</span>
       <select
         value={row.role === "owner" ? "" : row.role || "viewer"}
@@ -218,9 +163,6 @@ function RoleSelect({ row, disabled, onChange }) {
           )
         )}
       </select>
-      <span className="text-xs text-foreground/45">
-        Role
-      </span>
     </label>
   );
 }
@@ -1058,7 +1000,6 @@ export default function PortalAccessAdminPage() {
     const inviteRows = visiblePendingInvites.map((invite) => ({
       ...invite,
       rowType: "invite",
-      hasActiveAccess: visibleRows.some((row) => accessRowKey(row) === accessRowKey(invite)),
       sortAt: invite.createdAt,
     }));
 
@@ -1248,6 +1189,10 @@ export default function PortalAccessAdminPage() {
               </div>
             </section>
 
+            {selectedOrg?.canManageBranding && (
+              <ReportBrandingPanel org={selectedOrg} accessToken={session.access_token} />
+            )}
+
             {loadError && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                 {loadError}
@@ -1436,16 +1381,16 @@ export default function PortalAccessAdminPage() {
               </div>
 
               <div className="w-full min-w-0 max-w-full overflow-x-auto">
-                <table className="block w-full text-left text-sm xl:table xl:min-w-[1180px]">
+                <table className="block w-full table-fixed text-left text-sm xl:table">
                   <thead className="hidden border-b border-border bg-slate-50 text-xs uppercase text-foreground/55 xl:table-header-group">
                     <tr>
-                      <th className="px-5 py-3 font-semibold">Email</th>
-                      <th className="px-5 py-3 font-semibold">Status</th>
-                      <th className="px-5 py-3 font-semibold">Role</th>
-                      <th className="px-5 py-3 font-semibold">Properties</th>
-                      <th className="px-5 py-3 font-semibold">Report Emails</th>
-                      <th className="px-5 py-3 font-semibold">Created</th>
-                      <th className="px-5 py-3 text-right font-semibold">Action</th>
+                      <th className="px-3 py-3 font-semibold" style={{ width: "22%" }}>Email</th>
+                      <th className="px-3 py-3 font-semibold" style={{ width: "16%" }}>Status</th>
+                      <th className="px-3 py-3 font-semibold" style={{ width: "12%" }}>Role</th>
+                      <th className="px-3 py-3 font-semibold" style={{ width: "17%" }}>Properties</th>
+                      <th className="px-3 py-3 font-semibold" style={{ width: "12%" }}>Report Emails</th>
+                      <th className="px-3 py-3 font-semibold" style={{ width: "9%" }}>Created</th>
+                      <th className="px-3 py-3 text-right font-semibold" style={{ width: "12%" }}>Action</th>
                     </tr>
                   </thead>
                   <tbody className="grid gap-3 bg-slate-50 p-3 xl:table-row-group xl:bg-transparent xl:p-0">
@@ -1457,11 +1402,11 @@ export default function PortalAccessAdminPage() {
                       return (
                         <Fragment key={`${row.rowType}:${row.id}`}>
                           <tr className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-4 rounded-lg border border-border bg-background p-4 shadow-sm xl:table-row xl:rounded-none xl:border-x-0 xl:border-t-0 xl:p-0 xl:shadow-none">
-                            <td className="col-span-2 min-w-0 break-all font-medium text-foreground xl:table-cell xl:px-5 xl:py-3">
+                            <td className="col-span-2 min-w-0 break-all font-medium text-foreground xl:table-cell xl:px-2.5 xl:py-3">
                               <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Email</span>
                               {row.email || row.userId}
                             </td>
-                            <td className="col-span-2 min-w-0 xl:table-cell xl:px-5 xl:py-3">
+                            <td className="col-span-2 min-w-0 xl:table-cell xl:px-2.5 xl:py-3">
                               <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Status</span>
                               {row.rowType === "invite" ? (
                                 <InviteStatus row={row} />
@@ -1469,7 +1414,7 @@ export default function PortalAccessAdminPage() {
                                 <AccountStatus status={row.accountStatus} />
                               )}
                             </td>
-                            <td className="col-span-2 min-w-0 text-foreground/70 xl:table-cell xl:px-5 xl:py-3">
+                            <td className="col-span-2 min-w-0 text-foreground/70 xl:table-cell xl:px-2.5 xl:py-3">
                               <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Role</span>
                               {row.rowType === "invite" ? (
                                 <span className="font-medium text-foreground/75">
@@ -1483,7 +1428,7 @@ export default function PortalAccessAdminPage() {
                                 />
                               )}
                             </td>
-                            <td className="col-span-2 min-w-0 text-foreground/70 xl:table-cell xl:px-5 xl:py-3">
+                            <td className="col-span-2 min-w-0 text-foreground/70 xl:table-cell xl:px-2.5 xl:py-3">
                               <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Properties</span>
                               <PropertyScopeSummary
                                 role={row.role}
@@ -1499,7 +1444,7 @@ export default function PortalAccessAdminPage() {
                                 onEdit={() => setScopeEditRowId(row.id)}
                               />
                             </td>
-                            <td className="min-w-0 text-foreground/70 xl:table-cell xl:px-5 xl:py-3">
+                            <td className="min-w-0 text-foreground/70 xl:table-cell xl:px-2.5 xl:py-3">
                               <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Report Emails</span>
                               {row.rowType === "invite" ? (
                                 <span className="text-xs text-foreground/45">
@@ -1536,11 +1481,11 @@ export default function PortalAccessAdminPage() {
                                 </label>
                               )}
                             </td>
-                            <td className="min-w-0 text-foreground/70 xl:table-cell xl:px-5 xl:py-3">
+                            <td className="min-w-0 text-foreground/70 xl:table-cell xl:px-2.5 xl:py-3">
                               <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Created</span>
                               {formatDate(row.createdAt)}
                             </td>
-                            <td className="col-span-2 min-w-0 border-t border-border pt-3 text-right xl:table-cell xl:border-0 xl:px-5 xl:py-3">
+                            <td className="col-span-2 min-w-0 border-t border-border pt-3 text-right xl:table-cell xl:border-0 xl:px-2.5 xl:py-3">
                               {row.rowType === "invite" ? (
                                 <button
                                   type="button"

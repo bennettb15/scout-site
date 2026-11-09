@@ -30,6 +30,7 @@ import { mapWithConcurrency } from "../api-lib/mapWithConcurrency.js";
 import { loadActiveAttributionEmails } from "../api-lib/activeAttributionEmails.js";
 import { startPortalRequestTiming } from "../api-lib/portalRequestTiming.js";
 import { TENANT_BUCKET, tenantPath } from "../api-lib/tenantComparison.js";
+import { loadReportLogo } from "../api-lib/reportBranding.js";
 import { selectCompleteReportSources, completeReportNoteRecords, wrapReportText, requiresCompletionApproval, isCompletionCapture, reportStatusColor } from "../api-lib/completePunchlistReport.js";
 import { compactCompleteReportPhoto, completeReportPhotoByteLimit } from "../api-lib/completeReportPhoto.js";
 import {
@@ -3475,8 +3476,10 @@ function scoutLogoPath() {
   throw error;
 }
 
-function drawScoutLogo(doc, x, y, width, height) {
-  doc.image(scoutLogoPath(), x, y, { fit: [width, height], align: "center", valign: "center" });
+function drawReportLogo(doc, x, y, width, height) {
+  doc.image(doc._orgReportLogo || scoutLogoPath(), x, y, {
+    fit: [width, height], align: "center", valign: "center",
+  });
 }
 
 function footerPropertyLine(row) {
@@ -3490,7 +3493,7 @@ function tradePageTitle(tradeLabel) {
 
 function addReportPage(doc, pageTitle = PDF_REPORT_TITLE, footerRow = null) {
   doc.addPage({ size: "LETTER", margin: 42 });
-  drawScoutLogo(doc, 221, 22, 170, 34);
+  drawReportLogo(doc, 221, 22, 170, 34);
   doc
     .font("Helvetica-Bold")
     .fontSize(11)
@@ -3832,7 +3835,7 @@ function indexEntriesForGroups(tradeGroups, indexPageCount) {
 
 function drawIndexPage(doc, entries, pageIndex = 0) {
   doc.addPage({ size: "LETTER", margin: 42 });
-  drawScoutLogo(doc, 221, 22, 170, 34);
+  drawReportLogo(doc, 221, 22, 170, 34);
   doc
     .font("Helvetica-Bold")
     .fontSize(23)
@@ -4025,7 +4028,7 @@ function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto, complete = false
   const { serviceDate, timeWindow } = coverServiceWindow(rows, coverPhoto);
 
   doc.addPage({ size: "LETTER", margin: 42 });
-  drawScoutLogo(doc, 72, 80, 468, 80);
+  drawReportLogo(doc, 72, 80, 468, 80);
 
   drawIssuePhoto(doc, coverImageBuffer, 126, 178, 360, 182, {
     radius: 12,
@@ -4205,8 +4208,9 @@ function drawCompleteItemPages(doc, plan, buffers, tradeOptions) {
   }
 }
 
-export async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null, complete = false) {
+export async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null, complete = false, orgLogo = null) {
   const doc = new PDFDocument({ autoFirstPage: false, bufferPages: true, size: "LETTER", margin: 42 });
+  doc._orgReportLogo = orgLogo;
   doc.info.Title = complete ? 'Complete Property Punchlist' : PDF_REPORT_TITLE;
   const result = collectPdf(doc);
   const imageBuffers = new Map();
@@ -4266,6 +4270,11 @@ export async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null, c
   const range = doc.bufferedPageRange();
   for (let index = range.start; index < range.start + range.count; index += 1) {
     doc.switchToPage(index);
+    if (orgLogo) {
+      doc.font("Helvetica").fontSize(8).fillColor("#475569")
+        .text("Generated with", 64, 765, { width: 70, height: 12, lineBreak: false });
+      doc.image(scoutLogoPath(), 137, 765, { fit: [50, 12] });
+    }
     doc
       .font("Helvetica")
       .fontSize(10)
@@ -4324,7 +4333,13 @@ async function handleGeneratePdf(req, res) {
       return sendJson(res, 400, { error: complete ? "No punchlist items found for this property." : "No open punch list issues found for the selected trades." });
     }
 
-    const pdf = await buildPunchListPdf(reportRows, tradeOptions, coverPhoto, complete);
+    let orgLogo = null;
+    try {
+      orgLogo = await loadReportLogo(createServiceClient(), scope.orgId);
+    } catch (error) {
+      console.error("Report logo unavailable; using Scout default.", error?.message || error);
+    }
+    const pdf = await buildPunchListPdf(reportRows, tradeOptions, coverPhoto, complete, orgLogo);
     const filename = complete ? punchListReportFilename(reportRows).replace('_Punch_List_Report_', '_Complete_Punchlist_') : punchListReportFilename(reportRows);
     if (complete) {
       const service = createServiceClient();

@@ -7,6 +7,7 @@ const APPROVED_BUCKETS = new Set([
   "scoutcapture-originals",
   "scoutcapture-session-snapshots",
   "scoutcapture-deliverables",
+  "scoutcapture-org-branding",
 ]);
 
 function assertResult(result, operation) {
