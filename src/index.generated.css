@@ -2287,11 +2287,6 @@
       width: auto;
     }
   }
-  .xl\:min-w-\[1180px\] {
-    @media (width >= 80rem) {
-      min-width: 1180px;
-    }
-  }
   .xl\:grid-cols-2 {
     @media (width >= 80rem) {
       grid-template-columns: repeat(2, minmax(0, 1fr));

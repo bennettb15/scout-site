@@ -49,6 +49,7 @@ import {
   wouldRemoveLastOwner,
 } from "../../api-lib/portalAdminAccess.js";
 import { lifecycleExpiry } from "../../api-lib/customerLifecycle.js";
+import { brandingEnabledForOrg } from "../../api-lib/reportBranding.js";
 import {
   ORG_ACCESS_SCOPE,
   PROPERTY_ACCESS_SCOPE,
@@ -667,6 +668,9 @@ async function loadPortalAccess(context) {
         actorRole,
         inviteRoles: inviteRolesForActor(actorRole),
         reportEmailEnabled: reportEmailOrgSettings.get(row.id) !== false,
+        canManageBranding: brandingEnabledForOrg(row.id) &&
+          (actorRole === "owner" ||
+            (actorRole === "manager" && actorMembership?.access_scope === ORG_ACCESS_SCOPE)),
         properties,
       };
     }),
