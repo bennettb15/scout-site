@@ -669,7 +669,7 @@ async function loadPortalAccess(context) {
         inviteRoles: inviteRolesForActor(actorRole),
         reportEmailEnabled: reportEmailOrgSettings.get(row.id) !== false,
         canManageBranding: brandingEnabledForOrg(row.id) &&
-          (actorRole === "owner" ||
+          (context.isPlatformAdmin || actorRole === "owner" ||
             (actorRole === "manager" && actorMembership?.access_scope === ORG_ACCESS_SCOPE)),
         properties,
       };
