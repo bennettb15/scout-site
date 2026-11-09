@@ -4217,7 +4217,7 @@ function drawCompleteItemPages(doc, plan, buffers, tradeOptions) {
   const pair = row.reportPair || {};
   const rightPhoto = pair.current || pair.completion || pair.latestObservation;
   drawCompleteItemHeader(doc, row, tradeOptions);
-  const leftLabel = 'Previous flagged photo';
+  const leftLabel = 'Original flagged photo';
   const rightLabel = pair.current ? 'Current flagged photo' : pair.completion?.kind === 'portal_photo' && row.status === 'resolved'
     ? 'Resolved photo' : row.status === 'resolved' ? 'Approved completion photo'
       : row.status === 'pending_review' ? 'Latest submitted photo' : 'Completion photo';

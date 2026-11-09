@@ -12,14 +12,14 @@ test('report flags match the portal status colors', () => {
   assert.equal(reportStatusColor('pending_review'), '#ea580c');
   assert.equal(reportStatusColor('resolved'), '#15803d');
 });
-test('complete punchlist keeps previous and follow-up notes, including unchanged wording, with their own dates', () => {
+test('complete punchlist keeps original and follow-up notes, including unchanged wording, with their own dates', () => {
   for (const note of ['Repaired downspout', 'Broken downspout']) {
     const records = completeReportNoteRecords({ reason: 'Broken downspout', reportPair: {
       original: { reason: 'Broken downspout', capturedAt: '2026-11-04' },
       completion: { reason: note, capturedAt: '2026-11-05' },
     } });
     assert.deepEqual(records.map((r) => [r.label, r.note, r.createdAt]), [
-      ['Previous note', 'Broken downspout', '2026-11-04'], ['Updated note', note, '2026-11-05'],
+      ['Original note', 'Broken downspout', '2026-11-04'], ['Updated note', note, '2026-11-05'],
     ]);
   }
 });
@@ -61,7 +61,7 @@ test('open report uses the portal current and previous flagged photos', () => {
   assert.equal(pair.current.preview, current);
   assert.equal(pair.completion, null);
   assert.deepEqual(completeReportNoteRecords({ reportPair: pair }).map(({ label, note }) => [label, note]),
-    [['Previous note', 'Prior flag'], ['Current note', 'Still flagged']]);
+    [['Original note', 'Prior flag'], ['Current note', 'Still flagged']]);
 });
 
 test('original photo is the earliest flagged capture for the same issue, not the most recent previous photo', () => {
