@@ -61,7 +61,7 @@ test('open report uses the portal current and previous flagged photos', () => {
   assert.equal(pair.current.preview, current);
   assert.equal(pair.completion, null);
   assert.deepEqual(completeReportNoteRecords({ reportPair: pair }).map(({ label, note }) => [label, note]),
-    [['Previous note', 'Prior flag'], ['Current note', 'Still flagged']]);
+    [['Original note', 'Prior flag'], ['Current note', 'Still flagged']]);
 });
 
 test('original photo is the earliest flagged capture for the same issue, not the most recent previous photo', () => {
