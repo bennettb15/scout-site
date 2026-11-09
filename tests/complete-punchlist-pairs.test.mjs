@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import PDFDocument from 'pdfkit';
 import { selectCompleteReportSources, completeReportNoteRecords, wrapReportText, requiresCompletionApproval, isCompletionCapture, reportStatusColor } from '../api-lib/completePunchlistReport.js';
-import { completeReportPagePlans, buildPunchListPdf } from '../api/punch-list.js';
+import { completeReportPagePlans, completeReportPairForPortalRow, buildPunchListPdf } from '../api/punch-list.js';
 
 const photo = (id, date, status = 'active', issue = 'issue') => ({ id, captured_at: date, org_id: 'org', property_id: 'prop', issue_id: issue, issue_status: status });
 const event = (id, type, date, group, extra = {}) => ({ id, activity_type: type, created_at: date, from_value: group, org_id: 'org', property_id: 'prop', observation_id: 'issue', ...extra });
@@ -26,6 +26,42 @@ test('complete punchlist keeps original and follow-up notes, including unchanged
 test('complete punchlist still renders when a property address is unavailable', async () => {
   const pdf = await buildPunchListPdf([{ id: 'item', status: 'active', property: { name: 'Address unavailable' }, trade: 'general', priority: 'medium' }], [], null, true);
   assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
+});
+test('resolved app photo matches the portal preview and excludes a historical shot absent from portal photos', () => {
+  const preview = { previewUrl: 'https://example.test/resolved-app-photo' };
+  const row = { status: 'resolved', shotId: 'current', capturedAt: '2026-09-24T13:12:00Z',
+    reason: 'Test revise wording', preview, scoutPreview: preview };
+  const pair = completeReportPairForPortalRow(row, {}, [photo('historical', '2026-09-24T13:02:00Z'), photo('current', '2026-09-24T13:12:00Z', 'resolved')]);
+  assert.equal(pair.original, null);
+  assert.equal(pair.completion.shotId, 'current');
+  assert.equal(pair.completion.preview, preview);
+  assert.equal(pair.completion.kind, 'portal_photo');
+});
+test('approved portal upload is paired with the same before and resolved photos shown in the portal', () => {
+  const uploaded = { previewUrl: 'https://example.test/approved-upload' };
+  const before = { previewUrl: 'https://example.test/before' };
+  const row = { status: 'resolved', shotId: 'before', capturedAt: '2026-09-24T13:02:00Z', reason: 'Original issue',
+    preview: uploaded, scoutPreview: before, completionResolution: { resolvedAt: '2026-09-25T10:00:00Z',
+      photos: [{ activityId: 'submission', capturedAt: '2026-09-25T09:00:00Z', preview: uploaded, note: 'Completed' }] } };
+  const pair = completeReportPairForPortalRow(row, {}, [{ ...photo('before', '2026-09-24T13:02:00Z'), reason: 'Original issue' }]);
+  assert.equal(pair.original.preview, before);
+  assert.equal(pair.completion.preview, uploaded);
+  assert.equal(pair.completion.activityId, 'submission');
+  assert.equal(pair.hasApproval, true);
+  assert.equal(pair.approvedAt, '2026-09-25T10:00:00Z');
+});
+test('open report uses the portal current and previous flagged photos', () => {
+  const current = { previewUrl: 'https://example.test/current' };
+  const previous = { previewUrl: 'https://example.test/previous', flagReason: 'Prior flag' };
+  const row = { status: 'active', shotId: 'current', capturedAt: '2026-11-07T11:40:00Z',
+    reason: 'Still flagged', preview: current, scoutPreview: current,
+    photoHistory: { prior: { shotId: 'previous', capturedAt: '2026-10-01T11:40:00Z', preview: previous } } };
+  const pair = completeReportPairForPortalRow(row, {}, [photo('historical', '2026-09-01'), photo('current', '2026-11-07T11:40:00Z')]);
+  assert.equal(pair.original.preview, previous);
+  assert.equal(pair.current.preview, current);
+  assert.equal(pair.completion, null);
+  assert.deepEqual(completeReportNoteRecords({ reportPair: pair }).map(({ label, note }) => [label, note]),
+    [['Previous note', 'Prior flag'], ['Current note', 'Still flagged']]);
 });
 
 test('original photo is the earliest flagged capture for the same issue, not the most recent previous photo', () => {

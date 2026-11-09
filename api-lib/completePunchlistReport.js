@@ -61,12 +61,19 @@ export function selectCompleteReportSources({ status, issueId, observationId, sh
 export function completeReportNoteRecords(row) {
   const records = [];
   const original = row.reportPair?.original;
-  const reason = String(original?.reason || row.reason || row.title || '').trim();
-  if (reason) records.push({ label: 'Original note', note: reason, createdAt: original?.capturedAt || row.capturedAt, actorEmail: original?.actorEmail || '' });
-  const followUp = row.reportPair?.completion;
-  const followUpReason = String(followUp?.reason || '').trim();
-  if (followUpReason) records.push({ label: 'Updated note', note: followUpReason, createdAt: followUp.capturedAt, actorEmail: followUp.actorEmail || '' });
-  if (row.reason && reason && row.reason.trim() !== reason && row.reason.trim() !== followUpReason) records.push({ label: 'Latest observation note', note: row.reason, createdAt: row.capturedAt, actorEmail: '' });
+  const current = row.reportPair?.current;
+  if (current) {
+    if (original?.reason) records.push({ label: 'Previous note', note: original.reason, createdAt: original.capturedAt, actorEmail: original.actorEmail || '' });
+    const currentReason = String(current.reason || row.reason || row.title || '').trim();
+    if (currentReason) records.push({ label: 'Current note', note: currentReason, createdAt: current.capturedAt || row.capturedAt, actorEmail: current.actorEmail || '' });
+  } else {
+    const reason = String(original?.reason || (!row.reportPair ? row.reason || row.title : '')).trim();
+    if (reason) records.push({ label: 'Original note', note: reason, createdAt: original?.capturedAt || row.capturedAt, actorEmail: original?.actorEmail || '' });
+    const followUp = row.reportPair?.completion;
+    const followUpReason = String(followUp?.reason || '').trim();
+    if (followUpReason) records.push({ label: 'Updated note', note: followUpReason, createdAt: followUp.capturedAt, actorEmail: followUp.actorEmail || '' });
+    if (row.reason && reason && row.reason.trim() !== reason && row.reason.trim() !== followUpReason) records.push({ label: 'Latest observation note', note: row.reason, createdAt: row.capturedAt, actorEmail: '' });
+  }
   if (row.dueDate) records.push({ label: 'Due date', note: String(row.dueDate), createdAt: null, actorEmail: '' });
   const seen = new Set();
   for (const event of [...(row.activity || [])].sort((a, b) => time(a.createdAt) - time(b.createdAt) || key(a.id).localeCompare(key(b.id)))) {

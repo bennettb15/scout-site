@@ -2626,6 +2626,46 @@ async function handleDeleteNote(req, res) {
   }
 }
 
+export function completeReportPairForPortalRow(row, sources = {}, shots = []) {
+  const portalCompletion = row.status === 'resolved' ? row.completionResolution?.photos?.[0]
+    : row.status === 'pending_review' ? row.completionReview?.photos?.[0] : null;
+  const visiblePreview = portalCompletion?.preview?.previewUrl ? portalCompletion.preview : row.preview;
+  const currentShot = shots.find((shot) => shot.id === row.shotId);
+  const approved = row.status === 'resolved' && Boolean(
+    (portalCompletion && row.completionResolution) ||
+    (sources.approval?.shot_id && sources.approval.shot_id === row.shotId)
+  );
+  const visiblePhoto = visiblePreview?.previewUrl ? {
+    shotId: portalCompletion?.shotId || row.shotId,
+    activityId: portalCompletion?.activityId || null,
+    capturedAt: portalCompletion?.capturedAt || row.capturedAt || currentShot?.captured_at || null,
+    dateKind: portalCompletion ? 'Uploaded' : 'Captured',
+    reason: portalCompletion?.note || row.reason || '',
+    actorEmail: portalCompletion?.submittedByEmail || currentShot?.captured_by_email || '',
+    kind: row.status === 'active' ? 'current_flagged' : approved ? 'approved_completion' : 'portal_photo',
+    preview: visiblePreview,
+  } : null;
+  const scoutBefore = row.status !== 'active' && row.scoutPreview?.previewUrl &&
+    row.scoutPreview.previewUrl !== visiblePreview?.previewUrl;
+  const prior = scoutBefore ? {
+    shotId: row.shotId, capturedAt: currentShot?.captured_at || currentShot?.created_at || row.capturedAt,
+    preview: row.scoutPreview,
+  } : row.photoHistory?.prior;
+  const priorShot = prior && shots.find((shot) => shot.id === prior.shotId);
+  const beforePhoto = prior?.preview?.previewUrl ? {
+    shotId: prior.shotId, capturedAt: prior.capturedAt || priorShot?.captured_at || priorShot?.created_at || null,
+    dateKind: 'Captured', reason: prior.preview.flagReason || priorShot?.reason || '',
+    actorEmail: priorShot?.captured_by_email || '', preview: prior.preview,
+  } : null;
+  return {
+    original: beforePhoto,
+    current: row.status === 'active' ? visiblePhoto : null,
+    completion: row.status === 'active' ? null : visiblePhoto,
+    approvedAt: approved ? row.completionResolution?.resolvedAt || sources.approval?.created_at || null : null,
+    hasApproval: approved,
+  };
+}
+
 async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URLS, includeCoverPhoto = false, timing = null, complete = false } = {}) {
   const loadRows = complete ? allRows : safeRows;
   const { client } = auth;
@@ -3209,20 +3249,8 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       row.originalReason = sources.original?.reason || row.reason;
       row.updatedReason = sourceShots.find((shot) => shot.id === row.shotId)?.reason || row.reason;
       if (!complete) return;
-      const shotPhoto = async (shot) => shot ? ({ shotId: shot.id, capturedAt: shot.captured_at || shot.created_at,
-        dateKind: 'Captured', reason: shot.reason, actorEmail: shot.captured_by_email || '',
-        preview: { previewUrl: await previewForShot(shot) } }) : null;
-      const submission = sources.submission;
-      row.reportPair = {
-        original: await shotPhoto(sources.original),
-        completion: submission ? { activityId: submission.id, capturedAt: submission.created_at, dateKind: 'Uploaded', reason: submission.note,
-          preview: { previewUrl: completionPreviewUrlByActivityId.get(submission.id) || null } } : await shotPhoto(sources.captured),
-        latestObservation: sources.latestObservation ? {
-          ...(await shotPhoto(sources.latestObservation)), kind: 'latest_observation', reason: row.reason || sources.latestObservation.reason,
-        } : null,
-        approvedAt: sources.approval?.created_at || null,
-        hasApproval: Boolean(sources.approval),
-      };
+      row.reportPair = completeReportPairForPortalRow(row, sources, sourceShots);
+      row.originalReason = row.reportPair.original?.reason || row.reason;
     });
   }
   rows.sort(compareFieldReviewOrder);
@@ -3853,7 +3881,8 @@ function drawIndexPage(doc, entries, pageIndex = 0) {
   const textX = 49;
   const textWidth = 454;
   entries.forEach((entry) => {
-    drawIndexFlagIcon(doc, 40, y, reportStatusColor(entry.row.status));
+    if (entry.row.status === 'resolved') drawCompleteCheckIcon(doc, 42, y + 4, reportStatusColor(entry.row.status));
+    else drawIndexFlagIcon(doc, 40, y, reportStatusColor(entry.row.status));
     doc.font("Helvetica").fontSize(9.5).fillColor("#000000");
     const label = truncateTextToWidth(doc, indexEntryText(entry.row), textWidth);
     doc.text(label, textX, y, { width: textWidth, height: 11, lineBreak: false });
@@ -4041,7 +4070,7 @@ function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto, complete = false
     .text(complete ? "Complete Property Punchlist" : PDF_REPORT_TITLE, 72, 386, { width: 468, align: "center", height: 28 });
 
   let y = 440;
-  const photoDates = rows.flatMap((row) => row.reportPair ? [row.reportPair.original?.capturedAt, row.reportPair.completion?.capturedAt, row.reportPair.latestObservation?.capturedAt] : [row.capturedAt])
+  const photoDates = rows.flatMap((row) => row.reportPair ? [row.reportPair.original?.capturedAt, row.reportPair.current?.capturedAt, row.reportPair.completion?.capturedAt, row.reportPair.latestObservation?.capturedAt] : [row.capturedAt])
     .filter((value) => value && Number.isFinite(Date.parse(value))).sort((a, b) => Date.parse(a) - Date.parse(b));
   const coverRows = [
     ["Property Name:", propertyName(contextRow)],
@@ -4110,7 +4139,8 @@ function drawCompleteItemHeader(doc, row, tradeOptions, continued = false) {
     .text(`${locationCode(row)}${continued ? ' | Notes continued' : ''}`, 42, 95, { width: 528, height: 17, align: 'center', ellipsis: true });
   const status = completeStatus(row);
   doc.roundedRect(42, 119, 136, 23, 6).fill(status.background);
-  drawCaptionFlagIcon(doc, 51, 126, status.ink);
+  if (row.status === 'resolved') drawCompleteCheckIcon(doc, 53, 131, status.ink);
+  else drawCaptionFlagIcon(doc, 51, 126, status.ink);
   doc.font('Helvetica-Bold').fontSize(9).fillColor(status.ink).text(status.label.toUpperCase(), 68, 126, { width: 104, height: 12 });
   doc.font('Helvetica-Bold').fontSize(8).fillColor('#64748b').text('TRADE', 193, 117, { width: 215, height: 11 });
   doc.font('Helvetica-Bold').fontSize(11).fillColor(SCOUT_NAVY)
@@ -4147,10 +4177,11 @@ function drawCompleteCheckIcon(doc, x, y, color) {
 
 function drawCompletePhotoCaption(doc, row, source, x, original, frame) {
   const latestObservation = !original && source?.kind === 'latest_observation';
+  const currentFlagged = !original && source?.kind === 'current_flagged';
   const status = original ? 'active' : row.status;
   const color = reportStatusColor(status);
   const reason = singleLine(source?.reason, original ? singleLine(row.originalReason || row.reason) : '');
-  const label = latestObservation ? 'Latest photo' : status === 'resolved' ? 'Resolved' : status === 'pending_review' ? 'Pending Review' : 'Open';
+  const label = latestObservation ? 'Latest photo' : currentFlagged ? 'Current' : status === 'resolved' ? 'Resolved' : status === 'pending_review' ? 'Pending Review' : 'Open';
   const note = original ? (reason || 'Flagged') : [label, reason].filter(Boolean).join(' - ');
   const noteY = Math.min(528, frame.y + frame.height + 7);
   if (source) {
@@ -4184,15 +4215,20 @@ function drawCompleteNoteLines(doc, lines, y) {
 function drawCompleteItemPages(doc, plan, buffers, tradeOptions) {
   const { row, pages } = plan;
   const pair = row.reportPair || {};
-  const rightPhoto = pair.completion || pair.latestObservation;
+  const rightPhoto = pair.current || pair.completion || pair.latestObservation;
   drawCompleteItemHeader(doc, row, tradeOptions);
-  const rightLabel = pair.latestObservation ? 'Latest issue photo' : row.status === 'resolved' ? 'Approved completion photo' : row.status === 'pending_review' ? 'Latest submitted photo' : 'Completion photo';
-  for (const [x, label] of [[42, 'Original flagged photo'], [315, rightLabel]]) {
+  const leftLabel = pair.current ? 'Previous flagged photo' : 'Flagged photo before completion';
+  const rightLabel = pair.current ? 'Current flagged photo' : pair.completion?.kind === 'portal_photo' && row.status === 'resolved'
+    ? 'Resolved photo' : row.status === 'resolved' ? 'Approved completion photo'
+      : row.status === 'pending_review' ? 'Latest submitted photo' : 'Completion photo';
+  for (const [x, label] of [[42, leftLabel], [315, rightLabel]]) {
     doc.font('Helvetica-Bold').fontSize(11).fillColor(SCOUT_NAVY).text(label, x, 155, { width: 255, height: 16, align: 'center' });
   }
-  const originalFrame = drawCompletePhoto(doc, pair.original, buffers?.original, 42, 'Original flagged photo unavailable', reportStatusColor('active'));
+  const originalFrame = drawCompletePhoto(doc, pair.original, buffers?.original, 42,
+    pair.current ? 'No previous flagged photo' : 'Flagged photo unavailable', reportStatusColor('active'));
   const completionFrame = drawCompletePhoto(doc, rightPhoto, buffers?.completion, 315,
-    row.status === 'resolved' ? 'Approved completion photo unavailable' : row.status === 'pending_review' ? 'Submitted completion photo unavailable' : 'Awaiting completion photo',
+    pair.current ? 'Current flagged photo unavailable' : row.status === 'resolved' ? 'Resolved photo unavailable'
+      : row.status === 'pending_review' ? 'Submitted completion photo unavailable' : 'Awaiting completion photo',
     reportStatusColor(row.status));
   drawCompletePhotoCaption(doc, row, pair.original, 42, true, originalFrame);
   drawCompletePhotoCaption(doc, row, rightPhoto, 315, false, completionFrame);
@@ -4227,7 +4263,7 @@ export async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null, c
       if (complete) {
         const [original, completion] = await Promise.all([
           getImage(row.reportPair?.original?.preview?.previewUrl),
-          getImage((row.reportPair?.completion || row.reportPair?.latestObservation)?.preview?.previewUrl),
+          getImage((row.reportPair?.current || row.reportPair?.completion || row.reportPair?.latestObservation)?.preview?.previewUrl),
         ]);
         pairedBuffers.set(row.id, { original, completion });
         if (original) imageBuffers.set(row.id, original);
