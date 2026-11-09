@@ -66,6 +66,18 @@ test('cross-property photos and completion activity cannot pair, and resolved wi
   assert.equal(result.submission, null);
   assert.equal(result.captured, null);
   assert.equal(result.approval, null);
+  assert.equal(result.latestObservation, null);
+});
+test('manually resolved issues use the current portal photo without calling it an approved completion', () => {
+  const original = photo('original', '2026-09-24T09:02:00Z');
+  const latest = photo('latest', '2026-09-24T09:12:00Z', 'resolved');
+  const result = selectCompleteReportSources({ status: 'resolved', shots: [original, latest], activity: [],
+    issueId: 'issue', observationId: 'issue', shotId: 'latest', orgId: 'org', propertyId: 'prop' });
+  assert.equal(result.original.id, 'original');
+  assert.equal(result.latestObservation.id, 'latest');
+  assert.equal(result.submission, null);
+  assert.equal(result.captured, null);
+  assert.equal(result.approval, null);
 });
 test('an original flagged capture does not become a completion photo when its workflow status changes', () => {
   const original = { ...photo('original', '2026-10-01', 'resolved'), capture_kind: 'flagged_capture' };

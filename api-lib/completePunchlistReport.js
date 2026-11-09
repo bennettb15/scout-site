@@ -17,7 +17,7 @@ export function requiresCompletionApproval(current, next) {
 export function selectCompleteReportSources({ status, issueId, observationId, shotId, orgId, propertyId, shots = [], activity = [] }) {
   const identities = new Set([key(issueId), key(observationId)].filter(Boolean));
   const scoped = shots.filter((shot) => key(shot.org_id) === key(orgId) && key(shot.property_id) === key(propertyId) &&
-    (identities.has(key(shot.issue_id)) || (!identities.size && key(shot.id) === key(shotId))));
+    (identities.has(key(shot.issue_id)) || (shotId && key(shot.id) === key(shotId))));
   const original = scoped.filter((shot) => !isCompletionCapture(shot)).sort(oldestFirst)[0] || null;
   const events = activity.filter((event) => key(event.org_id) === key(orgId) && key(event.property_id) === key(propertyId) &&
     (!observationId || key(event.observation_id) === key(observationId))).sort(newestActivityFirst);
@@ -50,7 +50,12 @@ export function selectCompleteReportSources({ status, issueId, observationId, sh
       }
     }
   }
-  return { original, submission, captured, approval };
+  // A manually resolved issue can have a newer portal photo without a completion approval.
+  // Keep it separate from approved completion evidence so the PDF can label it accurately.
+  const latestObservation = status === 'resolved' && !approval
+    ? scoped.find((shot) => key(shot.id) === key(shotId) && key(shot.id) !== key(original?.id)) || null
+    : null;
+  return { original, submission, captured, approval, latestObservation };
 }
 
 export function completeReportNoteRecords(row) {
