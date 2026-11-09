@@ -345,6 +345,7 @@
 .sc-phone-front, .sc-phone-back { height: auto; }
 .sc-phone-front { left: 10%; bottom: 0; transform: rotate(-5deg); }
 .sc-phone-back { right: 4%; top: 10px; transform: rotate(8deg); }
+.sc-camera-compass { position: absolute; top: 9.1%; left: 15.8%; display: grid; place-items: center; width: 6.6%; aspect-ratio: 1; border: 1px solid #5a5a5d; border-radius: 50%; background: #202022; color: #fff; font-size: clamp(7px, 1vw, 10px); font-weight: 600; line-height: 1; }
 
 /* Keep the Ohio visit steps open and subordinate to the service story. */
 .sc-service-journey { margin-top: 50px; padding-top: 22px; border-top: 1px solid #c9cbd0; }
