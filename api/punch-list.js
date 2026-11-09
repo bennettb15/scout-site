@@ -3411,19 +3411,10 @@ function safeFilenamePart(value) {
     .slice(0, 80) || "Punch_List";
 }
 
-export function pdfFilenameTimestamp(date = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23", timeZoneName: "short",
-  }).formatToParts(date);
-  const value = (type) => parts.find((part) => part.type === type)?.value || "";
-  return ["year", "month", "day", "hour", "minute", "second", "timeZoneName"].map(value).join("-");
-}
-
-function punchListReportFilename(rows) {
+export function punchListReportFilename(rows, complete = false) {
   const first = rows[0] || {};
   const property = propertyName(first);
-  return `${safeFilenamePart(property)}_Punch_List_Report_${pdfFilenameTimestamp()}.pdf`;
+  return `${safeFilenamePart(property)}_${complete ? "Complete_Punchlist" : "Punch_List_Report"}.pdf`;
 }
 
 function validatePdfScope(body) {
@@ -4374,7 +4365,7 @@ async function handleGeneratePdf(req, res) {
       console.error("Report logo unavailable; using Scout default.", error?.message || error);
     }
     const pdf = await buildPunchListPdf(reportRows, tradeOptions, coverPhoto, complete, orgLogo);
-    const filename = complete ? punchListReportFilename(reportRows).replace('_Punch_List_Report_', '_Complete_Punchlist_') : punchListReportFilename(reportRows);
+    const filename = punchListReportFilename(reportRows, complete);
     if (complete) {
       const service = createServiceClient();
       const access = await loadUserPortalPropertyAccess(service, auth.user);
