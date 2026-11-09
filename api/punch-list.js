@@ -3345,12 +3345,11 @@ function localDateOnly(value) {
 }
 
 function todayDateOnlyString() {
-  const date = new Date();
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
-  ].join("-");
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const value = (type) => parts.find((part) => part.type === type)?.value || "";
+  return [value("year"), value("month"), value("day")].join("-");
 }
 
 function formatPdfDueDate(value) {
@@ -3412,15 +3411,13 @@ function safeFilenamePart(value) {
     .slice(0, 80) || "Punch_List";
 }
 
-function pdfFilenameTimestamp(date = new Date()) {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
-    String(date.getHours()).padStart(2, "0"),
-    String(date.getMinutes()).padStart(2, "0"),
-    String(date.getSeconds()).padStart(2, "0"),
-  ].join("-");
+export function pdfFilenameTimestamp(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23", timeZoneName: "short",
+  }).formatToParts(date);
+  const value = (type) => parts.find((part) => part.type === type)?.value || "";
+  return ["year", "month", "day", "hour", "minute", "second", "timeZoneName"].map(value).join("-");
 }
 
 function punchListReportFilename(rows) {

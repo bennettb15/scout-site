@@ -3,7 +3,14 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { FileText, Download, RefreshCw, X } from 'lucide-react';
 import { restoredComparisonSelection, matchingComparisonRequest, comparisonProgressMessage } from '../lib/tenantComparisonDisplay.js';
 
-const dateLabel = (value) => value ? new Date(value).toLocaleString() : 'Unknown date';
+const dateLabel = (value) => {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return 'Unknown date';
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+  }).format(date);
+};
 const generationStyle = 'border border-blue-200 bg-blue-50 text-[var(--brand)] hover:bg-blue-100';
 
 export default function TenantComparisonControl({ orgId, propertyId, propertyName, accessToken, expanded = false }) {

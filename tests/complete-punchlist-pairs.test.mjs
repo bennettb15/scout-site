@@ -2,11 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import PDFDocument from 'pdfkit';
 import { selectCompleteReportSources, completeReportNoteRecords, wrapReportText, requiresCompletionApproval, isCompletionCapture, reportStatusColor } from '../api-lib/completePunchlistReport.js';
-import { completeReportPagePlans, completeReportPairForPortalRow, buildPunchListPdf } from '../api/punch-list.js';
+import { completeReportPagePlans, completeReportPairForPortalRow, buildPunchListPdf, pdfFilenameTimestamp } from '../api/punch-list.js';
 
 const photo = (id, date, status = 'active', issue = 'issue') => ({ id, captured_at: date, org_id: 'org', property_id: 'prop', issue_id: issue, issue_status: status });
 const event = (id, type, date, group, extra = {}) => ({ id, activity_type: type, created_at: date, from_value: group, org_id: 'org', property_id: 'prop', observation_id: 'issue', ...extra });
 const select = (status, shots, activity = []) => selectCompleteReportSources({ status, shots, activity, issueId: 'issue', observationId: 'issue', orgId: 'org', propertyId: 'prop' });
+test('report filenames show Eastern time with the correct daylight-saving abbreviation', () => {
+  assert.equal(pdfFilenameTimestamp(new Date('2026-11-09T13:14:36Z')), '2026-11-09-08-14-36-EST');
+  assert.equal(pdfFilenameTimestamp(new Date('2026-07-01T01:02:03Z')), '2026-06-30-21-02-03-EDT');
+  assert.equal(pdfFilenameTimestamp(new Date('2026-11-01T05:30:00Z')), '2026-11-01-01-30-00-EDT');
+  assert.equal(pdfFilenameTimestamp(new Date('2026-11-01T06:30:00Z')), '2026-11-01-01-30-00-EST');
+});
 test('report flags match the portal status colors', () => {
   assert.equal(reportStatusColor('active'), '#dc2626');
   assert.equal(reportStatusColor('pending_review'), '#ea580c');

@@ -257,6 +257,7 @@ function formatDateTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -270,6 +271,7 @@ function formatShortDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
     month: "short",
     day: "numeric",
   }).format(date);
@@ -283,9 +285,13 @@ function localDateFromDateOnly(value) {
 
 function todayDateOnly() {
   const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(date);
+  const value = (type) => parts.find((part) => part.type === type)?.value || "";
+  const year = value("year");
+  const month = value("month");
+  const day = value("day");
   return `${year}-${month}-${day}`;
 }
 
@@ -304,6 +310,7 @@ function formatDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -315,6 +322,7 @@ function formatTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
@@ -323,6 +331,7 @@ function formatTime(value) {
 function formatRefreshTime(value) {
   if (!value) return "";
   return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
     hour: "numeric",
     minute: "2-digit",
   }).format(value);
