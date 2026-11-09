@@ -11,16 +11,10 @@ const otherOrgId = "22222222-2222-4222-8222-222222222222";
 const logoPath = `orgs/${orgId}/logos/33333333-3333-4333-8333-333333333333.png`;
 const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3]);
 
-test("brand rollout only enables explicitly listed organizations", () => {
-  const previous = process.env.SCOUT_REPORT_BRANDING_ORG_IDS;
-  try {
-    process.env.SCOUT_REPORT_BRANDING_ORG_IDS = ` ${orgId.toUpperCase()} ,`;
-    assert.equal(brandingEnabledForOrg(orgId), true);
-    assert.equal(brandingEnabledForOrg(otherOrgId), false);
-  } finally {
-    if (previous === undefined) delete process.env.SCOUT_REPORT_BRANDING_ORG_IDS;
-    else process.env.SCOUT_REPORT_BRANDING_ORG_IDS = previous;
-  }
+test("report branding is available to every organization", () => {
+  assert.equal(brandingEnabledForOrg(orgId), true);
+  assert.equal(brandingEnabledForOrg(otherOrgId), true);
+  assert.equal(brandingEnabledForOrg("not-an-org-id"), false);
 });
 
 test("logo paths cannot cross organization boundaries", () => {

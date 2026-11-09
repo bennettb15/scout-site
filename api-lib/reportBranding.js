@@ -2,11 +2,7 @@ export const REPORT_BRANDING_BUCKET = "scoutcapture-org-branding";
 export const MAX_REPORT_LOGO_BYTES = 2_000_000;
 
 export function brandingEnabledForOrg(orgId) {
-  return String(process.env.SCOUT_REPORT_BRANDING_ORG_IDS || "")
-    .split(",")
-    .map((id) => id.trim().toLowerCase())
-    .filter(Boolean)
-    .includes(String(orgId || "").toLowerCase());
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(orgId || ""));
 }
 
 export function validReportLogoPath(orgId, path) {
