@@ -180,7 +180,7 @@ export default function ScoutMarketingSite() {
               <div className="sc-product-visual" aria-label="Scout Capture app screens">
                 <div className="sc-product-glow" />
                 <figure className="sc-phone sc-phone-back"><img src="/scout-app-guided.jpg" alt="Scout Capture guided checklist showing captured and pending photos" loading="lazy" /></figure>
-                <figure className="sc-phone sc-phone-front"><img src="/scout-app-camera.jpg" alt="Scout Capture camera labeling a sample property's exterior" loading="lazy" /></figure>
+                <figure className="sc-phone sc-phone-front"><img src="/scout-app-camera.jpg" alt="Scout Capture camera labeling a sample property's exterior" loading="lazy" /><span className="sc-camera-compass" aria-hidden="true">S</span></figure>
               </div>
             </div>
             <div className="sc-product-features">
