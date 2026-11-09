@@ -4273,7 +4273,7 @@ export async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null, c
     if (orgLogo) {
       doc.font("Helvetica").fontSize(8).fillColor("#475569")
         .text("Generated with", 64, 765, { width: 70, height: 12, lineBreak: false });
-      doc.image(scoutLogoPath(), 137, 765, { fit: [50, 12] });
+      doc.image(scoutLogoPath(), 137, 762, { fit: [50, 12] });
     }
     doc
       .font("Helvetica")
