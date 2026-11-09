@@ -4271,9 +4271,10 @@ export async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null, c
   for (let index = range.start; index < range.start + range.count; index += 1) {
     doc.switchToPage(index);
     if (orgLogo) {
+      const attribution = "Generated with";
       doc.font("Helvetica").fontSize(8).fillColor("#475569")
-        .text("Generated with", 64, 765, { width: 70, height: 12, lineBreak: false });
-      doc.image(scoutLogoPath(), 137, 762, { fit: [50, 12] });
+        .text(attribution, 64, 765, { width: 70, height: 12, lineBreak: false });
+      doc.image(scoutLogoPath(), 64 + doc.widthOfString(attribution) + 4, 762, { fit: [50, 12] });
     }
     doc
       .font("Helvetica")
