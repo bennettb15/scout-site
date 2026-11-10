@@ -3501,6 +3501,10 @@ function drawReportLogo(doc, x, y, width, height) {
   });
 }
 
+function drawSecondaryReportLogo(doc) {
+  drawReportLogo(doc, 221, doc._orgReportLogo ? 20 : 22, 170, doc._orgReportLogo ? 48 : 34);
+}
+
 function footerPropertyLine(row) {
   return [propertyName(row), propertyAddress(row)].map((value) => singleLine(value)).filter(Boolean).join(" · ");
 }
@@ -3512,7 +3516,7 @@ function tradePageTitle(tradeLabel) {
 
 function addReportPage(doc, pageTitle = PDF_REPORT_TITLE, footerRow = null) {
   doc.addPage({ size: "LETTER", margin: 42 });
-  drawReportLogo(doc, 221, 22, 170, 34);
+  drawSecondaryReportLogo(doc);
   doc
     .font("Helvetica-Bold")
     .fontSize(11)
@@ -3522,7 +3526,7 @@ function addReportPage(doc, pageTitle = PDF_REPORT_TITLE, footerRow = null) {
     .font("Helvetica")
     .fontSize(9)
     .fillColor("#111827")
-    .text(footerPropertyLine(footerRow) || "Unknown property", 64, 748, { width: 380, height: 12 });
+    .text(footerPropertyLine(footerRow) || "Unknown property", 64, doc._orgReportLogo ? 734 : 748, { width: 380, height: 12 });
 }
 
 export function issuePhotoFitRect(doc, imageBuffer, x, y, width, height) {
@@ -3849,7 +3853,7 @@ function indexEntriesForGroups(tradeGroups, indexPageCount) {
 
 function drawIndexPage(doc, entries, pageIndex = 0) {
   doc.addPage({ size: "LETTER", margin: 42 });
-  drawReportLogo(doc, 221, 22, 170, 34);
+  drawSecondaryReportLogo(doc);
   doc
     .font("Helvetica-Bold")
     .fontSize(23)
@@ -4297,14 +4301,14 @@ export async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null, c
     if (orgLogo) {
       const attribution = "Generated with";
       doc.font("Helvetica").fontSize(8).fillColor("#475569")
-        .text(attribution, 64, 765, { width: 70, height: 12, lineBreak: false });
-      doc.image(scoutLogoPath(), 64 + doc.widthOfString(attribution) + 4, 762, { fit: [50, 12] });
+        .text(attribution, 64, 752, { width: 70, height: 12, lineBreak: false });
+      doc.image(scoutLogoPath(), 64 + doc.widthOfString(attribution) + 4, 749, { fit: [50, 12] });
     }
     doc
       .font("Helvetica")
       .fontSize(10)
       .fillColor("#111827")
-      .text(`Page ${index + 1}`, 500, 748, { width: 58, height: 12, align: "right", lineBreak: false });
+      .text(`Page ${index + 1}`, 500, orgLogo ? 734 : 748, { width: 58, height: 12, align: "right", lineBreak: false });
   }
 
   doc.end();
