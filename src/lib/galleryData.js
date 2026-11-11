@@ -24,8 +24,8 @@ export function uniquePropertySessions(packages, propertyId) {
 }
 
 export function galleryPhotoStatus(photo) {
-  if (photo?.isResolved) return "resolved";
   if (String(photo?.issueStatus || photo?.issue_status || "").toLowerCase() === "pending_review") return "pending";
+  if (photo?.isResolved) return "resolved";
   if (photo?.isFlagged) return "flagged";
   return null;
 }

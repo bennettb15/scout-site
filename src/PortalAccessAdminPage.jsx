@@ -16,6 +16,7 @@ import AccountMenu from "./components/AccountMenu";
 import PortalNavigation from "./components/PortalNavigation";
 import AdminSectionNavigation from "./components/AdminSectionNavigation";
 import ReportBrandingPanel from "./components/ReportBrandingPanel";
+import ResolutionReviewPanel from "./components/ResolutionReviewPanel";
 import {
   canEditPortalPropertyScope,
   checkedPropertyIdsForScopeSelection,
@@ -1174,6 +1175,9 @@ export default function PortalAccessAdminPage({ hidden = false }) {
 
             {selectedOrg?.canManageBranding && (
               <ReportBrandingPanel org={selectedOrg} accessToken={session.access_token} />
+            )}
+            {selectedOrg?.canManageResolutionReview && (
+              <ResolutionReviewPanel org={selectedOrg} accessToken={session.access_token} />
             )}
 
             {loadError && (

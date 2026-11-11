@@ -30,7 +30,7 @@ import { loadActiveAttributionEmails } from "../api-lib/activeAttributionEmails.
 import { startPortalRequestTiming } from "../api-lib/portalRequestTiming.js";
 
 const REPORT_PACKAGE_BASE_SELECT =
-  "id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at,weather_summary";
+  "id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at,weather_summary,report_variant:manifest->>report_variant";
 const REPORT_OPTIONAL_AUDIT_COLUMNS = [
   "completed_by",
   "completed_by_user_id",
@@ -125,8 +125,8 @@ async function loadReadyPackageRows(service) {
     .select(REPORT_PACKAGE_BASE_SELECT)
     .eq("status", "ready")
     .is("deleted_at", null)
-    .order("session_completed_at", { ascending: false })
     .order("completed_at", { ascending: false })
+    .order("session_completed_at", { ascending: false })
     .limit(500);
 }
 
@@ -139,8 +139,8 @@ export async function loadReadyPackageRowsForOrg(service, orgId, properties, his
       .eq("property_id", property.id)
       .eq("status", "ready")
       .is("deleted_at", null)
-      .order("session_completed_at", { ascending: false })
       .order("completed_at", { ascending: false })
+      .order("session_completed_at", { ascending: false })
       .limit(history === "all" ? 50 : 2)
   );
   const error = results.find((result) => result.error)?.error;
@@ -535,6 +535,7 @@ export default async function handler(req, res) {
         session: sessionsById.get(row.session_id) || null,
         sessionCompletedAt: row.session_completed_at,
         completedAt: row.completed_at,
+        reportVariant: row.report_variant || null,
         weatherSummary: row.weather_summary,
         capturedByEmail: capturedByEmailForReportPackage({
           packageRow: row,
