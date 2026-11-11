@@ -6601,7 +6601,7 @@ export default function ScoutPunchListPage() {
                     className={`inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-semibold ${
                       selectedTab === TAB_OPEN
                         ? "bg-[var(--brand)] text-white shadow-sm"
-                        : "text-foreground/65 hover:bg-slate-100"
+                        : "bg-white text-foreground/65 hover:shadow-sm"
                     }`}
                   >
                     <ClipboardList className="h-4 w-4" />
@@ -6615,14 +6615,12 @@ export default function ScoutPunchListPage() {
                     className={`inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-semibold ${
                       selectedTab === TAB_PENDING
                         ? "bg-orange-600 text-white shadow-sm"
-                        : pendingCount > 0
-                          ? "bg-orange-200 text-orange-950 shadow-sm hover:bg-orange-300"
-                          : "text-foreground/65 hover:bg-slate-100"
+                        : "bg-white text-orange-700 hover:shadow-sm"
                     }`}
                   >
                     <Clock className="h-4 w-4" />
                     Pending Review
-                    <span className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${selectedTab === TAB_PENDING ? "bg-white/20 text-white" : pendingCount > 0 ? "bg-orange-600 text-white" : "bg-slate-200 text-foreground/75"}`}>{pendingCount}</span>
+                    <span className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${selectedTab === TAB_PENDING ? "bg-white/20 text-white" : "bg-orange-600 text-white"}`}>{pendingCount}</span>
                   </button>
                   <button
                     type="button"
@@ -6630,8 +6628,8 @@ export default function ScoutPunchListPage() {
                     aria-pressed={selectedTab === TAB_RESOLVED}
                     className={`inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-semibold ${
                       selectedTab === TAB_RESOLVED
-                        ? "bg-[var(--brand)] text-white shadow-sm"
-                        : "text-foreground/65 hover:bg-slate-100"
+                        ? "bg-green-700 text-white shadow-sm"
+                        : "bg-white text-foreground/65 hover:shadow-sm"
                     }`}
                   >
                     <Check className="h-4 w-4" />

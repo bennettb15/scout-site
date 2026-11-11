@@ -10,7 +10,7 @@ const select = (status, shots, activity = []) => selectCompleteReportSources({ s
 test('punch list PDF filenames omit date and time stamps', () => {
   const rows = [{ property: { name: 'QA Test 10.14' } }];
   assert.equal(punchListReportFilename(rows), 'QA_Test_10_14_Punch_List_Report.pdf');
-  assert.equal(punchListReportFilename(rows, true), 'QA_Test_10_14_Complete_Punchlist.pdf');
+  assert.equal(punchListReportFilename(rows, true), 'QA_Test_10_14_Property_Punchlist.pdf');
 });
 test('report flags match the portal status colors', () => {
   assert.equal(reportStatusColor('active'), '#dc2626');

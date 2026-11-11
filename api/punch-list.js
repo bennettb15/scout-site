@@ -85,7 +85,7 @@ const PRIORITY_BORDER_COLORS = {
   low: "#0ea5e9",
 };
 const PUNCHLIST_COORDINATION_NOTE =
-  "This punch list is provided as a coordination aid for visible open items documented in the selected portal context. Field teams should verify scope, responsibility, sequencing, and completion requirements before work proceeds.";
+  "This punch list is provided as a coordination aid for selected punch list items documented in the selected portal context. Field teams should verify scope, responsibility, sequencing, and completion requirements before work proceeds.";
 const SCOUT_ONLY_LOGO_PATH = path.join(process.cwd(), "public", "Scout Only Logo Navy Dark NEW.png");
 const WORKFLOW_ACTIVITY_FIELD_BY_TYPE = {
   priority_changed: "priority",
@@ -3414,7 +3414,7 @@ function safeFilenamePart(value) {
 export function punchListReportFilename(rows, complete = false) {
   const first = rows[0] || {};
   const property = propertyName(first);
-  return `${safeFilenamePart(property)}_${complete ? "Complete_Punchlist" : "Punch_List_Report"}.pdf`;
+  return `${safeFilenamePart(property)}_${complete ? "Property_Punchlist" : "Punch_List_Report"}.pdf`;
 }
 
 function validatePdfScope(body) {
@@ -4070,7 +4070,7 @@ function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto, complete = false
     .font("Helvetica-Bold")
     .fontSize(20)
     .fillColor("#000000")
-    .text(complete ? "Complete Property Punchlist" : PDF_REPORT_TITLE, 72, 386, { width: 468, align: "center", height: 28 });
+    .text(complete ? "Property Punchlist" : PDF_REPORT_TITLE, 72, 386, { width: 468, align: "center", height: 28 });
 
   let y = 440;
   const photoDates = rows.flatMap((row) => row.reportPair ? [row.reportPair.original?.capturedAt, row.reportPair.current?.capturedAt, row.reportPair.completion?.capturedAt, row.reportPair.latestObservation?.capturedAt] : [row.capturedAt])
@@ -4139,7 +4139,7 @@ function completeStatus(row) {
 }
 
 function drawCompleteItemHeader(doc, row, tradeOptions, continued = false) {
-  addReportPage(doc, 'Complete Property Punchlist', row);
+  addReportPage(doc, 'Property Punchlist', row);
   doc.font('Helvetica').fontSize(9).fillColor('#475569')
     .text([propertyName(row), propertyAddress(row)].filter(Boolean).join(' | '), 42, 74, { width: 528, height: 14, align: 'center', ellipsis: true });
   doc.font('Helvetica-Bold').fontSize(11).fillColor(SCOUT_NAVY)
@@ -4254,7 +4254,7 @@ function drawCompleteItemPages(doc, plan, buffers, tradeOptions) {
 export async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null, complete = false, orgLogo = null, selectedStatuses = ["active", "pending_review", "resolved"]) {
   const doc = new PDFDocument({ autoFirstPage: false, bufferPages: true, size: "LETTER", margin: 42 });
   doc._orgReportLogo = orgLogo;
-  doc.info.Title = complete ? 'Complete Property Punchlist' : PDF_REPORT_TITLE;
+  doc.info.Title = complete ? 'Property Punchlist' : PDF_REPORT_TITLE;
   const result = collectPdf(doc);
   const imageBuffers = new Map();
   const pairedBuffers = new Map();
