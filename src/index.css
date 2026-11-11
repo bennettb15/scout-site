@@ -10,6 +10,7 @@
 @source "./components/AdminSectionNavigation.jsx";
 @source "./components/ReportBrandingPanel.jsx";
 @source "./components/ResolutionReviewPanel.jsx";
+@source "./components/ReviewedReportsControl.jsx";
 @source "./components/TenantComparisonControl.jsx";
 @source "./ForgotPasswordPage.jsx";
 @source "./GalleryPage.jsx";

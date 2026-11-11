@@ -20,6 +20,7 @@ import {
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import AccountMenu from "./components/AccountMenu";
 import PortalNavigation from "./components/PortalNavigation";
+import ReviewedReportsControl from "./components/ReviewedReportsControl";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
   buildPunchListSummary,
@@ -6690,13 +6691,27 @@ export default function ScoutPunchListPage() {
               <div className="flex items-start gap-3 rounded-xl border border-orange-300 bg-orange-50 px-4 py-3 text-orange-900 shadow-sm" role="status">
                 <Clock className="mt-0.5 h-5 w-5 shrink-0 text-orange-700" />
                 <div>
-                  <div className="font-semibold">Pending Review · {filteredRows.length}</div>
-                  <p className="mt-1 text-sm">{filteredRows.some(canReviewCompletionForRow)
-                    ? "Review submitted photos and approve or reject eligible items."
-                    : "These items are awaiting review."}</p>
+                  <div className="font-semibold">Pending Review · {pendingReviewCount}</div>
+                  <p className="mt-1 text-sm">{pendingReviewCount === 0
+                    ? "No items are awaiting review."
+                    : filteredRows.some(canReviewCompletionForRow)
+                      ? "Review submitted photos and approve or reject eligible items."
+                      : "These items are awaiting review."}</p>
                 </div>
               </div>
             )}
+
+            {requireReviewForFieldResolutions && selectedTab === TAB_PENDING &&
+              displayedPropertyId !== ALL && !filtersLoading && !punchListLoading &&
+              !noPunchListSources && !noPunchListProperties && (
+                <ReviewedReportsControl
+                  orgId={selectedOrgId}
+                  propertyId={displayedPropertyId}
+                  propertyName={propertyOptions.find((option) => option.id === displayedPropertyId)?.value?.name}
+                  pendingCount={pendingReviewCount}
+                  session={session}
+                />
+              )}
 
             {punchListError && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">

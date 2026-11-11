@@ -140,7 +140,7 @@ function packageDateTime(reportPackage) {
 }
 
 function packageTimestampMs(reportPackage) {
-  const date = new Date(packageDisplayTimestamp(reportPackage));
+  const date = new Date(reportPackage.completedAt || packageDisplayTimestamp(reportPackage));
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 }
 
@@ -1437,6 +1437,11 @@ export default function ScoutReportsPortalPage() {
                         <div className="mt-1 text-xs font-semibold leading-snug text-foreground/50">
                           Captured by {packageCapturedBy(reportPackage)}
                         </div>
+                        {reportPackage.reportVariant === "reviewed" && reportPackage.completedAt && (
+                          <div className="mt-1 text-xs font-semibold leading-snug text-[var(--brand)]">
+                            Reviewed copy generated {formatDate(reportPackage.completedAt)}
+                          </div>
+                        )}
                         <div className="mt-1 text-sm text-foreground/60">
                           {packageSummary(reportPackage, originalPhotoCount(reportPackage))}
                         </div>
@@ -1452,6 +1457,11 @@ export default function ScoutReportsPortalPage() {
                             }}
                           >
                             Newest
+                          </span>
+                        )}
+                        {reportPackage.reportVariant === "reviewed" && (
+                          <span className="inline-flex w-fit items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-[var(--brand)]">
+                            Reviewed
                           </span>
                         )}
                         {shouldShowReportPackageTypeLabel(reportPackage) && (
