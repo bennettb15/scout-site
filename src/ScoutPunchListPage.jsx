@@ -1152,7 +1152,7 @@ const PUNCH_LIST_STYLES = `
 
   .punch-summary-band {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) max-content max-content;
+    grid-template-columns: minmax(0, 1fr) max-content;
     gap: 12px;
     border-radius: 8px;
     border: 1px solid rgb(226 232 240);
@@ -1243,8 +1243,7 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-summary-count,
-  .punch-summary-overdue-count,
-  .punch-summary-pending-count {
+  .punch-summary-overdue-count {
     display: inline-flex;
     min-width: 22px;
     height: 20px;
@@ -1262,10 +1261,6 @@ const PUNCH_LIST_STYLES = `
 
   .punch-summary-overdue-count {
     background: rgb(220 38 38);
-  }
-
-  .punch-summary-pending-count {
-    background: rgb(234 88 12);
   }
 
   .punch-summary-overdue-chip {
@@ -1317,49 +1312,6 @@ const PUNCH_LIST_STYLES = `
     color: rgb(100 116 139);
     cursor: default;
     opacity: 1;
-  }
-
-  .punch-summary-pending-chip {
-    display: inline-flex;
-    min-width: 0;
-    max-width: 100%;
-    height: 28px;
-    align-items: center;
-    gap: 7px;
-    justify-content: center;
-    margin-top: 9px;
-    border-radius: 999px;
-    border: 1px solid rgb(254 215 170);
-    background: rgb(255 247 237);
-    padding: 0 8px 0 10px;
-    color: rgb(194 65 12);
-    font-family: inherit;
-    font-size: 12px;
-    font-weight: 850;
-    line-height: 1;
-    cursor: pointer;
-    transition:
-      background 120ms ease,
-      border-color 120ms ease,
-      color 120ms ease;
-  }
-
-  .punch-summary-pending-chip:hover {
-    border-color: rgb(253 186 116);
-    background: rgb(255 237 213);
-    color: rgb(154 52 18);
-  }
-
-  .punch-summary-pending-chip.is-active {
-    border-color: rgb(234 88 12);
-    background: rgb(234 88 12);
-    color: white;
-    box-shadow: 0 1px 2px rgba(234, 88, 12, 0.18);
-  }
-
-  .punch-summary-pending-chip.is-active .punch-summary-pending-count {
-    background: white;
-    color: rgb(234 88 12);
   }
 
   .punch-summary-empty {
@@ -4356,10 +4308,8 @@ function PunchListSummaryBand({
   summary,
   selectedTrade,
   overdueOnly,
-  pendingReviewCount,
   onTradeFilter,
   onToggleOverdue,
-  onShowPendingReview,
 }) {
   if (!summary) return null;
   const tradeItems = summary.tradeCounts.slice(0, 8);
@@ -4416,24 +4366,6 @@ function PunchListSummaryBand({
           </button>
         ) : (
           <div className="punch-summary-empty">No overdue open items.</div>
-        )}
-      </section>
-      <section className="punch-summary-section punch-summary-pending">
-        <div className="punch-summary-heading">Pending Review</div>
-        {pendingReviewCount > 0 ? (
-          <button
-            type="button"
-            className="punch-summary-pending-chip"
-            onClick={onShowPendingReview}
-            title="Open pending review items"
-          >
-            <span className="punch-summary-trade-label">Items Pending Review</span>
-            <span className="punch-summary-pending-count">
-              {pendingReviewCount}
-            </span>
-          </button>
-        ) : (
-          <div className="punch-summary-empty">No pending review items.</div>
         )}
       </section>
     </div>
@@ -6358,7 +6290,7 @@ export default function ScoutPunchListPage() {
     !punchListLoading &&
     !noPunchListSources &&
     !noPunchListProperties &&
-    (baseFilteredRows.length > 0 || pendingReviewCount > 0);
+    baseFilteredRows.length > 0;
 
   return (
     <div
@@ -6683,12 +6615,14 @@ export default function ScoutPunchListPage() {
                     className={`inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-semibold ${
                       selectedTab === TAB_PENDING
                         ? "bg-orange-600 text-white shadow-sm"
-                        : "text-orange-800 hover:bg-orange-50"
+                        : pendingCount > 0
+                          ? "bg-orange-200 text-orange-950 shadow-sm hover:bg-orange-300"
+                          : "text-foreground/65 hover:bg-slate-100"
                     }`}
                   >
                     <Clock className="h-4 w-4" />
                     Pending Review
-                    <span className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${selectedTab === TAB_PENDING ? "bg-white/20 text-white" : "bg-orange-100 text-orange-800"}`}>{pendingCount}</span>
+                    <span className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${selectedTab === TAB_PENDING ? "bg-white/20 text-white" : pendingCount > 0 ? "bg-orange-600 text-white" : "bg-slate-200 text-foreground/75"}`}>{pendingCount}</span>
                   </button>
                   <button
                     type="button"
@@ -6713,7 +6647,6 @@ export default function ScoutPunchListPage() {
                 summary={punchListSummary}
                 selectedTrade={selectedTrade}
                 overdueOnly={overdueOnly}
-                pendingReviewCount={pendingReviewCount}
                 onTradeFilter={(tradeId) =>
                   setSelectedTrade((currentTradeId) =>
                     nextPunchListTradeFilter(currentTradeId, tradeId, ALL)
@@ -6727,7 +6660,6 @@ export default function ScoutPunchListPage() {
                     )
                   )
                 }
-                onShowPendingReview={() => setSelectedTab(TAB_PENDING)}
               />
             )}
 
