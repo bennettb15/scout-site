@@ -1,4 +1,4 @@
-import { CircleUserRound, ClipboardList, FileText, Images } from "lucide-react";
+import { ClipboardList, FileText, Images, UsersRound } from "lucide-react";
 
 const BASE_LINK = "inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium shadow-sm transition-colors";
 const INACTIVE_LINK = "border-border bg-background text-foreground/75 hover:bg-slate-50 hover:text-foreground";
@@ -9,7 +9,7 @@ export default function PortalNavigation({ active, className = "" }) {
     { id: "reports", href: "/reports", label: "Reports", Icon: FileText },
     { id: "punch-list", href: "/punch-list", label: "Punch List", Icon: ClipboardList },
     { id: "gallery", href: "/gallery", label: "Gallery", Icon: Images },
-    { id: "clients", href: "/clients", label: "Clients", Icon: CircleUserRound },
+    { id: "clients", href: "/clients", label: "Clients", Icon: UsersRound },
   ];
 
   return (
