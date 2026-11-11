@@ -6661,42 +6661,48 @@ export default function ScoutPunchListPage() {
                   <Download className="h-4 w-4" />
                   {reportGenerating ? "Preparing PDF…" : "Generate Punch List by Status"}
                 </button>
-                <div className="inline-flex w-fit rounded-lg border border-border bg-slate-50 p-1">
+                <div className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border bg-slate-50 p-1" aria-label="Issue status">
                   <button
                     type="button"
                     onClick={() => setSelectedTab(TAB_OPEN)}
-                    className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-semibold ${
+                    aria-pressed={selectedTab === TAB_OPEN}
+                    className={`inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-semibold ${
                       selectedTab === TAB_OPEN
                         ? "bg-[var(--brand)] text-white shadow-sm"
-                        : "text-foreground/65"
+                        : "text-foreground/65 hover:bg-slate-100"
                     }`}
                   >
                     <ClipboardList className="h-4 w-4" />
-                    Open {openCount}
+                    Open
+                    <span className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${selectedTab === TAB_OPEN ? "bg-white/20 text-white" : "bg-slate-200 text-foreground/75"}`}>{openCount}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setSelectedTab(TAB_PENDING)}
-                    aria-current={selectedTab === TAB_PENDING ? "page" : undefined}
-                    className={`inline-flex h-8 items-center gap-2 rounded-md border px-3 text-sm font-semibold ${
+                    aria-pressed={selectedTab === TAB_PENDING}
+                    className={`inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-semibold ${
                       selectedTab === TAB_PENDING
-                        ? "border-orange-600 bg-orange-600 text-white shadow-sm"
-                        : "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                        ? "bg-orange-600 text-white shadow-sm"
+                        : "text-orange-800 hover:bg-orange-50"
                     }`}
                   >
                     <Clock className="h-4 w-4" />
-                    Pending Review <span className="rounded-full bg-white/25 px-1.5">{pendingCount}</span>
+                    Pending Review
+                    <span className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${selectedTab === TAB_PENDING ? "bg-white/20 text-white" : "bg-orange-100 text-orange-800"}`}>{pendingCount}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setSelectedTab(TAB_RESOLVED)}
-                    className={`inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-semibold ${
+                    aria-pressed={selectedTab === TAB_RESOLVED}
+                    className={`inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-semibold ${
                       selectedTab === TAB_RESOLVED
                         ? "bg-[var(--brand)] text-white shadow-sm"
-                        : "text-foreground/65"
+                        : "text-foreground/65 hover:bg-slate-100"
                     }`}
                   >
-                    Resolved {resolvedCount}
+                    <Check className="h-4 w-4" />
+                    Resolved
+                    <span className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${selectedTab === TAB_RESOLVED ? "bg-white/20 text-white" : "bg-slate-200 text-foreground/75"}`}>{resolvedCount}</span>
                   </button>
                 </div>
               </div>
