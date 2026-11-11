@@ -242,8 +242,8 @@ export default function CustomerLifecycleAdminPage({ hidden = false }) {
             <img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-10 w-auto object-contain md:h-11" />
           </a>
           <div className="flex flex-wrap items-center gap-2">
-            <PortalNavigation active="admin" canOpenAdmin={accessState === "authorized"} />
-            {session && <AccountMenu onSignOut={() => supabase?.auth.signOut()} />}
+            <PortalNavigation active="admin" />
+            {session && <AccountMenu onSignOut={() => supabase?.auth.signOut()} canOpenAdmin={accessState === "authorized"} adminActive />}
           </div>
         </div>
       </header>

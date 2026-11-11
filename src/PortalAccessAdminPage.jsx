@@ -1029,9 +1029,9 @@ export default function PortalAccessAdminPage({ hidden = false }) {
               loading="eager"
             />
           </a>
-          {session && <PortalNavigation active="admin" canOpenAdmin={adminStatus === "authorized"} className="order-3 w-full sm:order-none sm:ml-auto sm:w-auto" />}
+          {session && <PortalNavigation active="admin" className="order-3 w-full sm:order-none sm:ml-auto sm:w-auto" />}
           {session && (
-            <AccountMenu onSignOut={handleSignOut} />
+            <AccountMenu onSignOut={handleSignOut} canOpenAdmin={adminStatus === "authorized"} adminActive />
           )}
         </div>
       </header>

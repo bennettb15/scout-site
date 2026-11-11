@@ -394,8 +394,8 @@ export default function ClientDetailsPage() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6">
           <a href="/"><img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-10 w-auto" /></a>
           <div className="flex flex-wrap items-center gap-2">
-            <PortalNavigation active="clients" canOpenAdmin={canOpenAdmin} />
-            {session && <AccountMenu onSignOut={handleSignOut} />}
+            <PortalNavigation active="clients" />
+            {session && <AccountMenu onSignOut={handleSignOut} canOpenAdmin={canOpenAdmin} />}
           </div>
         </div>
       </header>

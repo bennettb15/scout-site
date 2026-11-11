@@ -1231,8 +1231,8 @@ export default function ScoutReportsPortalPage() {
             />
           </a>
           <div className="flex flex-wrap items-center gap-2">
-            <PortalNavigation active="reports" canOpenAdmin={canOpenAdmin} />
-            {session && <AccountMenu onSignOut={handleSignOut} />}
+            <PortalNavigation active="reports" />
+            {session && <AccountMenu onSignOut={handleSignOut} canOpenAdmin={canOpenAdmin} />}
           </div>
         </div>
       </header>
