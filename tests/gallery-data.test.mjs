@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { uniquePropertySessions, filterGalleryPhotos, galleryPhotoStatus, selectedGalleryPhotos, photoDateLabel } from '../src/lib/galleryData.js';
+import { uniquePropertySessions, filterGalleryPhotos, galleryDayKey, galleryPhotoStatus, allDatePhotosSelected, selectedGalleryPhotos, updateDatePhotoSelection, photoDateLabel } from '../src/lib/galleryData.js';
 
 test('gallery keeps only the newest report package for a property session', () => {
   const rows = [
@@ -45,4 +45,17 @@ test('gallery status distinguishes flagged, pending review, and resolved photos'
   assert.equal(galleryPhotoStatus({ isFlagged: true, issueStatus: 'pending_review' }), 'pending');
   assert.deepEqual(filterGalleryPhotos([{ id: 'pending', isFlagged: true, issueStatus: 'pending_review' }], 'flagged').map((photo) => photo.id), ['pending']);
   assert.equal(galleryPhotoStatus({ isFlagged: true, isResolved: true }), 'resolved');
+});
+
+test('selecting a date spans sessions and preserves selections from other dates', () => {
+  const morning = { id: 'morning', session: { completedAt: '2026-11-05T13:00:00Z' } };
+  const afternoon = { id: 'afternoon', session: { completedAt: '2026-11-05T20:00:00Z' } };
+  const prior = { id: 'prior', session: { completedAt: '2026-11-04T13:00:00Z' } };
+  assert.equal(galleryDayKey(morning), galleryDayKey(afternoon));
+  assert.notEqual(galleryDayKey(morning), galleryDayKey(prior));
+  const loaded = { morning: { photos: [{ id: 'a' }] }, afternoon: { photos: [{ id: 'b' }] } };
+  const selected = updateDatePhotoSelection({ prior: ['p'] }, [['morning', loaded.morning.photos], ['afternoon', loaded.afternoon.photos]], true);
+  assert.deepEqual(selected, { prior: ['p'], morning: ['a'], afternoon: ['b'] });
+  assert.equal(allDatePhotosSelected([morning, afternoon], loaded, selected), true);
+  assert.deepEqual(updateDatePhotoSelection(selected, [['morning', loaded.morning.photos], ['afternoon', loaded.afternoon.photos]], false), { prior: ['p'], morning: [], afternoon: [] });
 });

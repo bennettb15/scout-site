@@ -3,7 +3,7 @@ import { CheckCircle2, CircleUserRound, ClipboardList, Clock, Download, FileText
 import AccountMenu from "./components/AccountMenu";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext } from "./lib/portalContext";
-import { filterGalleryPhotos, galleryPhotoStatus, gallerySessionDate, photoDateLabel, selectedGalleryPhotos, uniquePropertySessions } from "./lib/galleryData";
+import { allDatePhotosSelected, filterGalleryPhotos, galleryDayKey, galleryPhotoStatus, gallerySessionDate, photoDateLabel, selectedGalleryPhotos, uniquePropertySessions, updateDatePhotoSelection } from "./lib/galleryData";
 import "./GalleryPage.css";
 
 const INITIAL_SESSION_COUNT = 4;
@@ -54,6 +54,7 @@ export default function GalleryPage() {
   const [query, setQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState({});
   const [downloading, setDownloading] = useState(false);
+  const [selectingDate, setSelectingDate] = useState("");
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
   const [actionError, setActionError] = useState("");
   const [historyCapped, setHistoryCapped] = useState(false);
@@ -61,6 +62,7 @@ export default function GalleryPage() {
   const [photosByPackage, setPhotosByPackage] = useState({});
   const [viewer, setViewer] = useState(null);
   const requestedPhotos = useRef(new Set());
+  const dateSelectionController = useRef(null);
   const closeButtonRef = useRef(null);
   const headerRef = useRef(null);
   const [headerHeight, setHeaderHeight] = useState(77);
@@ -143,6 +145,8 @@ export default function GalleryPage() {
   })).sort((a, b) => propertyLabel(a).localeCompare(propertyLabel(b))), [selectedOrg]);
   const property = properties.find((item) => item.id === propertyId) || null;
 
+  useEffect(() => () => dateSelectionController.current?.abort(), [propertyId, session?.access_token]);
+
   useEffect(() => {
     setPackages([]);
     setPhotosByPackage({});
@@ -152,6 +156,7 @@ export default function GalleryPage() {
     setPhotoStatus("all");
     setQuery("");
     setSelectedIds({});
+    setSelectingDate("");
     setActionError("");
     setHistoryCapped(false);
     setVisibleCount(INITIAL_SESSION_COUNT);
@@ -261,6 +266,56 @@ export default function GalleryPage() {
       else ids.add(photoId);
       return { ...current, [packageId]: [...ids] };
     });
+  }
+
+  async function toggleDateSelection(dayKey, isSelected) {
+    if (!session?.access_token || selectingDate) return;
+    const datePackages = propertyPackages.filter((item) => galleryDayKey(item) === dayKey);
+    if (!datePackages.length) return;
+    if (isSelected) {
+      setSelectedIds((current) => updateDatePhotoSelection(
+        current,
+        datePackages.map((item) => [item.id, photosByPackage[item.id].photos]),
+        false
+      ));
+      return;
+    }
+    const controller = new AbortController();
+    dateSelectionController.current = controller;
+    setSelectingDate(dayKey);
+    setActionError("");
+    try {
+      const datePhotos = [];
+      for (let offset = 0; offset < datePackages.length; offset += 4) {
+        const batch = await Promise.all(datePackages.slice(offset, offset + 4).map(async (item) => {
+          const cached = photosByPackage[item.id];
+          if (cached && !cached.loading && !cached.error && Array.isArray(cached.photos)) {
+            return [item.id, cached.photos];
+          }
+          const body = await getJson(`/api/original-photos?packageId=${encodeURIComponent(item.id)}`, session.access_token, controller.signal);
+          if (!Array.isArray(body.photos)) throw new Error("Unable to load all photos for this date.");
+          return [item.id, [...new Map(body.photos.map((photo) => [photo.id, photo])).values()]];
+        }));
+        datePhotos.push(...batch);
+      }
+      if (controller.signal.aborted) return;
+      for (const [packageId] of datePhotos) requestedPhotos.current.add(packageId);
+      setPhotosByPackage((current) => {
+        const next = { ...current };
+        for (const [packageId, photos] of datePhotos) {
+          next[packageId] = { loading: false, photos, error: "" };
+        }
+        return next;
+      });
+      setSelectedIds((current) => updateDatePhotoSelection(current, datePhotos, true));
+    } catch (error) {
+      if (error.name !== "AbortError") setActionError(error.message || "Unable to select all photos for this date.");
+    } finally {
+      if (dateSelectionController.current === controller) {
+        dateSelectionController.current = null;
+        setSelectingDate("");
+      }
+    }
   }
 
   function triggerDownload(url, filename) {
@@ -392,11 +447,15 @@ export default function GalleryPage() {
             {!packagesLoading && !packagesError && propertyPackages.length > 0 && filteredPackages.length === 0 && <div className="gallery-panel gallery-empty">No photos match this year.</div>}
             {!packagesLoading && !packagesError && groups.map((group) => <section className="gallery-month" key={group.month} aria-label={group.month}>
               <h2>{group.month}</h2>
-              {group.packages.map((item) => {
+              {group.packages.map((item, index) => {
                 const photoState = photosByPackage[item.id];
                 const shownPhotos = filterGalleryPhotos(photoState?.photos, photoStatus, query);
+                const dayKey = galleryDayKey(item);
+                const datePackages = propertyPackages.filter((candidate) => galleryDayKey(candidate) === dayKey);
+                const dateSelected = allDatePhotosSelected(datePackages, photosByPackage, selectedIds);
+                const firstSessionForDate = index === 0 || galleryDayKey(group.packages[index - 1]) !== dayKey;
                 return <article className="gallery-session" key={item.id}>
-                  <div className="gallery-session-heading"><div><time dateTime={dateValue(item)}>{dateLabel(dateValue(item), { month: "long", day: "numeric", year: "numeric" })}</time><h3>{item.session?.title || "Photo session"}</h3></div><div className="gallery-session-actions"><span>{item.originalPhotoCount} {item.originalPhotoCount === 1 ? "photo" : "photos"}</span></div></div>
+                  <div className="gallery-session-heading"><div><time dateTime={dateValue(item)}>{dateLabel(dateValue(item), { month: "long", day: "numeric", year: "numeric" })}</time><h3>{item.session?.title || "Photo session"}</h3></div><div className="gallery-session-actions"><span>{item.originalPhotoCount} {item.originalPhotoCount === 1 ? "photo" : "photos"}</span>{firstSessionForDate && <button type="button" onClick={() => toggleDateSelection(dayKey, dateSelected)} disabled={Boolean(selectingDate)} aria-label={`${dateSelected ? "Deselect all" : "Select all"} photos from ${dateLabel(dateValue(item), { month: "long", day: "numeric", year: "numeric" })}`}>{selectingDate === dayKey ? "Selecting date…" : dateSelected ? "Deselect date" : "Select all for date"}</button>}</div></div>
                   {(!photoState || photoState.loading) && <p className="gallery-muted">Loading photos…</p>}
                   {photoState?.error && <p className="gallery-error" role="alert">{photoState.error}</p>}
                   {photoState && !photoState.loading && !photoState.error && (shownPhotos.length ? <div className="gallery-grid">{shownPhotos.map((photo) => <div className="gallery-photo-card" key={photo.id}>

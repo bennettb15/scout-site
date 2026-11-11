@@ -39,6 +39,35 @@ export function filterGalleryPhotos(photos, status = "all", query = "") {
   });
 }
 
+export function galleryDayKey(reportPackage) {
+  return photoDateLabel(gallerySessionDate(reportPackage));
+}
+
+export function allDatePhotosSelected(datePackages, photosByPackage, selectedIds) {
+  let photoCount = 0;
+  for (const item of datePackages) {
+    const state = photosByPackage[item.id];
+    if (!state || state.loading || state.error || !Array.isArray(state.photos)) return false;
+    const selected = new Set(selectedIds[item.id] || []);
+    photoCount += state.photos.length;
+    if (state.photos.some((photo) => !selected.has(photo.id))) return false;
+  }
+  return photoCount > 0;
+}
+
+export function updateDatePhotoSelection(selectedIds, datePhotos, select) {
+  const next = { ...selectedIds };
+  for (const [packageId, photos] of datePhotos) {
+    const ids = new Set(next[packageId] || []);
+    for (const photo of photos) {
+      if (select) ids.add(photo.id);
+      else ids.delete(photo.id);
+    }
+    next[packageId] = [...ids];
+  }
+  return next;
+}
+
 export function selectedGalleryPhotos(propertyPackages, photosByPackage, selectedIds) {
   return (propertyPackages || []).flatMap((item) =>
     (photosByPackage?.[item.id]?.photos || [])
