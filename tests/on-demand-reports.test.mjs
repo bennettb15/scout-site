@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { selectComparisonPackages, tenantPath } from '../api-lib/tenantComparison.js';
-import { completePunchListRows, pagedRowsResult } from '../api/punch-list.js';
+import { completePunchListRows, pagedRowsResult, validateCompletePdfStatuses } from '../api/punch-list.js';
 import { comparisonOptions, createTenantComparisonHandler } from '../api/tenant-comparison.js';
 import { buildSnapshotPhotoMetadata } from '../api/_reportPortalShared.js';
 
@@ -30,6 +30,20 @@ test('complete punchlist includes open, pending review, and resolved without cha
   assert.equal(result.find((r) => r.id === 'p').pdfStatusGroup, 'Pending Review');
   assert.equal(result.find((r) => r.id === 'r').capturedAt, '2026-10-01');
   assert.equal(rows[0].pdfStatusGroup, undefined);
+});
+test('property status PDF includes only the selected, nonoverlapping statuses', () => {
+  const rows = [
+    { id: 'open', status: 'active', trade: 'general' },
+    { id: 'pending', status: 'pending_review', trade: 'general' },
+    { id: 'resolved', status: 'resolved', trade: 'general' },
+  ];
+  assert.deepEqual(completePunchListRows(rows, ['active']).map((row) => row.id), ['open']);
+  assert.deepEqual(completePunchListRows(rows, ['pending_review']).map((row) => row.id), ['pending']);
+  assert.deepEqual(completePunchListRows(rows, ['active', 'pending_review']).map((row) => row.id), ['open', 'pending']);
+  assert.deepEqual(completePunchListRows(rows, ['resolved']).map((row) => row.id), ['resolved']);
+  assert.deepEqual(validateCompletePdfStatuses(undefined), ['active', 'pending_review', 'resolved']);
+  assert.throws(() => validateCompletePdfStatuses([]), { statusCode: 400 });
+  assert.throws(() => validateCompletePdfStatuses(['unknown']), { statusCode: 400 });
 });
 test('complete export pagination includes rows beyond the old 250 row cap and fails closed on query errors', async () => {
   const all = Array.from({ length: 1201 }, (_, id) => ({ id }));
