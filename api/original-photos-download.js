@@ -57,7 +57,7 @@ function crc32(buffer) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function uniqueFilename(filename, used) {
+export function uniqueFilename(filename, used) {
   let candidate = filename;
   const extensionIndex = filename.lastIndexOf(".");
   const stem = extensionIndex > 0 ? filename.slice(0, extensionIndex) : filename;
@@ -102,7 +102,7 @@ function originalZipFilename(reportPackage, propertyRow) {
   return `${bits.join(" - ")}.zip`;
 }
 
-function buildZip(entries) {
+export function buildZip(entries) {
   const localParts = [];
   const centralParts = [];
   let offset = 0;

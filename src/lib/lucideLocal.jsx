@@ -118,6 +118,14 @@ export const Home = createIcon(
     <path d="M5 10v11h14V10M9 21v-7h6v7" />
   </>
 );
+export const Images = createIcon(
+  <>
+    <rect x="8" y="8" width="13" height="13" rx="2" />
+    <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
+    <circle cx="13" cy="13" r="1" />
+    <path d="m9 19 3.3-3.3a1 1 0 0 1 1.4 0L16 18l1.3-1.3a1 1 0 0 1 1.4 0L21 19" />
+  </>
+);
 export const ImageUp = createIcon(
   <>
     <path d="M10.3 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10l-3.1-3.1a2 2 0 0 0-2.814.014L6 21" />

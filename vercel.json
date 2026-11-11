@@ -13,6 +13,9 @@
     },
     "api/tenant-comparison.js": {
       "maxDuration": 60
+    },
+    "api/gallery-download.js": {
+      "maxDuration": 300
     }
   },
   "rewrites": [

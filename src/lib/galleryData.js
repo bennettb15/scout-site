@@ -32,3 +32,21 @@ export function filterGalleryPhotos(photos, status = "all", query = "") {
     return !term || String(photo.displayName || "").toLocaleLowerCase().includes(term);
   });
 }
+
+export function selectedGalleryPhotos(propertyPackages, photosByPackage, selectedIds) {
+  return (propertyPackages || []).flatMap((item) =>
+    (photosByPackage?.[item.id]?.photos || [])
+      .filter((photo) => (selectedIds?.[item.id] || []).includes(photo.id))
+      .map((photo) => ({ packageId: item.id, photoId: photo.id }))
+  );
+}
+
+export function photoDateLabel(value) {
+  const date = new Date(value || "");
+  if (Number.isNaN(date.getTime())) return "Date unknown";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", month: "numeric", day: "numeric", year: "2-digit",
+  }).formatToParts(date);
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${byType.month}-${byType.day}-${byType.year}`;
+}

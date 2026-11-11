@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { uniquePropertySessions, filterGalleryPhotos } from '../src/lib/galleryData.js';
+import { uniquePropertySessions, filterGalleryPhotos, selectedGalleryPhotos, photoDateLabel } from '../src/lib/galleryData.js';
 
 test('gallery keeps only the newest report package for a property session', () => {
   const rows = [
@@ -19,4 +19,23 @@ test('gallery photo filters stay within the supplied session photos', () => {
   ];
   assert.deepEqual(filterGalleryPhotos(photos, 'priority', 'north').map((photo) => photo.id), ['a']);
   assert.deepEqual(filterGalleryPhotos(photos, 'standard', 'north').map((photo) => photo.id), ['c']);
+});
+
+
+test('selected photos include multiple dates even when another filter is active', () => {
+  const packages = [{ id: 'november' }, { id: 'october' }];
+  const loaded = {
+    november: { photos: [{ id: 'a' }] },
+    october: { photos: [{ id: 'b' }] },
+  };
+  assert.deepEqual(selectedGalleryPhotos(packages, loaded, { november: ['a'], october: ['b'] }), [
+    { packageId: 'november', photoId: 'a' },
+    { packageId: 'october', photoId: 'b' },
+  ]);
+});
+
+
+test('thumbnail date uses the requested short format in New York time', () => {
+  assert.equal(photoDateLabel('2026-11-05T17:00:00Z'), '11-5-26');
+  assert.equal(photoDateLabel('2026-11-05T01:00:00Z'), '11-4-26');
 });

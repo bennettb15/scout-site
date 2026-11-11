@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CheckCircle2, CircleUserRound, ClipboardList, Download, FileText, Flag, ShieldCheck } from "lucide-react";
+import AccountMenu from "./components/AccountMenu";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext } from "./lib/portalContext";
-import { filterGalleryPhotos, gallerySessionDate, uniquePropertySessions } from "./lib/galleryData";
+import { filterGalleryPhotos, gallerySessionDate, photoDateLabel, selectedGalleryPhotos, uniquePropertySessions } from "./lib/galleryData";
 import "./GalleryPage.css";
 
 const INITIAL_SESSION_COUNT = 4;
@@ -11,7 +13,7 @@ const dateValue = gallerySessionDate;
 
 function dateLabel(value, options) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Undated" : new Intl.DateTimeFormat("en-US", options).format(date);
+  return Number.isNaN(date.getTime()) ? "Undated" : new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", ...options }).format(date);
 }
 
 function propertyLabel(property) {
@@ -51,7 +53,8 @@ export default function GalleryPage() {
   const [photoStatus, setPhotoStatus] = useState("all");
   const [query, setQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState({});
-  const [downloadId, setDownloadId] = useState("");
+  const [downloading, setDownloading] = useState(false);
+  const [canOpenAdmin, setCanOpenAdmin] = useState(false);
   const [actionError, setActionError] = useState("");
   const [historyCapped, setHistoryCapped] = useState(false);
   const [visibleCount, setVisibleCount] = useState(INITIAL_SESSION_COUNT);
@@ -112,6 +115,15 @@ export default function GalleryPage() {
     return () => controller.abort();
   }, [session?.access_token]);
 
+  useEffect(() => {
+    if (!session?.access_token) { setCanOpenAdmin(false); return; }
+    const controller = new AbortController();
+    getJson("/api/admin/me", session.access_token, controller.signal)
+      .then((body) => { if (!controller.signal.aborted) setCanOpenAdmin(body.isAdmin === true); })
+      .catch(() => { if (!controller.signal.aborted) setCanOpenAdmin(false); });
+    return () => controller.abort();
+  }, [session?.access_token]);
+
   const selectedOrg = orgs.find((org) => org.id === orgId) || null;
   const properties = useMemo(() => (selectedOrg?.properties || []).map((property) => ({
     ...property,
@@ -155,6 +167,10 @@ export default function GalleryPage() {
   }).filter(Boolean))], [propertyPackages]);
   const filteredPackages = useMemo(() => propertyPackages.filter((item) => year === "all" || String(new Date(dateValue(item)).getFullYear()) === year), [propertyPackages, year]);
   const visiblePackages = useMemo(() => filteredPackages.slice(0, visibleCount), [filteredPackages, visibleCount]);
+  const selectedPhotos = useMemo(
+    () => selectedGalleryPhotos(propertyPackages, photosByPackage, selectedIds),
+    [propertyPackages, photosByPackage, selectedIds]
+  );
 
   useEffect(() => {
     if (!session?.access_token || !property) return;
@@ -244,35 +260,18 @@ export default function GalleryPage() {
     anchor.remove();
   }
 
-  async function downloadPhoto(reportPackage, photo) {
-    if (!session?.access_token) return;
-    setDownloadId(photo.id);
+  async function downloadSelected() {
+    if (!session?.access_token || !property || selectedPhotos.length === 0 || downloading) return;
+    setDownloading(true);
     setActionError("");
     try {
-      const params = new URLSearchParams({ packageId: reportPackage.id, photoId: photo.id });
-      const body = await getJson(`/api/original-photo-download?${params}`, session.access_token);
-      if (!body.downloadUrl) throw new Error("Photo download is unavailable.");
-      triggerDownload(body.downloadUrl, body.filename || photo.downloadFilename);
-    } catch (error) {
-      setActionError(error.message || "Unable to download photo.");
-    } finally {
-      setDownloadId("");
-    }
-  }
-
-  async function downloadSelected(reportPackage) {
-    if (!session?.access_token) return;
-    const photos = (photosByPackage[reportPackage.id]?.photos || []).filter((photo) =>
-      (selectedIds[reportPackage.id] || []).includes(photo.id)
-    );
-    if (photos.length === 0) return;
-    if (photos.length === 1) return downloadPhoto(reportPackage, photos[0]);
-    setDownloadId(reportPackage.id);
-    setActionError("");
-    try {
-      const params = new URLSearchParams({ packageId: reportPackage.id, photoIds: photos.map((photo) => photo.id).join(",") });
-      const response = await fetch(`/api/original-photos-download?${params}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+      const response = await fetch("/api/gallery-download", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ propertyId: property.id, photos: selectedPhotos }),
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
@@ -284,13 +283,13 @@ export default function GalleryPage() {
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const disposition = response.headers.get("content-disposition") || "";
-      const filename = disposition.match(/filename="([^"]+)"/)?.[1] || "Selected Photos.zip";
+      const filename = disposition.match(/filename="([^"]+)"/)?.[1] || "Gallery Photos.zip";
       triggerDownload(url, filename);
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (error) {
       setActionError(error.message || "Unable to download selected photos.");
     } finally {
-      setDownloadId("");
+      setDownloading(false);
     }
   }
 
@@ -304,13 +303,19 @@ export default function GalleryPage() {
 
   return (
     <div className="gallery-page">
-      <header className="gallery-header">
-        <div className="gallery-header-inner">
-          <a href="/" aria-label="SCOUT home"><img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" /></a>
-          <div className="gallery-header-actions">
-            <a href="/reports">Reports</a>
-            <span>Property Gallery</span>
-            {session && <button type="button" onClick={() => supabase.auth.signOut()}>Sign out</button>}
+      <header className="border-b border-border bg-background/95 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-3 px-4 py-4 sm:flex-row sm:items-center md:px-6">
+          <a href="/" className="inline-flex items-center">
+            <img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-10 w-auto object-contain md:h-11" loading="eager" />
+          </a>
+          <div className="flex flex-wrap items-center gap-2">
+            <a href="/reports" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"><FileText className="h-4 w-4" /> Reports</a>
+            <a href="/punch-list" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"><ClipboardList className="h-4 w-4" /> Punch List</a>
+            <a href="/clients" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"><CircleUserRound className="h-4 w-4" /> Clients</a>
+            {session && <>
+              {canOpenAdmin && <a href="/admin/portal-access" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"><ShieldCheck className="h-4 w-4" /> Admin</a>}
+              <AccountMenu onSignOut={() => supabase?.auth.signOut()} />
+            </>}
           </div>
         </div>
       </header>
@@ -346,13 +351,13 @@ export default function GalleryPage() {
               </select>
             </label>
             {property && <label>Year
-              <select value={year} onChange={(event) => { setYear(event.target.value); setVisibleCount(INITIAL_SESSION_COUNT); setSelectedIds({}); setViewer(null); }}>
+              <select value={year} onChange={(event) => { setYear(event.target.value); setVisibleCount(INITIAL_SESSION_COUNT); setViewer(null); }}>
                 <option value="all">All dates</option>
                 {years.map((value) => <option key={value} value={value}>{value}</option>)}
               </select>
             </label>}
             {property && <label>Photo status
-              <select value={photoStatus} onChange={(event) => { setPhotoStatus(event.target.value); setSelectedIds({}); setViewer(null); }}>
+              <select value={photoStatus} onChange={(event) => { setPhotoStatus(event.target.value); setViewer(null); }}>
                 <option value="all">All photos</option>
                 <option value="priority">Priority</option>
                 <option value="resolved">Resolved</option>
@@ -360,7 +365,7 @@ export default function GalleryPage() {
               </select>
             </label>}
             {property && <label>Find a photo
-              <input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setSelectedIds({}); setViewer(null); }} placeholder="Search photo names" />
+              <input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setViewer(null); }} placeholder="Search photo names" />
             </label>}
           </section>
           {orgsLoading && <div className="gallery-panel">Loading properties…</div>}
@@ -368,6 +373,7 @@ export default function GalleryPage() {
           {!orgsLoading && !orgsError && !property && <div className="gallery-panel gallery-empty">{orgId ? "Choose a property to see its photos." : "Choose an organization, then a property, to see its photos."}</div>}
           {property && <>
             <div className="gallery-property-title"><div><p className="gallery-eyebrow">Selected property</p><h2>{property.name || propertyLabel(property)}</h2><p>{[property.addressLine1, property.city, property.state, property.postalCode].filter(Boolean).join(", ")}</p></div><span>{propertyPackages.length} {propertyPackages.length === 1 ? "session" : "sessions"}</span></div>
+            <div className="gallery-download-bar"><span>Select photos from any dates below. Your selection stays when you change filters.</span><button type="button" onClick={downloadSelected} disabled={!selectedPhotos.length || downloading}><Download className="h-4 w-4" /> {downloading ? "Preparing ZIP…" : `Download selected (${selectedPhotos.length})`}</button></div>
             {packagesLoading && <div className="gallery-panel">Loading photo history…</div>}
             {packagesError && <div className="gallery-panel gallery-error" role="alert">{packagesError}</div>}
             {actionError && <div className="gallery-panel gallery-error" role="alert">{actionError}</div>}
@@ -378,17 +384,18 @@ export default function GalleryPage() {
               {group.packages.map((item) => {
                 const photoState = photosByPackage[item.id];
                 const shownPhotos = filterGalleryPhotos(photoState?.photos, photoStatus, query);
-                const selectedCount = (selectedIds[item.id] || []).length;
                 return <article className="gallery-session" key={item.id}>
-                  <div className="gallery-session-heading"><div><time dateTime={dateValue(item)}>{dateLabel(dateValue(item), { month: "long", day: "numeric", year: "numeric" })}</time><h3>{item.session?.title || "Photo session"}</h3></div><div className="gallery-session-actions"><span>{item.originalPhotoCount} {item.originalPhotoCount === 1 ? "photo" : "photos"}</span><button type="button" onClick={() => downloadSelected(item)} disabled={!selectedCount || Boolean(downloadId)}>{downloadId === item.id ? "Preparing…" : `Download selected (${selectedCount})`}</button></div></div>
+                  <div className="gallery-session-heading"><div><time dateTime={dateValue(item)}>{dateLabel(dateValue(item), { month: "long", day: "numeric", year: "numeric" })}</time><h3>{item.session?.title || "Photo session"}</h3></div><div className="gallery-session-actions"><span>{item.originalPhotoCount} {item.originalPhotoCount === 1 ? "photo" : "photos"}</span></div></div>
                   {(!photoState || photoState.loading) && <p className="gallery-muted">Loading photos…</p>}
                   {photoState?.error && <p className="gallery-error" role="alert">{photoState.error}</p>}
                   {photoState && !photoState.loading && !photoState.error && (shownPhotos.length ? <div className="gallery-grid">{shownPhotos.map((photo) => <div className="gallery-photo-card" key={photo.id}>
                     <button className="gallery-photo" type="button" onClick={() => setViewer({ propertyId, packageId: item.id, index: shownPhotos.findIndex((itemPhoto) => itemPhoto.id === photo.id) })} aria-label={`Open ${photoLabel(photo)}`}>
                       {photo.previewUrl ? <img src={photo.previewUrl} alt="" loading="lazy" /> : <span className="gallery-no-preview">Preview unavailable</span>}
+                      <span className="gallery-photo-date">{photoDateLabel(photo.capturedAt || dateValue(item))}</span>
+                      {(photo.isResolved || photo.isFlagged) && <span className={`gallery-photo-status ${photo.isResolved ? "resolved" : "flagged"}`} title={photo.isResolved ? "Resolved" : "Flagged"}>{photo.isResolved ? <CheckCircle2 size={14} /> : <Flag size={14} />}<span>{photo.isResolved ? "Resolved" : "Flagged"}</span></span>}
                       <span className="gallery-photo-caption">{photoLabel(photo)}</span>
                     </button>
-                    <div className="gallery-photo-actions"><label><input type="checkbox" checked={(selectedIds[item.id] || []).includes(photo.id)} onChange={() => togglePhotoSelection(item.id, photo.id)} /> Select</label><button type="button" onClick={() => downloadPhoto(item, photo)} disabled={Boolean(downloadId)}>{downloadId === photo.id ? "Preparing…" : "Download"}</button></div>
+                    <div className="gallery-photo-actions"><label><input type="checkbox" checked={(selectedIds[item.id] || []).includes(photo.id)} onChange={() => togglePhotoSelection(item.id, photo.id)} /> Select photo</label></div>
                   </div>)}</div> : <p className="gallery-muted">No photos in this session match the current filters.</p>)}
                 </article>;
               })}
@@ -400,7 +407,7 @@ export default function GalleryPage() {
       </main>
       {activePhoto && <div className="gallery-lightbox" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewer(null); }}>
         <div className="gallery-lightbox-inner" role="dialog" aria-modal="true" aria-label="Photo viewer">
-          <div className="gallery-lightbox-toolbar"><span>{viewer.index + 1} of {viewerPhotos.length}</span><button type="button" onClick={() => downloadPhoto({ id: viewer.packageId }, activePhoto)} disabled={Boolean(downloadId)}>{downloadId === activePhoto.id ? "Preparing…" : "Download original"}</button><button ref={closeButtonRef} type="button" onClick={() => setViewer(null)} aria-label="Close photo viewer">Close ×</button></div>
+          <div className="gallery-lightbox-toolbar"><span>{viewer.index + 1} of {viewerPhotos.length}</span><label className="gallery-lightbox-select"><input type="checkbox" checked={(selectedIds[viewer.packageId] || []).includes(activePhoto.id)} onChange={() => togglePhotoSelection(viewer.packageId, activePhoto.id)} /> Select photo</label><button ref={closeButtonRef} type="button" onClick={() => setViewer(null)} aria-label="Close photo viewer">Close ×</button></div>
           {activePhoto.previewUrl ? <img src={activePhoto.previewUrl} alt={photoLabel(activePhoto)} /> : <p>Preview unavailable for this photo.</p>}
           <div className="gallery-lightbox-footer"><button type="button" onClick={() => setViewer((current) => ({ ...current, index: (current.index - 1 + viewerPhotos.length) % viewerPhotos.length }))} disabled={viewerPhotos.length < 2}>← Previous</button><div><strong>{photoLabel(activePhoto)}</strong><span>{dateLabel(activePhoto.capturedAt, { month: "long", day: "numeric", year: "numeric" })}</span></div><button type="button" onClick={() => setViewer((current) => ({ ...current, index: (current.index + 1) % viewerPhotos.length }))} disabled={viewerPhotos.length < 2}>Next →</button></div>
         </div>
