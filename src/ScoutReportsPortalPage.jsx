@@ -5,18 +5,15 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ClipboardList,
   Download,
   Flag,
   FileText,
-  Images,
-  CircleUserRound,
   RefreshCw,
-  ShieldCheck,
   X,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import AccountMenu from "./components/AccountMenu";
+import PortalNavigation from "./components/PortalNavigation";
 import TenantComparisonControl from "./components/TenantComparisonControl";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
@@ -241,6 +238,7 @@ export default function ScoutReportsPortalPage() {
   const [flaggedOnlyByPackageId, setFlaggedOnlyByPackageId] = useState({});
   const [activePhotoViewer, setActivePhotoViewer] = useState(null);
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
+  const [canManageCustomerLifecycle, setCanManageCustomerLifecycle] = useState(false);
   const reportsRequestIdRef = useRef(0);
   const reportsCacheRef = useRef(new Map());
   const loadingReportsScopeKeyRef = useRef("");
@@ -448,6 +446,7 @@ export default function ScoutReportsPortalPage() {
       setReportsFetchStatus(FETCH_IDLE);
       setOrgsFetchStatus(FETCH_IDLE);
       setCanOpenAdmin(false);
+      setCanManageCustomerLifecycle(false);
     }
   }, [session?.access_token]);
 
@@ -457,6 +456,7 @@ export default function ScoutReportsPortalPage() {
     async function loadAdminStatus() {
       if (!session?.access_token) {
         setCanOpenAdmin(false);
+        setCanManageCustomerLifecycle(false);
         return;
       }
 
@@ -467,9 +467,15 @@ export default function ScoutReportsPortalPage() {
           },
         });
         const body = await response.json().catch(() => ({}));
-        if (active) setCanOpenAdmin(response.ok && body.isAdmin === true);
+        if (active) {
+          setCanOpenAdmin(response.ok && body.isAdmin === true);
+          setCanManageCustomerLifecycle(response.ok && body.canManageCustomerLifecycle === true);
+        }
       } catch {
-        if (active) setCanOpenAdmin(false);
+        if (active) {
+          setCanOpenAdmin(false);
+          setCanManageCustomerLifecycle(false);
+        }
       }
     }
 
@@ -1234,41 +1240,8 @@ export default function ScoutReportsPortalPage() {
             />
           </a>
           <div className="flex flex-wrap items-center gap-2">
-            <a
-              href="/punch-list"
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
-            >
-              <ClipboardList className="h-4 w-4" />
-              Punch List
-            </a>
-            <a
-              href="/gallery"
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
-            >
-              <Images className="h-4 w-4" />
-              Gallery
-            </a>
-            <a
-              href="/clients"
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
-            >
-              <CircleUserRound className="h-4 w-4" />
-              Clients
-            </a>
-            {session && (
-              <>
-              {canOpenAdmin && (
-                <a
-                  href="/admin/portal-access"
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
-                >
-                  <ShieldCheck className="h-4 w-4" />
-                  Admin
-                </a>
-              )}
-              <AccountMenu onSignOut={handleSignOut} />
-              </>
-            )}
+            <PortalNavigation active="reports" canOpenAdmin={canOpenAdmin} canManageCustomerLifecycle={canManageCustomerLifecycle} />
+            {session && <AccountMenu onSignOut={handleSignOut} />}
           </div>
         </div>
       </header>

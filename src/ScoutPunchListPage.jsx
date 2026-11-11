@@ -9,19 +9,17 @@ import {
   Clock,
   Download,
   FileText,
-  CircleUserRound,
   Flag,
   ImageUp,
-  Images,
   Info,
   Pencil,
   RefreshCw,
-  ShieldCheck,
   Trash2,
   X,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import AccountMenu from "./components/AccountMenu";
+import PortalNavigation from "./components/PortalNavigation";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
   buildPunchListSummary,
@@ -5065,6 +5063,7 @@ export default function ScoutPunchListPage() {
   const [reportComplete, setReportComplete] = useState(false);
   const [reportPropertyId, setReportPropertyId] = useState("");
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
+  const [canManageCustomerLifecycle, setCanManageCustomerLifecycle] = useState(false);
   const sessionScopeRef = useRef("");
   const filterRequestRef = useRef(0);
   const rowsRequestRef = useRef(0);
@@ -5295,6 +5294,7 @@ export default function ScoutPunchListPage() {
       pendingManualRefreshRef.current = false;
       sessionScopeRef.current = "";
       setCanOpenAdmin(false);
+      setCanManageCustomerLifecycle(false);
       return;
     }
     const nextScope = sessionCacheScope(session);
@@ -5310,6 +5310,7 @@ export default function ScoutPunchListPage() {
     async function loadAdminStatus() {
       if (!session?.access_token) {
         setCanOpenAdmin(false);
+        setCanManageCustomerLifecycle(false);
         return;
       }
 
@@ -5320,9 +5321,15 @@ export default function ScoutPunchListPage() {
           },
         });
         const body = await response.json().catch(() => ({}));
-        if (active) setCanOpenAdmin(response.ok && body.isAdmin === true);
+        if (active) {
+          setCanOpenAdmin(response.ok && body.isAdmin === true);
+          setCanManageCustomerLifecycle(response.ok && body.canManageCustomerLifecycle === true);
+        }
       } catch {
-        if (active) setCanOpenAdmin(false);
+        if (active) {
+          setCanOpenAdmin(false);
+          setCanManageCustomerLifecycle(false);
+        }
       }
     }
 
@@ -6366,35 +6373,10 @@ export default function ScoutPunchListPage() {
               loading="eager"
             />
           </a>
-          {session && (
-            <div className="flex flex-wrap items-center gap-2">
-              <a
-                href="/reports"
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
-              >
-                <FileText className="h-4 w-4" />
-                Reports
-              </a>
-              <a href="/gallery" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"><Images className="h-4 w-4" /> Gallery</a>
-              <a
-                href="/clients"
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
-              >
-                <CircleUserRound className="h-4 w-4" />
-                Clients
-              </a>
-              {canOpenAdmin && (
-                <a
-                  href="/admin/portal-access"
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
-                >
-                  <ShieldCheck className="h-4 w-4" />
-                  Admin
-                </a>
-              )}
-              <AccountMenu onSignOut={handleSignOut} />
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <PortalNavigation active="punch-list" canOpenAdmin={canOpenAdmin} canManageCustomerLifecycle={canManageCustomerLifecycle} />
+            {session && <AccountMenu onSignOut={handleSignOut} />}
+          </div>
         </div>
       </header>
 

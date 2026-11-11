@@ -1,10 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
-  ClipboardList,
-  FileText,
   Info,
-  Images,
   Mail,
   Plus,
   RefreshCw,
@@ -16,6 +13,7 @@ import {
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import AccountMenu from "./components/AccountMenu";
+import PortalNavigation from "./components/PortalNavigation";
 import ReportBrandingPanel from "./components/ReportBrandingPanel";
 import {
   canEditPortalPropertyScope,
@@ -1026,30 +1024,7 @@ export default function PortalAccessAdminPage() {
               loading="eager"
             />
           </a>
-          {session && (
-            <nav aria-label="Portal navigation" className="order-3 flex w-full gap-2 sm:order-none sm:ml-auto sm:w-auto">
-              <a
-                href="/reports"
-                className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground sm:h-10 sm:flex-none"
-              >
-                <FileText className="h-4 w-4" />
-                Reports
-              </a>
-              <a
-                href="/punch-list"
-                className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground sm:h-10 sm:flex-none"
-              >
-                <ClipboardList className="h-4 w-4" />
-                Punch List
-              </a>
-              <a href="/gallery" className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground sm:h-10 sm:flex-none"><Images className="h-4 w-4" /> Gallery</a>
-              {canManageCustomerLifecycle && (
-                <a href="/admin/customers" className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground sm:h-10 sm:flex-none">
-                  Customers
-                </a>
-              )}
-            </nav>
-          )}
+          {session && <PortalNavigation active="admin" canOpenAdmin={adminStatus === "authorized"} canManageCustomerLifecycle={canManageCustomerLifecycle} className="order-3 w-full sm:order-none sm:ml-auto sm:w-auto" />}
           {session && (
             <AccountMenu onSignOut={handleSignOut} />
           )}

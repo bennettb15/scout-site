@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { CircleUserRound, ClipboardList, FileText, Images, ShieldCheck } from "lucide-react";
+import { CircleUserRound } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 import AccountMenu from "./components/AccountMenu";
+import PortalNavigation from "./components/PortalNavigation";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 
 const BRAND = {
@@ -20,6 +21,7 @@ export default function AccountPage() {
   const [existingRequest, setExistingRequest] = useState(null);
   const [deletionEnabled, setDeletionEnabled] = useState(false);
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
+  const [canManageCustomerLifecycle, setCanManageCustomerLifecycle] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -66,6 +68,7 @@ export default function AccountPage() {
   useEffect(() => {
     if (!session?.access_token) {
       setCanOpenAdmin(false);
+      setCanManageCustomerLifecycle(false);
       return undefined;
     }
     let active = true;
@@ -73,9 +76,15 @@ export default function AccountPage() {
       headers: { Authorization: `Bearer ${session.access_token}` },
     }).then(async (response) => {
       const body = await response.json().catch(() => ({}));
-      if (active) setCanOpenAdmin(response.ok && body.isAdmin === true);
+      if (active) {
+        setCanOpenAdmin(response.ok && body.isAdmin === true);
+        setCanManageCustomerLifecycle(response.ok && body.canManageCustomerLifecycle === true);
+      }
     }).catch(() => {
-      if (active) setCanOpenAdmin(false);
+      if (active) {
+        setCanOpenAdmin(false);
+        setCanManageCustomerLifecycle(false);
+      }
     });
     return () => { active = false; };
   }, [session?.access_token]);
@@ -137,24 +146,10 @@ export default function AccountPage() {
             <img src={BRAND.logos.wordmarkOnly} alt="SCOUT" className="h-10 w-auto" />
           </a>
           {session && (
-            <nav aria-label="Portal pages" className="flex flex-wrap items-center justify-end gap-2">
-              <a href="/reports" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground">
-                <FileText className="h-4 w-4" aria-hidden="true" />
-                Reports
-              </a>
-              <a href="/punch-list" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground">
-                <ClipboardList className="h-4 w-4" aria-hidden="true" />
-                Punch List
-              </a>
-              <a href="/gallery" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"><Images className="h-4 w-4" aria-hidden="true" />Gallery</a>
-              {canOpenAdmin && (
-                <a href="/admin/portal-access" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground">
-                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                  Admin
-                </a>
-              )}
-              <AccountMenu onSignOut={handleSignOut} />
-            </nav>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <PortalNavigation active="account" canOpenAdmin={canOpenAdmin} canManageCustomerLifecycle={canManageCustomerLifecycle} />
+              <AccountMenu onSignOut={handleSignOut} active />
+            </div>
           )}
         </div>
       </header>

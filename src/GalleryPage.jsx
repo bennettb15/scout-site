@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, CircleUserRound, ClipboardList, Clock, Download, FileText, Flag, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Clock, Download, Flag } from "lucide-react";
 import AccountMenu from "./components/AccountMenu";
+import PortalNavigation from "./components/PortalNavigation";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext } from "./lib/portalContext";
 import { allDatePhotosSelected, filterGalleryPhotos, galleryDayKey, galleryPhotoStatus, gallerySessionDate, photoDateLabel, selectedGalleryPhotos, uniquePropertySessions, updateDatePhotoSelection } from "./lib/galleryData";
@@ -56,6 +57,7 @@ export default function GalleryPage() {
   const [downloading, setDownloading] = useState(false);
   const [selectingDate, setSelectingDate] = useState("");
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
+  const [canManageCustomerLifecycle, setCanManageCustomerLifecycle] = useState(false);
   const [actionError, setActionError] = useState("");
   const [historyCapped, setHistoryCapped] = useState(false);
   const [visibleCount, setVisibleCount] = useState(INITIAL_SESSION_COUNT);
@@ -130,11 +132,23 @@ export default function GalleryPage() {
   }, [session?.access_token]);
 
   useEffect(() => {
-    if (!session?.access_token) { setCanOpenAdmin(false); return; }
+    if (!session?.access_token) {
+      setCanOpenAdmin(false);
+      setCanManageCustomerLifecycle(false);
+      return;
+    }
     const controller = new AbortController();
     getJson("/api/admin/me", session.access_token, controller.signal)
-      .then((body) => { if (!controller.signal.aborted) setCanOpenAdmin(body.isAdmin === true); })
-      .catch(() => { if (!controller.signal.aborted) setCanOpenAdmin(false); });
+      .then((body) => {
+        if (controller.signal.aborted) return;
+        setCanOpenAdmin(body.isAdmin === true);
+        setCanManageCustomerLifecycle(body.canManageCustomerLifecycle === true);
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setCanOpenAdmin(false);
+        setCanManageCustomerLifecycle(false);
+      });
     return () => controller.abort();
   }, [session?.access_token]);
 
@@ -376,13 +390,8 @@ export default function GalleryPage() {
             <img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-10 w-auto object-contain md:h-11" loading="eager" />
           </a>
           <div className="flex flex-wrap items-center gap-2">
-            <a href="/reports" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"><FileText className="h-4 w-4" /> Reports</a>
-            <a href="/punch-list" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"><ClipboardList className="h-4 w-4" /> Punch List</a>
-            <a href="/clients" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"><CircleUserRound className="h-4 w-4" /> Clients</a>
-            {session && <>
-              {canOpenAdmin && <a href="/admin/portal-access" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"><ShieldCheck className="h-4 w-4" /> Admin</a>}
-              <AccountMenu onSignOut={() => supabase?.auth.signOut()} />
-            </>}
+            <PortalNavigation active="gallery" canOpenAdmin={canOpenAdmin} canManageCustomerLifecycle={canManageCustomerLifecycle} />
+            {session && <AccountMenu onSignOut={() => supabase?.auth.signOut()} />}
           </div>
         </div>
       </header>

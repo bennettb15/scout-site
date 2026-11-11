@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ClipboardList, FileText, Images, Mail, Pencil, Phone, RefreshCw, ShieldCheck, UserFilled } from "lucide-react";
+import { ChevronDown, Mail, Pencil, Phone, RefreshCw, UserFilled } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
@@ -9,6 +9,7 @@ import {
   saveClientContactChanges,
 } from "./lib/clientContactChanges";
 import AccountMenu from "./components/AccountMenu";
+import PortalNavigation from "./components/PortalNavigation";
 
 const BRAND_NAVY = "#1C2742";
 
@@ -208,6 +209,7 @@ export default function ClientDetailsPage() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(Boolean(hasSupabaseConfig && supabase));
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
+  const [canManageCustomerLifecycle, setCanManageCustomerLifecycle] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
@@ -243,6 +245,7 @@ export default function ClientDetailsPage() {
   useEffect(() => {
     if (!session?.access_token) {
       setCanOpenAdmin(false);
+      setCanManageCustomerLifecycle(false);
       return undefined;
     }
     let active = true;
@@ -250,9 +253,15 @@ export default function ClientDetailsPage() {
       headers: { Authorization: `Bearer ${session.access_token}` },
     }).then(async (response) => {
       const body = await response.json().catch(() => ({}));
-      if (active) setCanOpenAdmin(response.ok && body.isAdmin === true);
+      if (active) {
+        setCanOpenAdmin(response.ok && body.isAdmin === true);
+        setCanManageCustomerLifecycle(response.ok && body.canManageCustomerLifecycle === true);
+      }
     }).catch(() => {
-      if (active) setCanOpenAdmin(false);
+      if (active) {
+        setCanOpenAdmin(false);
+        setCanManageCustomerLifecycle(false);
+      }
     });
     return () => { active = false; };
   }, [session?.access_token]);
@@ -392,13 +401,10 @@ export default function ClientDetailsPage() {
       <header className="border-b border-border bg-background/95">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6">
           <a href="/"><img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-10 w-auto" /></a>
-          <nav className="flex flex-wrap items-center gap-2" aria-label="Portal">
-            <a href="/reports" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium"><FileText className="h-4 w-4" />Reports</a>
-            <a href="/punch-list" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium"><ClipboardList className="h-4 w-4" />Punch List</a>
-            <a href="/gallery" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium"><Images className="h-4 w-4" />Gallery</a>
-            {canOpenAdmin && <a href="/admin/portal-access" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium"><ShieldCheck className="h-4 w-4" />Admin</a>}
+          <div className="flex flex-wrap items-center gap-2">
+            <PortalNavigation active="clients" canOpenAdmin={canOpenAdmin} canManageCustomerLifecycle={canManageCustomerLifecycle} />
             {session && <AccountMenu onSignOut={handleSignOut} />}
-          </nav>
+          </div>
         </div>
       </header>
       <main className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6">
