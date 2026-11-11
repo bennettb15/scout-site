@@ -6365,8 +6365,8 @@ export default function ScoutPunchListPage() {
             />
           </a>
           <div className="flex flex-wrap items-center gap-2">
-            <PortalNavigation active="punch-list" canOpenAdmin={canOpenAdmin} />
-            {session && <AccountMenu onSignOut={handleSignOut} />}
+            <PortalNavigation active="punch-list" />
+            {session && <AccountMenu onSignOut={handleSignOut} canOpenAdmin={canOpenAdmin} />}
           </div>
         </div>
       </header>

@@ -386,8 +386,8 @@ export default function GalleryPage() {
             <img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-10 w-auto object-contain md:h-11" loading="eager" />
           </a>
           <div className="flex flex-wrap items-center gap-2">
-            <PortalNavigation active="gallery" canOpenAdmin={canOpenAdmin} />
-            {session && <AccountMenu onSignOut={() => supabase?.auth.signOut()} />}
+            <PortalNavigation active="gallery" />
+            {session && <AccountMenu onSignOut={() => supabase?.auth.signOut()} canOpenAdmin={canOpenAdmin} />}
           </div>
         </div>
       </header>

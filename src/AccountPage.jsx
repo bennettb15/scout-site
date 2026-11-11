@@ -139,8 +139,8 @@ export default function AccountPage() {
           </a>
           {session && (
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <PortalNavigation active="account" canOpenAdmin={canOpenAdmin} />
-              <AccountMenu onSignOut={handleSignOut} active />
+              <PortalNavigation active="account" />
+              <AccountMenu onSignOut={handleSignOut} active canOpenAdmin={canOpenAdmin} />
             </div>
           )}
         </div>
