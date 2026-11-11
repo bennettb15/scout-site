@@ -17,6 +17,6 @@
 .gallery-download-bar{position:sticky;top:calc(var(--gallery-header-height, 77px) + 8px);z-index:30;box-shadow:0 8px 24px rgba(24,39,66,.14)}
 
 /* Keep the photo search the same height as the other filters. */
-.gallery-controls label:last-child{width:min(100%,360px);justify-self:start}
-.gallery-controls input[type=search]{height:44px;min-height:44px;max-height:44px;align-self:end}
-@media(max-width:760px){.gallery-controls label:last-child{width:100%}}
+.gallery-controls label:last-child{width:min(100%,240px);justify-self:start}
+.gallery-controls input[type=search]{height:24px;min-height:24px;max-height:24px;align-self:end}
+@media(max-width:760px){.gallery-controls label:last-child{width:100%}.gallery-controls input[type=search]{height:44px;min-height:44px;max-height:44px}}
