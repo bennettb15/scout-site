@@ -3437,6 +3437,17 @@ function validatePdfScope(body) {
   return { orgId, propertyId };
 }
 
+export function validateCompletePdfStatuses(value) {
+  if (value == null) return ["active", "pending_review", "resolved"];
+  const allowed = new Set(["active", "pending_review", "resolved"]);
+  if (!Array.isArray(value) || value.length === 0 || value.length > allowed.size || value.some((status) => !allowed.has(status))) {
+    const error = new Error("Select one or more valid punch list statuses.");
+    error.statusCode = 400;
+    throw error;
+  }
+  return [...new Set(value)];
+}
+
 function validateSelectedTrades(value, tradeOptions) {
   if (!Array.isArray(value)) {
     const error = new Error("At least one trade is required.");
@@ -4041,7 +4052,7 @@ function drawCoverCenteredText(doc, value, y, options = {}) {
     });
 }
 
-function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto, complete = false) {
+function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto, complete = false, selectedStatuses = ["active", "pending_review", "resolved"]) {
   const context = coverContext(rows, coverPhoto);
   const contextRow = { property: context.property, org: context.org, session: context.session };
   const { serviceDate, timeWindow } = coverServiceWindow(rows, coverPhoto);
@@ -4069,8 +4080,12 @@ function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto, complete = false
     ["Property Address:", propertyAddress(contextRow)],
     ...(complete ? [["Photo Date Range:", [formatPdfDate(photoDates[0]), formatPdfDate(photoDates.at(-1))].filter(Boolean).join(" to ") || "Unknown"]] : [["Date of Service:", serviceDate], ["Time Window:", timeWindow]]),
     ["Organization:", context.org?.name || ""],
-    ["Open Issues:", String(rows.filter((row) => row.status !== "resolved").length)],
-    ...(complete ? [["Resolved Issues:", String(rows.filter((row) => row.status === "resolved").length)]] : []),
+    ...(complete ? [
+      ["Included Statuses:", selectedStatuses.map((status) => ({ active: "Open", pending_review: "Pending Review", resolved: "Resolved" })[status]).join(", ")],
+      ["Open Issues:", String(rows.filter((row) => row.status === "active").length)],
+      ["Pending Review:", String(rows.filter((row) => row.status === "pending_review").length)],
+      ["Resolved Issues:", String(rows.filter((row) => row.status === "resolved").length)],
+    ] : [["Open Issues:", String(rows.filter((row) => row.status !== "resolved").length)]]),
     ["Report Reference ID:", context.packageId],
     ["Report Date:", formatPdfDate(new Date())],
   ];
@@ -4236,7 +4251,7 @@ function drawCompleteItemPages(doc, plan, buffers, tradeOptions) {
   }
 }
 
-export async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null, complete = false, orgLogo = null) {
+export async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null, complete = false, orgLogo = null, selectedStatuses = ["active", "pending_review", "resolved"]) {
   const doc = new PDFDocument({ autoFirstPage: false, bufferPages: true, size: "LETTER", margin: 42 });
   doc._orgReportLogo = orgLogo;
   doc.info.Title = complete ? 'Complete Property Punchlist' : PDF_REPORT_TITLE;
@@ -4266,7 +4281,7 @@ export async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null, c
   });
   const coverImageBuffer = await coverImagePromise;
 
-  drawCoverPage(doc, rows, coverImageBuffer || imageBuffers.get(rows[0]?.id) || null, coverPhoto, complete);
+  drawCoverPage(doc, rows, coverImageBuffer || imageBuffers.get(rows[0]?.id) || null, coverPhoto, complete, selectedStatuses);
   if (complete) {
     const plans = completeReportPagePlans(doc, rows);
     const indexCount = Math.max(1, Math.ceil(rows.length / INDEX_ENTRIES_PER_PAGE));
@@ -4315,9 +4330,10 @@ export async function buildPunchListPdf(rows, tradeOptions, coverPhoto = null, c
   return result;
 }
 
-export function completePunchListRows(rows) {
+export function completePunchListRows(rows, selectedStatuses = ["active", "pending_review", "resolved"]) {
+  const included = new Set(selectedStatuses);
   const rank = (row) => row.status === 'resolved' ? 2 : row.status === 'pending_review' ? 1 : 0;
-  return rows.map((row) => ({ ...row, pdfStatusGroup: row.status === 'resolved' ? 'Resolved' : row.status === 'pending_review' ? 'Pending Review' : 'Open' }))
+  return rows.filter((row) => included.has(row.status)).map((row) => ({ ...row, pdfStatusGroup: row.status === 'resolved' ? 'Resolved' : row.status === 'pending_review' ? 'Pending Review' : 'Open' }))
     .sort((a, b) => rank(a) - rank(b) ||
       normalizedTrade(a.trade).localeCompare(normalizedTrade(b.trade)) || comparePunchReportRows(a, b));
 }
@@ -4337,6 +4353,7 @@ async function handleGeneratePdf(req, res) {
     const scope = validatePdfScope(body);
     const tradeOptions = await loadTradeOptions();
     const complete = body.scope === "all_items";
+    const selectedStatuses = complete ? validateCompletePdfStatuses(body.statuses) : null;
     if (complete && !scope.propertyId) return sendJson(res, 400, { error: "Choose one property for the complete punchlist." });
     const selectedTrades = complete ? tradeOptions.map((option) => option.key) : validateSelectedTrades(body.trades, tradeOptions);
     const selectedTradeSet = new Set(selectedTrades);
@@ -4346,20 +4363,20 @@ async function handleGeneratePdf(req, res) {
       complete,
     });
     const { rows, coverPhoto } = punchListData;
-    const activeRows = complete ? rows : rows.filter((row) => row.status !== "resolved");
+    const activeRows = complete ? rows : rows.filter((row) => row.status === "active");
     const openTradeSet = new Set(activeRows.map((row) => normalizedTrade(row.trade)));
     const reportTradeOrder = tradeOptions
       .map((option) => option.key)
       .filter((key) => selectedTradeSet.has(key) && openTradeSet.has(key));
 
-    const reportRows = complete ? completePunchListRows(rows) : reportTradeOrder.flatMap((trade) =>
+    const reportRows = complete ? completePunchListRows(rows, selectedStatuses) : reportTradeOrder.flatMap((trade) =>
       activeRows
         .filter((row) => normalizedTrade(row.trade) === trade)
         .sort(comparePunchReportRows)
     );
 
     if (reportRows.length === 0) {
-      return sendJson(res, 400, { error: complete ? "No punchlist items found for this property." : "No open punch list issues found for the selected trades." });
+      return sendJson(res, 400, { error: complete ? "No punch list items match the selected statuses for this property." : "No open punch list issues found for the selected trades." });
     }
 
     let orgLogo = null;
@@ -4368,7 +4385,8 @@ async function handleGeneratePdf(req, res) {
     } catch (error) {
       console.error("Report logo unavailable; using Scout default.", error?.message || error);
     }
-    const pdf = await buildPunchListPdf(reportRows, tradeOptions, coverPhoto, complete, orgLogo);
+    const reportCoverPhoto = complete && selectedStatuses.length < 3 ? null : coverPhoto;
+    const pdf = await buildPunchListPdf(reportRows, tradeOptions, reportCoverPhoto, complete, orgLogo, selectedStatuses || undefined);
     const filename = punchListReportFilename(reportRows, complete);
     if (complete) {
       const service = createServiceClient();

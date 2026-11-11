@@ -24,7 +24,6 @@ import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
   buildPunchListSummary,
   filterPunchListRowsForOverdue,
-  filterPunchListRowsForPendingReview,
   nextPunchListOverdueFilter,
   nextPunchListTradeFilter,
 } from "./lib/punchListSummary";
@@ -41,7 +40,14 @@ const BRAND = {
 
 const ALL = "all";
 const TAB_OPEN = "open";
+const TAB_PENDING = "pending_review";
 const TAB_RESOLVED = "resolved";
+const REPORT_STATUS_OPTIONS = [
+  { id: "active", label: "Open" },
+  { id: "pending_review", label: "Pending Review" },
+  { id: "resolved", label: "Resolved" },
+];
+const defaultReportStatuses = () => ({ active: true, pending_review: true, resolved: true });
 const PUNCH_CACHE_TTL_MS = 3 * 60 * 1000;
 const MAX_COMPLETION_PHOTO_BYTES = 25 * 1024 * 1024;
 const COMPLETION_PHOTO_ACCEPT = "image/jpeg,image/jpg,image/png,image/heic,image/heif,image/webp,.jpg,.jpeg,.png,.heic,.heif,.webp";
@@ -4350,10 +4356,10 @@ function PunchListSummaryBand({
   summary,
   selectedTrade,
   overdueOnly,
-  pendingReviewOnly,
+  pendingReviewCount,
   onTradeFilter,
   onToggleOverdue,
-  onTogglePendingReview,
+  onShowPendingReview,
 }) {
   if (!summary) return null;
   const tradeItems = summary.tradeCounts.slice(0, 8);
@@ -4414,17 +4420,16 @@ function PunchListSummaryBand({
       </section>
       <section className="punch-summary-section punch-summary-pending">
         <div className="punch-summary-heading">Pending Review</div>
-        {summary.pendingReviewCount > 0 || pendingReviewOnly ? (
+        {pendingReviewCount > 0 ? (
           <button
             type="button"
-            className={`punch-summary-pending-chip ${pendingReviewOnly ? "is-active" : ""}`}
-            onClick={onTogglePendingReview}
-            aria-pressed={pendingReviewOnly}
-            title={pendingReviewOnly ? "Show all open items" : "Show pending review items"}
+            className="punch-summary-pending-chip"
+            onClick={onShowPendingReview}
+            title="Open pending review items"
           >
             <span className="punch-summary-trade-label">Items Pending Review</span>
             <span className="punch-summary-pending-count">
-              {summary.pendingReviewCount}
+              {pendingReviewCount}
             </span>
           </button>
         ) : (
@@ -4722,8 +4727,10 @@ export function PunchReportModal({
   open,
   tradeItems,
   selectedTrades,
+  selectedStatuses = {},
   generating,
   onToggleTrade,
+  onToggleStatus,
   onGenerate,
   onClose,
   complete = false,
@@ -4747,7 +4754,7 @@ export function PunchReportModal({
       className="punch-report-modal"
       role="dialog"
       aria-modal="true"
-      aria-label={complete ? "Generate complete property punchlist" : "Generate punch list report"}
+      aria-label={complete ? "Generate punch list by status" : "Generate punch list by trade"}
       onClick={() => {
         if (!generating) onClose();
       }}
@@ -4755,8 +4762,8 @@ export function PunchReportModal({
       <div className="punch-report-panel" onClick={(event) => event.stopPropagation()}>
         <div className="punch-report-header">
           <div>
-            <div className="punch-report-title">{complete ? "All Open & Resolved PDF" : "Generate Punchlist"}</div>
-            <div className="punch-report-subtitle">{complete ? "Includes open, pending review, and resolved items with photos and notes. Choose one property." : "Open issues only. Choose trades to include."}</div>
+            <div className="punch-report-title">{complete ? "Generate Punch List by Status" : "Generate Punch List by Trade"}</div>
+            <div className="punch-report-subtitle">{complete ? "Choose one property and the statuses to include." : "Open issues only. Choose trades to include."}</div>
           </div>
           <button
             type="button"
@@ -4770,12 +4777,23 @@ export function PunchReportModal({
         </div>
         <div className="punch-report-body">
           {complete ? (
-            <label className="grid gap-2 text-sm font-semibold text-foreground">Property
-              <select value={propertyId} onChange={(event) => onSelectProperty(event.target.value)} disabled={generating} className="min-w-0 w-full rounded-lg border border-border bg-background p-3">
-                <option value="">Choose a property</option>
-                {propertyOptions.map((property) => <option key={property.id} value={property.id}>{property.label}</option>)}
-              </select>
-            </label>
+            <div className="grid gap-4">
+              <label className="grid gap-2 text-sm font-semibold text-foreground">Property
+                <select value={propertyId} onChange={(event) => onSelectProperty(event.target.value)} disabled={generating} className="min-w-0 w-full rounded-lg border border-border bg-background p-3">
+                  <option value="">Choose a property</option>
+                  {propertyOptions.map((property) => <option key={property.id} value={property.id}>{property.label}</option>)}
+                </select>
+              </label>
+              <fieldset className="grid gap-2">
+                <legend className="mb-2 text-sm font-semibold text-foreground">Include statuses</legend>
+                {REPORT_STATUS_OPTIONS.map((option) => (
+                  <label key={option.id} className="flex min-h-10 items-center gap-3 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground">
+                    <input type="checkbox" checked={Boolean(selectedStatuses[option.id])} onChange={() => onToggleStatus(option.id)} disabled={generating} className="h-4 w-4 accent-[#1c2742]" />
+                    {option.label}
+                  </label>
+                ))}
+              </fieldset>
+            </div>
           ) : tradeItems.length === 0 ? (
             <div className="rounded-lg border border-border bg-slate-50 p-4 text-sm font-semibold text-foreground/60">
               No master trades are available.
@@ -4816,7 +4834,7 @@ export function PunchReportModal({
             type="button"
             className="punch-report-generate"
             onClick={onGenerate}
-            disabled={generating || (complete ? !propertyId : selectedCount === 0)}
+            disabled={generating || (complete ? !propertyId || !REPORT_STATUS_OPTIONS.some((option) => selectedStatuses[option.id]) : selectedCount === 0)}
             aria-busy={generating}
           >
             <Download className="h-4 w-4" />
@@ -5036,7 +5054,6 @@ export default function ScoutPunchListPage() {
   const [selectedElevation, setSelectedElevation] = useState(ALL);
   const [selectedDetail, setSelectedDetail] = useState(ALL);
   const [overdueOnly, setOverdueOnly] = useState(false);
-  const [pendingReviewOnly, setPendingReviewOnly] = useState(false);
   const [downloadId, setDownloadId] = useState("");
   const [previewRow, setPreviewRow] = useState(null);
   const [loadedRowsScope, setLoadedRowsScope] = useState({ orgId: "", propertyId: "" });
@@ -5062,6 +5079,7 @@ export default function ScoutPunchListPage() {
   const [reportGenerating, setReportGenerating] = useState(false);
   const [reportComplete, setReportComplete] = useState(false);
   const [reportPropertyId, setReportPropertyId] = useState("");
+  const [reportStatuses, setReportStatuses] = useState(defaultReportStatuses);
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
   const sessionScopeRef = useRef("");
   const filterRequestRef = useRef(0);
@@ -6005,13 +6023,15 @@ export default function ScoutPunchListPage() {
   }
 
   function handleCompleteReport() {
-    if (selectedPropertyId && selectedPropertyId !== ALL) {
-      handleGenerateReport(true, selectedPropertyId);
-      return;
-    }
     setReportComplete(true);
-    setReportPropertyId("");
+    setReportPropertyId(selectedPropertyId && selectedPropertyId !== ALL ? selectedPropertyId : "");
+    setReportStatuses(defaultReportStatuses());
     setReportModalOpen(true);
+  }
+
+  function handleToggleReportStatus(statusId) {
+    if (reportGenerating || !REPORT_STATUS_OPTIONS.some((option) => option.id === statusId)) return;
+    setReportStatuses((current) => ({ ...current, [statusId]: !current[statusId] }));
   }
 
   function handleToggleReportTrade(tradeId) {
@@ -6025,7 +6045,8 @@ export default function ScoutPunchListPage() {
 
   async function handleGenerateReport(complete = false, reportProperty = selectedPropertyId) {
     if (!session?.access_token || !selectedOrgId || (!complete && selectedReportTradeIds.length === 0)) return;
-    if (complete && (!reportProperty || reportProperty === ALL)) return;
+    const selectedStatusIds = REPORT_STATUS_OPTIONS.filter((option) => reportStatuses[option.id]).map((option) => option.id);
+    if (complete && (!reportProperty || reportProperty === ALL || selectedStatusIds.length === 0)) return;
     setReportGenerating(true);
     setPunchListError("");
     try {
@@ -6040,6 +6061,7 @@ export default function ScoutPunchListPage() {
           propertyId: reportProperty || ALL,
           trades: selectedReportTradeIds,
           scope: complete ? "all_items" : "open_items",
+          ...(complete ? { statuses: selectedStatusIds } : {}),
         }),
       });
 
@@ -6226,38 +6248,27 @@ export default function ScoutPunchListPage() {
     }
   }, [selectedTrade, tradeOptions]);
 
-  const tabRows = useMemo(() => {
-    const wantsResolved = selectedTab === TAB_RESOLVED;
-    return orgFilteredRows.filter((row) =>
-      wantsResolved ? row.status === "resolved" : row.status !== "resolved"
-    );
-  }, [orgFilteredRows, selectedTab]);
+  const scopedRows = useMemo(() => orgFilteredRows.filter((row) => {
+    if (displayedPropertyId !== ALL && row.property?.id !== displayedPropertyId) return false;
+    if (selectedPriority !== ALL && row.priority !== selectedPriority) return false;
+    if (selectedTrade !== ALL && tradeKey(row.trade) !== selectedTrade) return false;
+    if (selectedElevation !== ALL && normalizedOptionId(row.elevation) !== selectedElevation) return false;
+    if (selectedDetail !== ALL && normalizedOptionId(row.detailType) !== selectedDetail) return false;
+    return true;
+  }), [displayedPropertyId, orgFilteredRows, selectedDetail, selectedElevation, selectedPriority, selectedTrade]);
+
+  const baseFilteredRows = useMemo(() => scopedRows.filter((row) =>
+    row.status === (selectedTab === TAB_OPEN ? "active" : selectedTab)
+  ), [scopedRows, selectedTab]);
+  const pendingReviewCount = scopedRows.filter((row) => row.status === "pending_review").length;
 
   useEffect(() => {
-    if (selectedTab !== TAB_RESOLVED) return;
-    if (overdueOnly) setOverdueOnly(false);
-    if (pendingReviewOnly) setPendingReviewOnly(false);
-  }, [overdueOnly, pendingReviewOnly, selectedTab]);
+    if (selectedTab !== TAB_OPEN && overdueOnly) setOverdueOnly(false);
+  }, [overdueOnly, selectedTab]);
 
-  const baseFilteredRows = useMemo(() => {
-    return tabRows.filter((row) => {
-      if (displayedPropertyId !== ALL && row.property?.id !== displayedPropertyId) return false;
-      if (selectedPriority !== ALL && row.priority !== selectedPriority) return false;
-      if (selectedTrade !== ALL && tradeKey(row.trade) !== selectedTrade) return false;
-      if (selectedElevation !== ALL && normalizedOptionId(row.elevation) !== selectedElevation) return false;
-      if (selectedDetail !== ALL && normalizedOptionId(row.detailType) !== selectedDetail) return false;
-      return true;
-    });
-  }, [displayedPropertyId, selectedDetail, selectedElevation, selectedPriority, selectedTrade, tabRows]);
-
-  const filteredRows = useMemo(() => {
-    const dueDateRows = overdueOnly
-      ? filterPunchListRowsForOverdue(baseFilteredRows, todayDateOnly())
-      : baseFilteredRows;
-    return pendingReviewOnly
-      ? filterPunchListRowsForPendingReview(dueDateRows)
-      : dueDateRows;
-  }, [baseFilteredRows, overdueOnly, pendingReviewOnly]);
+  const filteredRows = useMemo(() => selectedTab === TAB_OPEN && overdueOnly
+    ? filterPunchListRowsForOverdue(baseFilteredRows, todayDateOnly())
+    : baseFilteredRows, [baseFilteredRows, overdueOnly, selectedTab]);
 
   useEffect(() => {
     if (filteredRows.length === 0) {
@@ -6278,7 +6289,7 @@ export default function ScoutPunchListPage() {
   }, [activeCompletionRowId, activeHistoryRowId, activeNoteRowId, filteredRows]);
 
   const punchListSummary = useMemo(() => {
-    if (selectedTab === TAB_RESOLVED) return null;
+    if (selectedTab !== TAB_OPEN) return null;
     return buildPunchListSummary(filteredRows, {
       tradeOptions,
       todayDate: todayDateOnly(),
@@ -6289,7 +6300,7 @@ export default function ScoutPunchListPage() {
     () =>
       orgFilteredRows.filter(
         (row) =>
-          row.status !== "resolved" &&
+          row.status === "active" &&
           (displayedPropertyId === ALL || row.property?.id === displayedPropertyId)
       ),
     [displayedPropertyId, orgFilteredRows]
@@ -6326,8 +6337,9 @@ export default function ScoutPunchListPage() {
     [reportSelectedTrades, reportTradeItems]
   );
 
-  const openCount = orgFilteredRows.filter((row) => row.status !== "resolved").length;
-  const resolvedCount = orgFilteredRows.filter((row) => row.status === "resolved").length;
+  const openCount = scopedRows.filter((row) => row.status === "active").length;
+  const pendingCount = pendingReviewCount;
+  const resolvedCount = scopedRows.filter((row) => row.status === "resolved").length;
   const completionPromptRow = rows.find((row) => row.id === completionPromptRowId) || null;
   const showAllPropertiesOption = propertyOptions.length > 1;
   const propertySelectValue =
@@ -6346,7 +6358,7 @@ export default function ScoutPunchListPage() {
     !punchListLoading &&
     !noPunchListSources &&
     !noPunchListProperties &&
-    baseFilteredRows.length > 0;
+    (baseFilteredRows.length > 0 || pendingReviewCount > 0);
 
   return (
     <div
@@ -6636,18 +6648,18 @@ export default function ScoutPunchListPage() {
                   className="punch-report-button"
                 >
                   <Download className="h-4 w-4" />
-                  Generate Punchlist
+                  Generate Punch List by Trade
                 </button>
                 <button
                   type="button"
                   onClick={handleCompleteReport}
                   disabled={filtersLoading || punchListLoading || reportGenerating || !selectedOrgId}
                   aria-busy={reportGenerating}
-                  title="Download all open, pending review, and resolved items for one property"
+                  title="Choose Open, Pending Review, or Resolved items for one property"
                   className="punch-report-button"
                 >
                   <Download className="h-4 w-4" />
-                  {reportGenerating ? "Preparing PDF…" : "All Open & Resolved PDF"}
+                  {reportGenerating ? "Preparing PDF…" : "Generate Punch List by Status"}
                 </button>
                 <div className="inline-flex w-fit rounded-lg border border-border bg-slate-50 p-1">
                   <button
@@ -6661,6 +6673,19 @@ export default function ScoutPunchListPage() {
                   >
                     <ClipboardList className="h-4 w-4" />
                     Open {openCount}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTab(TAB_PENDING)}
+                    aria-current={selectedTab === TAB_PENDING ? "page" : undefined}
+                    className={`inline-flex h-8 items-center gap-2 rounded-md border px-3 text-sm font-semibold ${
+                      selectedTab === TAB_PENDING
+                        ? "border-orange-600 bg-orange-600 text-white shadow-sm"
+                        : "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                    }`}
+                  >
+                    <Clock className="h-4 w-4" />
+                    Pending Review <span className="rounded-full bg-white/25 px-1.5">{pendingCount}</span>
                   </button>
                   <button
                     type="button"
@@ -6682,7 +6707,7 @@ export default function ScoutPunchListPage() {
                 summary={punchListSummary}
                 selectedTrade={selectedTrade}
                 overdueOnly={overdueOnly}
-                pendingReviewOnly={pendingReviewOnly}
+                pendingReviewCount={pendingReviewCount}
                 onTradeFilter={(tradeId) =>
                   setSelectedTrade((currentTradeId) =>
                     nextPunchListTradeFilter(currentTradeId, tradeId, ALL)
@@ -6696,10 +6721,20 @@ export default function ScoutPunchListPage() {
                     )
                   )
                 }
-                onTogglePendingReview={() =>
-                  setPendingReviewOnly((currentPendingReviewOnly) => !currentPendingReviewOnly)
-                }
+                onShowPendingReview={() => setSelectedTab(TAB_PENDING)}
               />
+            )}
+
+            {selectedTab === TAB_PENDING && !filtersLoading && !punchListLoading && !noPunchListSources && !noPunchListProperties && (
+              <div className="flex items-start gap-3 rounded-xl border border-orange-300 bg-orange-50 px-4 py-3 text-orange-900 shadow-sm" role="status">
+                <Clock className="mt-0.5 h-5 w-5 shrink-0 text-orange-700" />
+                <div>
+                  <div className="font-semibold">Pending Review · {filteredRows.length}</div>
+                  <p className="mt-1 text-sm">{filteredRows.some(canReviewCompletionForRow)
+                    ? "Review submitted photos and approve or reject eligible items."
+                    : "These items are awaiting review."}</p>
+                </div>
+              </div>
             )}
 
             {punchListError && (
@@ -6732,13 +6767,11 @@ export default function ScoutPunchListPage() {
               !noPunchListProperties &&
               filteredRows.length === 0 && (
                 <div className="rounded-lg border border-border bg-background p-6 text-sm text-foreground/70 shadow-sm">
-                  {pendingReviewOnly && overdueOnly
-                    ? "No overdue pending review items match the selected filters."
-                    : pendingReviewOnly
-                      ? "No pending review items match the selected filters."
-                      : overdueOnly
-                        ? "No overdue punch list items match the selected filters."
-                        : "No punch list items match the selected filters."}
+                  {selectedTab === TAB_PENDING
+                    ? "No pending review items match the selected filters."
+                    : overdueOnly
+                      ? "No overdue open items match the selected filters."
+                      : "No punch list items match the selected filters."}
                 </div>
               )}
 
@@ -6795,12 +6828,14 @@ export default function ScoutPunchListPage() {
         open={reportModalOpen}
         tradeItems={reportTradeItems}
         selectedTrades={reportSelectedTrades}
+        selectedStatuses={reportStatuses}
         generating={reportGenerating}
         complete={reportComplete}
         propertyOptions={propertyOptions}
         propertyId={reportPropertyId}
         onSelectProperty={setReportPropertyId}
         onToggleTrade={handleToggleReportTrade}
+        onToggleStatus={handleToggleReportStatus}
         onGenerate={() => handleGenerateReport(reportComplete, reportComplete ? reportPropertyId : selectedPropertyId)}
         onClose={() => setReportModalOpen(false)}
       />
