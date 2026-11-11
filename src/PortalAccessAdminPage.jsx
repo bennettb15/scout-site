@@ -1,8 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
-  ClipboardList,
-  FileText,
   Info,
   Mail,
   Plus,
@@ -15,6 +13,8 @@ import {
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import AccountMenu from "./components/AccountMenu";
+import PortalNavigation from "./components/PortalNavigation";
+import AdminSectionNavigation from "./components/AdminSectionNavigation";
 import ReportBrandingPanel from "./components/ReportBrandingPanel";
 import {
   canEditPortalPropertyScope,
@@ -420,7 +420,7 @@ function PropertyScopeEditor({
   );
 }
 
-export default function PortalAccessAdminPage() {
+export default function PortalAccessAdminPage({ hidden = false }) {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [email, setEmail] = useState("");
@@ -453,10 +453,13 @@ export default function PortalAccessAdminPage() {
   const [reportEmailChangeId, setReportEmailChangeId] = useState("");
 
   useEffect(() => {
-    document.title = BRAND.siteTitle;
     document.documentElement.style.setProperty("--brand", BRAND.brandNavy);
     document.documentElement.style.setProperty("--brand-ink", "#23243A");
   }, []);
+
+  useEffect(() => {
+    if (!hidden) document.title = BRAND.siteTitle;
+  }, [hidden]);
 
   useEffect(() => {
     if (!hasSupabaseConfig || !supabase) {
@@ -1012,7 +1015,8 @@ export default function PortalAccessAdminPage() {
 
   return (
     <div
-      style={{ "--brand": BRAND.brandNavy, "--brand-ink": "#23243A" }}
+      hidden={hidden}
+      style={{ "--brand": BRAND.brandNavy, "--brand-ink": "#23243A", display: hidden ? "none" : undefined }}
       className="min-h-screen bg-slate-50 text-foreground"
     >
       <header className="border-b border-border bg-background/95 backdrop-blur">
@@ -1025,29 +1029,7 @@ export default function PortalAccessAdminPage() {
               loading="eager"
             />
           </a>
-          {session && (
-            <nav aria-label="Portal navigation" className="order-3 flex w-full gap-2 sm:order-none sm:ml-auto sm:w-auto">
-              <a
-                href="/reports"
-                className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground sm:h-10 sm:flex-none"
-              >
-                <FileText className="h-4 w-4" />
-                Reports
-              </a>
-              <a
-                href="/punch-list"
-                className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground sm:h-10 sm:flex-none"
-              >
-                <ClipboardList className="h-4 w-4" />
-                Punch List
-              </a>
-              {canManageCustomerLifecycle && (
-                <a href="/admin/customers" className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground sm:h-10 sm:flex-none">
-                  Customers
-                </a>
-              )}
-            </nav>
-          )}
+          {session && <PortalNavigation active="admin" canOpenAdmin={adminStatus === "authorized"} className="order-3 w-full sm:order-none sm:ml-auto sm:w-auto" />}
           {session && (
             <AccountMenu onSignOut={handleSignOut} />
           )}
@@ -1055,6 +1037,7 @@ export default function PortalAccessAdminPage() {
       </header>
 
       <main className="mx-auto w-full min-w-0 max-w-6xl px-4 py-6 md:px-6 md:py-8">
+        {session && adminStatus === "authorized" && canManageCustomerLifecycle && <AdminSectionNavigation active="portal-access" />}
         <div className="mb-6 flex flex-col justify-between gap-3 md:flex-row md:items-end">
           <div>
             <div className="text-sm font-medium text-[var(--brand)]">

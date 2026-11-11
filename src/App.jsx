@@ -1,9 +1,10 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 
 const ScoutMarketingSite = lazy(() => import("./ScoutMarketingSite"));
 const ResetPasswordPage = lazy(() => import("./ResetPasswordPage"));
 const VerifiedEmailPage = lazy(() => import("./VerifiedEmailPage"));
 const ScoutReportsPortalPage = lazy(() => import("./ScoutReportsPortalPage"));
+const GalleryPage = lazy(() => import("./GalleryPage"));
 const ClientDetailsPage = lazy(() => import("./ClientDetailsPage"));
 const ScoutPunchListPage = lazy(() => import("./ScoutPunchListPage"));
 const PortalAccessAdminPage = lazy(() => import("./PortalAccessAdminPage"));
@@ -14,6 +15,31 @@ const PrivacyPage = lazy(() => import("./PrivacyPage"));
 const TermsPage = lazy(() => import("./TermsPage"));
 const ServiceTermsPage = () => <TermsPage kind="service" />;
 const SoftwareTermsPage = () => <TermsPage kind="software" />;
+
+function AdminWorkspace() {
+  const [activePath, setActivePath] = useState(() => window.location.pathname.replace(/\/+$/, "") || "/");
+
+  useEffect(() => {
+    const onRouteChange = () => setActivePath(window.location.pathname.replace(/\/+$/, "") || "/");
+    window.addEventListener("admin-route-change", onRouteChange);
+    window.addEventListener("popstate", onRouteChange);
+    return () => {
+      window.removeEventListener("admin-route-change", onRouteChange);
+      window.removeEventListener("popstate", onRouteChange);
+    };
+  }, []);
+
+  return (
+    <>
+      <Suspense fallback={null}>
+        <PortalAccessAdminPage hidden={activePath !== "/admin/portal-access"} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <CustomerLifecycleAdminPage hidden={activePath !== "/admin/customers"} />
+      </Suspense>
+    </>
+  );
+}
 
 export default function App() {
   const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
@@ -35,14 +61,14 @@ export default function App() {
     Page = SoftwareTermsPage;
   } else if (pathname === "/reports") {
     Page = ScoutReportsPortalPage;
+  } else if (pathname === "/gallery") {
+    Page = GalleryPage;
   } else if (pathname === "/clients") {
     Page = ClientDetailsPage;
   } else if (pathname === "/punch-list") {
     Page = ScoutPunchListPage;
-  } else if (pathname === "/admin/portal-access") {
-    Page = PortalAccessAdminPage;
-  } else if (pathname === "/admin/customers") {
-    Page = CustomerLifecycleAdminPage;
+  } else if (pathname === "/admin/portal-access" || pathname === "/admin/customers") {
+    Page = AdminWorkspace;
   }
 
   return (

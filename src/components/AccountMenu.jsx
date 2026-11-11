@@ -1,17 +1,18 @@
 import { CircleUserRound, LogOut } from "lucide-react";
 
-export default function AccountMenu({ onSignOut }) {
+export default function AccountMenu({ onSignOut, active = false }) {
   return (
     <details className="group relative">
       <summary
-        aria-label="Account"
-        className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full border border-border bg-background text-foreground/75 shadow-sm hover:text-foreground [&::-webkit-details-marker]:hidden"
+        aria-label={active ? "Account, current page" : "Account"}
+        className={`flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full border shadow-sm [&::-webkit-details-marker]:hidden ${active ? "border-[#1c2742] bg-[#1c2742] text-white hover:bg-[#2b3b60]" : "border-border bg-background text-foreground/75 hover:text-foreground"}`}
       >
         <CircleUserRound className="h-6 w-6" aria-hidden="true" />
       </summary>
       <div className="absolute right-0 z-30 mt-2 min-w-52 rounded-xl border border-border bg-background p-1 shadow-lg">
         <a
           href="/account"
+          aria-current={active ? "page" : undefined}
           className="flex min-h-10 items-center whitespace-nowrap rounded-lg px-3 text-sm font-medium text-foreground hover:bg-muted"
         >
           Manage Account

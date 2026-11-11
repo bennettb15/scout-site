@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, ChevronLeft, Clock, RefreshCw, ShieldCheck } from "lucide-react";
+import { Check, Clock, RefreshCw, ShieldCheck } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import AccountMenu from "./components/AccountMenu";
+import PortalNavigation from "./components/PortalNavigation";
+import AdminSectionNavigation from "./components/AdminSectionNavigation";
 
 const EMPTY_DRAFT = {
   pilotSignedAt: "",
@@ -76,7 +78,7 @@ function DateField({ label, value, onChange, detail }) {
   );
 }
 
-export default function CustomerLifecycleAdminPage() {
+export default function CustomerLifecycleAdminPage({ hidden = false }) {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [email, setEmail] = useState("");
@@ -93,7 +95,6 @@ export default function CustomerLifecycleAdminPage() {
   const [confirmImmediateExpiration, setConfirmImmediateExpiration] = useState(false);
 
   useEffect(() => {
-    document.title = "Customers | SCOUT Admin";
     document.documentElement.style.setProperty("--brand", "#1C2742");
     if (!hasSupabaseConfig || !supabase) {
       setAuthLoading(false);
@@ -113,6 +114,10 @@ export default function CustomerLifecycleAdminPage() {
       subscription?.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!hidden) document.title = "Customers | SCOUT Admin";
+  }, [hidden]);
 
   const loadCustomers = useCallback(async (activeSession, preferredOrgId = "") => {
     if (!activeSession?.access_token) return;
@@ -230,17 +235,21 @@ export default function CustomerLifecycleAdminPage() {
   }
 
   return (
-    <div style={{ "--brand": "#1C2742" }} className="min-h-screen bg-slate-50 text-foreground">
+    <div hidden={hidden} style={{ "--brand": "#1C2742", display: hidden ? "none" : undefined }} className="min-h-screen bg-slate-50 text-foreground">
       <header className="border-b border-border bg-background">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6">
-          <a href="/admin/portal-access" className="inline-flex items-center gap-2 text-sm font-semibold text-foreground/75 hover:text-foreground">
-            <ChevronLeft className="h-4 w-4" /> Portal Access
+          <a href="/" className="inline-flex items-center">
+            <img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-10 w-auto object-contain md:h-11" />
           </a>
-          {session && <AccountMenu onSignOut={() => supabase?.auth.signOut()} />}
+          <div className="flex flex-wrap items-center gap-2">
+            <PortalNavigation active="admin" canOpenAdmin={accessState === "authorized"} />
+            {session && <AccountMenu onSignOut={() => supabase?.auth.signOut()} />}
+          </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-8">
+        {accessState === "authorized" && <AdminSectionNavigation active="customers" />}
         <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="text-sm font-medium text-[var(--brand)]">Private admin</div>

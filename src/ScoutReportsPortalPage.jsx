@@ -5,17 +5,15 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ClipboardList,
   Download,
   Flag,
   FileText,
-  CircleUserRound,
   RefreshCw,
-  ShieldCheck,
   X,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import AccountMenu from "./components/AccountMenu";
+import PortalNavigation from "./components/PortalNavigation";
 import TenantComparisonControl from "./components/TenantComparisonControl";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
@@ -1233,34 +1231,8 @@ export default function ScoutReportsPortalPage() {
             />
           </a>
           <div className="flex flex-wrap items-center gap-2">
-            <a
-              href="/punch-list"
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
-            >
-              <ClipboardList className="h-4 w-4" />
-              Punch List
-            </a>
-            <a
-              href="/clients"
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
-            >
-              <CircleUserRound className="h-4 w-4" />
-              Clients
-            </a>
-            {session && (
-              <>
-              {canOpenAdmin && (
-                <a
-                  href="/admin/portal-access"
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"
-                >
-                  <ShieldCheck className="h-4 w-4" />
-                  Admin
-                </a>
-              )}
-              <AccountMenu onSignOut={handleSignOut} />
-              </>
-            )}
+            <PortalNavigation active="reports" canOpenAdmin={canOpenAdmin} />
+            {session && <AccountMenu onSignOut={handleSignOut} />}
           </div>
         </div>
       </header>
