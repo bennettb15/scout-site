@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext } from "./lib/portalContext";
+import { filterGalleryPhotos, gallerySessionDate, uniquePropertySessions } from "./lib/galleryData";
 import "./GalleryPage.css";
 
 const INITIAL_SESSION_COUNT = 4;
 const MORE_SESSION_COUNT = 4;
 
-function dateValue(reportPackage) {
-  return reportPackage.sessionCompletedAt || reportPackage.completedAt || reportPackage.session?.completedAt || reportPackage.session?.startedAt || "";
-}
+const dateValue = gallerySessionDate;
 
 function dateLabel(value, options) {
   const date = new Date(value);
@@ -43,11 +42,18 @@ export default function GalleryPage() {
   const [orgs, setOrgs] = useState([]);
   const [orgsLoading, setOrgsLoading] = useState(false);
   const [orgsError, setOrgsError] = useState("");
+  const [orgId, setOrgId] = useState("");
   const [propertyId, setPropertyId] = useState("");
   const [packages, setPackages] = useState([]);
   const [packagesLoading, setPackagesLoading] = useState(false);
   const [packagesError, setPackagesError] = useState("");
   const [year, setYear] = useState("all");
+  const [photoStatus, setPhotoStatus] = useState("all");
+  const [query, setQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState({});
+  const [downloadId, setDownloadId] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [historyCapped, setHistoryCapped] = useState(false);
   const [visibleCount, setVisibleCount] = useState(INITIAL_SESSION_COUNT);
   const [photosByPackage, setPhotosByPackage] = useState({});
   const [viewer, setViewer] = useState(null);
@@ -76,6 +82,7 @@ export default function GalleryPage() {
   useEffect(() => {
     if (!session?.access_token) {
       setOrgs([]);
+      setOrgId("");
       setPropertyId("");
       setPackages([]);
       setPhotosByPackage({});
@@ -90,9 +97,14 @@ export default function GalleryPage() {
         if (!Array.isArray(body.orgs)) throw new Error("Unable to load properties.");
         setOrgs(body.orgs);
         const requestedId = new URLSearchParams(window.location.search).get("propertyId");
-        const savedId = readPortalContext(session).propertyId;
-        const available = body.orgs.flatMap((org) => org.properties || []);
-        const initialId = [requestedId, savedId].find((id) => id && id !== "all" && available.some((property) => property.id === id));
+        const saved = readPortalContext(session);
+        const requestedOrg = body.orgs.find((org) => (org.properties || []).some((property) => property.id === requestedId));
+        const savedOrg = body.orgs.find((org) => org.id === saved.orgId);
+        const initialOrg = requestedOrg || savedOrg || (body.orgs.length === 1 ? body.orgs[0] : null);
+        const initialId = [requestedId, saved.propertyId].find((id) =>
+          id && id !== "all" && (initialOrg?.properties || []).some((property) => property.id === id)
+        );
+        setOrgId(initialOrg?.id || "");
         setPropertyId(initialId || "");
       })
       .catch((error) => { if (error.name !== "AbortError") setOrgsError(error.message || "Unable to load properties."); })
@@ -100,11 +112,11 @@ export default function GalleryPage() {
     return () => controller.abort();
   }, [session?.access_token]);
 
-  const properties = useMemo(() => orgs.flatMap((org) => (org.properties || []).map((property) => ({
+  const selectedOrg = orgs.find((org) => org.id === orgId) || null;
+  const properties = useMemo(() => (selectedOrg?.properties || []).map((property) => ({
     ...property,
-    orgId: org.id,
-    orgName: org.name,
-  }))).sort((a, b) => propertyLabel(a).localeCompare(propertyLabel(b))), [orgs]);
+    orgId: selectedOrg.id,
+  })).sort((a, b) => propertyLabel(a).localeCompare(propertyLabel(b))), [selectedOrg]);
   const property = properties.find((item) => item.id === propertyId) || null;
 
   useEffect(() => {
@@ -113,6 +125,11 @@ export default function GalleryPage() {
     requestedPhotos.current.clear();
     setPackagesError("");
     setYear("all");
+    setPhotoStatus("all");
+    setQuery("");
+    setSelectedIds({});
+    setActionError("");
+    setHistoryCapped(false);
     setVisibleCount(INITIAL_SESSION_COUNT);
     setViewer(null);
     if (!session?.access_token || !property) return;
@@ -123,9 +140,8 @@ export default function GalleryPage() {
       .then((body) => {
         if (controller.signal.aborted) return;
         if (!Array.isArray(body.packages)) throw new Error("Unable to load gallery sessions.");
-        setPackages(body.packages
-          .filter((item) => item.property?.id === property.id && item.originalPhotoCount > 0)
-          .sort((a, b) => new Date(dateValue(b)).getTime() - new Date(dateValue(a)).getTime()));
+        setHistoryCapped(body.packages.filter((item) => item.property?.id === property.id).length >= 50);
+        setPackages(uniquePropertySessions(body.packages, property.id));
       })
       .catch((error) => { if (error.name !== "AbortError") setPackagesError(error.message || "Unable to load gallery sessions."); })
       .finally(() => { if (!controller.signal.aborted) setPackagesLoading(false); });
@@ -154,7 +170,8 @@ export default function GalleryPage() {
           pending.delete(item.id);
           if (controller.signal.aborted) return;
           if (!Array.isArray(body.photos)) throw new Error("Unable to load photos.");
-          setPhotosByPackage((current) => ({ ...current, [item.id]: { loading: false, photos: body.photos, error: "" } }));
+          const photos = [...new Map(body.photos.map((photo) => [photo.id, photo])).values()];
+          setPhotosByPackage((current) => ({ ...current, [item.id]: { loading: false, photos, error: "" } }));
         })
         .catch((error) => {
           pending.delete(item.id);
@@ -182,7 +199,7 @@ export default function GalleryPage() {
     return result;
   }, [visiblePackages]);
 
-  const viewerPhotos = viewer ? photosByPackage[viewer.packageId]?.photos || [] : [];
+  const viewerPhotos = viewer ? filterGalleryPhotos(photosByPackage[viewer.packageId]?.photos, photoStatus, query) : [];
   const activePhoto = viewer?.propertyId === propertyId ? viewerPhotos[viewer.index] : null;
   useEffect(() => {
     if (!viewer) return;
@@ -204,6 +221,79 @@ export default function GalleryPage() {
     if (error) setAuthError(error.message || "Unable to sign in.");
   }
 
+  function handleOrgChange(id) {
+    setOrgId(id);
+    handlePropertyChange("");
+  }
+
+  function togglePhotoSelection(packageId, photoId) {
+    setSelectedIds((current) => {
+      const ids = new Set(current[packageId] || []);
+      if (ids.has(photoId)) ids.delete(photoId);
+      else ids.add(photoId);
+      return { ...current, [packageId]: [...ids] };
+    });
+  }
+
+  function triggerDownload(url, filename) {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename || "";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+
+  async function downloadPhoto(reportPackage, photo) {
+    if (!session?.access_token) return;
+    setDownloadId(photo.id);
+    setActionError("");
+    try {
+      const params = new URLSearchParams({ packageId: reportPackage.id, photoId: photo.id });
+      const body = await getJson(`/api/original-photo-download?${params}`, session.access_token);
+      if (!body.downloadUrl) throw new Error("Photo download is unavailable.");
+      triggerDownload(body.downloadUrl, body.filename || photo.downloadFilename);
+    } catch (error) {
+      setActionError(error.message || "Unable to download photo.");
+    } finally {
+      setDownloadId("");
+    }
+  }
+
+  async function downloadSelected(reportPackage) {
+    if (!session?.access_token) return;
+    const photos = (photosByPackage[reportPackage.id]?.photos || []).filter((photo) =>
+      (selectedIds[reportPackage.id] || []).includes(photo.id)
+    );
+    if (photos.length === 0) return;
+    if (photos.length === 1) return downloadPhoto(reportPackage, photos[0]);
+    setDownloadId(reportPackage.id);
+    setActionError("");
+    try {
+      const params = new URLSearchParams({ packageId: reportPackage.id, photoIds: photos.map((photo) => photo.id).join(",") });
+      const response = await fetch(`/api/original-photos-download?${params}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || "Unable to download selected photos.");
+      }
+      if (!(response.headers.get("content-type") || "").toLowerCase().startsWith("application/zip")) {
+        throw new Error("Photo download did not return a ZIP.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const disposition = response.headers.get("content-disposition") || "";
+      const filename = disposition.match(/filename="([^"]+)"/)?.[1] || "Selected Photos.zip";
+      triggerDownload(url, filename);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) {
+      setActionError(error.message || "Unable to download selected photos.");
+    } finally {
+      setDownloadId("");
+    }
+  }
+
   function handlePropertyChange(id) {
     setPropertyId(id);
     const url = new URL(window.location.href);
@@ -218,6 +308,7 @@ export default function GalleryPage() {
         <div className="gallery-header-inner">
           <a href="/" aria-label="SCOUT home"><img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" /></a>
           <div className="gallery-header-actions">
+            <a href="/reports">Reports</a>
             <span>Property Gallery</span>
             {session && <button type="button" onClick={() => supabase.auth.signOut()}>Sign out</button>}
           </div>
@@ -242,51 +333,74 @@ export default function GalleryPage() {
 
         {session && <>
           <section className="gallery-controls" aria-label="Gallery filters">
+            <label>Organization
+              <select value={orgId} onChange={(event) => handleOrgChange(event.target.value)} disabled={orgsLoading || !orgs.length}>
+                <option value="">Choose an organization</option>
+                {orgs.map((org) => <option key={org.id} value={org.id}>{org.name || "Organization"}</option>)}
+              </select>
+            </label>
             <label>Property
-              <select value={propertyId} onChange={(event) => handlePropertyChange(event.target.value)} disabled={orgsLoading || !properties.length}>
+              <select value={propertyId} onChange={(event) => handlePropertyChange(event.target.value)} disabled={orgsLoading || !orgId || !properties.length}>
                 <option value="">Choose a property</option>
-                {properties.map((item) => <option key={item.id} value={item.id}>{propertyLabel(item)}{orgs.length > 1 ? ` · ${item.orgName}` : ""}</option>)}
+                {properties.map((item) => <option key={item.id} value={item.id}>{propertyLabel(item)}</option>)}
               </select>
             </label>
             {property && <label>Year
-              <select value={year} onChange={(event) => { setYear(event.target.value); setVisibleCount(INITIAL_SESSION_COUNT); }}>
+              <select value={year} onChange={(event) => { setYear(event.target.value); setVisibleCount(INITIAL_SESSION_COUNT); setSelectedIds({}); setViewer(null); }}>
                 <option value="all">All dates</option>
                 {years.map((value) => <option key={value} value={value}>{value}</option>)}
               </select>
             </label>}
+            {property && <label>Photo status
+              <select value={photoStatus} onChange={(event) => { setPhotoStatus(event.target.value); setSelectedIds({}); setViewer(null); }}>
+                <option value="all">All photos</option>
+                <option value="priority">Priority</option>
+                <option value="resolved">Resolved</option>
+                <option value="standard">Other photos</option>
+              </select>
+            </label>}
+            {property && <label>Find a photo
+              <input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setSelectedIds({}); setViewer(null); }} placeholder="Search photo names" />
+            </label>}
           </section>
           {orgsLoading && <div className="gallery-panel">Loading properties…</div>}
           {orgsError && <div className="gallery-panel gallery-error" role="alert">{orgsError}</div>}
-          {!orgsLoading && !orgsError && !property && <div className="gallery-panel gallery-empty">Choose a property to see its photos.</div>}
+          {!orgsLoading && !orgsError && !property && <div className="gallery-panel gallery-empty">{orgId ? "Choose a property to see its photos." : "Choose an organization, then a property, to see its photos."}</div>}
           {property && <>
             <div className="gallery-property-title"><div><p className="gallery-eyebrow">Selected property</p><h2>{property.name || propertyLabel(property)}</h2><p>{[property.addressLine1, property.city, property.state, property.postalCode].filter(Boolean).join(", ")}</p></div><span>{propertyPackages.length} {propertyPackages.length === 1 ? "session" : "sessions"}</span></div>
             {packagesLoading && <div className="gallery-panel">Loading photo history…</div>}
             {packagesError && <div className="gallery-panel gallery-error" role="alert">{packagesError}</div>}
+            {actionError && <div className="gallery-panel gallery-error" role="alert">{actionError}</div>}
             {!packagesLoading && !packagesError && propertyPackages.length === 0 && <div className="gallery-panel gallery-empty">No gallery photos are available for this property yet.</div>}
             {!packagesLoading && !packagesError && propertyPackages.length > 0 && filteredPackages.length === 0 && <div className="gallery-panel gallery-empty">No photos match this year.</div>}
             {!packagesLoading && !packagesError && groups.map((group) => <section className="gallery-month" key={group.month} aria-label={group.month}>
               <h2>{group.month}</h2>
               {group.packages.map((item) => {
                 const photoState = photosByPackage[item.id];
+                const shownPhotos = filterGalleryPhotos(photoState?.photos, photoStatus, query);
+                const selectedCount = (selectedIds[item.id] || []).length;
                 return <article className="gallery-session" key={item.id}>
-                  <div className="gallery-session-heading"><div><time dateTime={dateValue(item)}>{dateLabel(dateValue(item), { month: "long", day: "numeric", year: "numeric" })}</time><h3>{item.session?.title || "Photo session"}</h3></div><span>{item.originalPhotoCount} {item.originalPhotoCount === 1 ? "photo" : "photos"}</span></div>
+                  <div className="gallery-session-heading"><div><time dateTime={dateValue(item)}>{dateLabel(dateValue(item), { month: "long", day: "numeric", year: "numeric" })}</time><h3>{item.session?.title || "Photo session"}</h3></div><div className="gallery-session-actions"><span>{item.originalPhotoCount} {item.originalPhotoCount === 1 ? "photo" : "photos"}</span><button type="button" onClick={() => downloadSelected(item)} disabled={!selectedCount || Boolean(downloadId)}>{downloadId === item.id ? "Preparing…" : `Download selected (${selectedCount})`}</button></div></div>
                   {(!photoState || photoState.loading) && <p className="gallery-muted">Loading photos…</p>}
                   {photoState?.error && <p className="gallery-error" role="alert">{photoState.error}</p>}
-                  {photoState && !photoState.loading && !photoState.error && <div className="gallery-grid">{photoState.photos.map((photo, index) => <button className="gallery-photo" key={photo.id} type="button" onClick={() => setViewer({ propertyId, packageId: item.id, index })} aria-label={`Open ${photoLabel(photo)}`}>
-                    {photo.previewUrl ? <img src={photo.previewUrl} alt="" loading="lazy" /> : <span className="gallery-no-preview">Preview unavailable</span>}
-                    <span className="gallery-photo-caption">{photoLabel(photo)}</span>
-                  </button>)}</div>}
+                  {photoState && !photoState.loading && !photoState.error && (shownPhotos.length ? <div className="gallery-grid">{shownPhotos.map((photo) => <div className="gallery-photo-card" key={photo.id}>
+                    <button className="gallery-photo" type="button" onClick={() => setViewer({ propertyId, packageId: item.id, index: shownPhotos.findIndex((itemPhoto) => itemPhoto.id === photo.id) })} aria-label={`Open ${photoLabel(photo)}`}>
+                      {photo.previewUrl ? <img src={photo.previewUrl} alt="" loading="lazy" /> : <span className="gallery-no-preview">Preview unavailable</span>}
+                      <span className="gallery-photo-caption">{photoLabel(photo)}</span>
+                    </button>
+                    <div className="gallery-photo-actions"><label><input type="checkbox" checked={(selectedIds[item.id] || []).includes(photo.id)} onChange={() => togglePhotoSelection(item.id, photo.id)} /> Select</label><button type="button" onClick={() => downloadPhoto(item, photo)} disabled={Boolean(downloadId)}>{downloadId === photo.id ? "Preparing…" : "Download"}</button></div>
+                  </div>)}</div> : <p className="gallery-muted">No photos in this session match the current filters.</p>)}
                 </article>;
               })}
             </section>)}
             {visibleCount < filteredPackages.length && <button className="gallery-more" type="button" onClick={() => setVisibleCount((count) => count + MORE_SESSION_COUNT)}>Load older sessions</button>}
-            {propertyPackages.length >= 50 && <p className="gallery-limit">Showing the latest 50 completed sessions for this property.</p>}
+            {historyCapped && <p className="gallery-limit">Showing photos from the latest 50 report packages for this property.</p>}
           </>}
         </>}
       </main>
       {activePhoto && <div className="gallery-lightbox" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewer(null); }}>
         <div className="gallery-lightbox-inner" role="dialog" aria-modal="true" aria-label="Photo viewer">
-          <div className="gallery-lightbox-toolbar"><span>{viewer.index + 1} of {viewerPhotos.length}</span><button ref={closeButtonRef} type="button" onClick={() => setViewer(null)} aria-label="Close photo viewer">Close ×</button></div>
+          <div className="gallery-lightbox-toolbar"><span>{viewer.index + 1} of {viewerPhotos.length}</span><button type="button" onClick={() => downloadPhoto({ id: viewer.packageId }, activePhoto)} disabled={Boolean(downloadId)}>{downloadId === activePhoto.id ? "Preparing…" : "Download original"}</button><button ref={closeButtonRef} type="button" onClick={() => setViewer(null)} aria-label="Close photo viewer">Close ×</button></div>
           {activePhoto.previewUrl ? <img src={activePhoto.previewUrl} alt={photoLabel(activePhoto)} /> : <p>Preview unavailable for this photo.</p>}
           <div className="gallery-lightbox-footer"><button type="button" onClick={() => setViewer((current) => ({ ...current, index: (current.index - 1 + viewerPhotos.length) % viewerPhotos.length }))} disabled={viewerPhotos.length < 2}>← Previous</button><div><strong>{photoLabel(activePhoto)}</strong><span>{dateLabel(activePhoto.capturedAt, { month: "long", day: "numeric", year: "numeric" })}</span></div><button type="button" onClick={() => setViewer((current) => ({ ...current, index: (current.index + 1) % viewerPhotos.length }))} disabled={viewerPhotos.length < 2}>Next →</button></div>
         </div>
