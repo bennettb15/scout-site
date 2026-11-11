@@ -2809,13 +2809,17 @@ const PUNCH_LIST_STYLES = `
     justify-content: center;
     gap: 8px;
     border-radius: 8px;
-    border: 1px solid rgb(203 213 225);
-    background: white;
+    border: 1px solid rgb(191 219 254);
+    background: rgb(239 246 255);
     padding: 0 12px;
-    color: rgb(28 39 66);
+    color: var(--brand);
     font-size: 14px;
     font-weight: 800;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  }
+
+  .punch-report-button:hover:not(:disabled) {
+    background: rgb(219 234 254);
   }
 
   .punch-report-button:disabled {
