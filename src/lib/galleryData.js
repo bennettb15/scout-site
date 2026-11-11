@@ -23,12 +23,18 @@ export function uniquePropertySessions(packages, propertyId) {
   );
 }
 
+export function galleryPhotoStatus(photo) {
+  if (photo?.isResolved) return "resolved";
+  if (String(photo?.issueStatus || photo?.issue_status || "").toLowerCase() === "pending_review") return "pending";
+  if (photo?.isFlagged) return "flagged";
+  return null;
+}
+
 export function filterGalleryPhotos(photos, status = "all", query = "") {
   const term = String(query || "").trim().toLocaleLowerCase();
   return (photos || []).filter((photo) => {
-    if (status === "priority" && !photo.isFlagged) return false;
-    if (status === "resolved" && !photo.isResolved) return false;
-    if (status === "standard" && (photo.isFlagged || photo.isResolved)) return false;
+    if (status === "flagged" && (!photo.isFlagged || galleryPhotoStatus(photo) === "resolved")) return false;
+    if (status === "resolved" && galleryPhotoStatus(photo) !== "resolved") return false;
     return !term || String(photo.displayName || "").toLocaleLowerCase().includes(term);
   });
 }

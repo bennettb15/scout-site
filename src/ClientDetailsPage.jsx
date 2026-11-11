@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ClipboardList, FileText, Mail, Pencil, Phone, RefreshCw, ShieldCheck, UserFilled } from "lucide-react";
+import { ChevronDown, ClipboardList, FileText, Images, Mail, Pencil, Phone, RefreshCw, ShieldCheck, UserFilled } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
@@ -395,6 +395,7 @@ export default function ClientDetailsPage() {
           <nav className="flex flex-wrap items-center gap-2" aria-label="Portal">
             <a href="/reports" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium"><FileText className="h-4 w-4" />Reports</a>
             <a href="/punch-list" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium"><ClipboardList className="h-4 w-4" />Punch List</a>
+            <a href="/gallery" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium"><Images className="h-4 w-4" />Gallery</a>
             {canOpenAdmin && <a href="/admin/portal-access" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium"><ShieldCheck className="h-4 w-4" />Admin</a>}
             {session && <AccountMenu onSignOut={handleSignOut} />}
           </nav>

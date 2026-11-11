@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, ChevronLeft, Clock, RefreshCw, ShieldCheck } from "lucide-react";
+import { Check, ChevronLeft, Clock, Images, RefreshCw, ShieldCheck } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import AccountMenu from "./components/AccountMenu";
@@ -236,6 +236,7 @@ export default function CustomerLifecycleAdminPage() {
           <a href="/admin/portal-access" className="inline-flex items-center gap-2 text-sm font-semibold text-foreground/75 hover:text-foreground">
             <ChevronLeft className="h-4 w-4" /> Portal Access
           </a>
+          {session && <a href="/gallery" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"><Images className="h-4 w-4" /> Gallery</a>}
           {session && <AccountMenu onSignOut={() => supabase?.auth.signOut()} />}
         </div>
       </header>

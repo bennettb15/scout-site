@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, CircleUserRound, ClipboardList, Download, FileText, Flag, ShieldCheck } from "lucide-react";
+import { CheckCircle2, CircleUserRound, ClipboardList, Clock, Download, FileText, Flag, ShieldCheck } from "lucide-react";
 import AccountMenu from "./components/AccountMenu";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext } from "./lib/portalContext";
-import { filterGalleryPhotos, gallerySessionDate, photoDateLabel, selectedGalleryPhotos, uniquePropertySessions } from "./lib/galleryData";
+import { filterGalleryPhotos, galleryPhotoStatus, gallerySessionDate, photoDateLabel, selectedGalleryPhotos, uniquePropertySessions } from "./lib/galleryData";
 import "./GalleryPage.css";
 
 const INITIAL_SESSION_COUNT = 4;
@@ -62,6 +62,18 @@ export default function GalleryPage() {
   const [viewer, setViewer] = useState(null);
   const requestedPhotos = useRef(new Set());
   const closeButtonRef = useRef(null);
+  const headerRef = useRef(null);
+  const [headerHeight, setHeaderHeight] = useState(77);
+
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+    const updateHeight = () => setHeaderHeight(header.getBoundingClientRect().height);
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     document.title = "Gallery | SCOUT";
@@ -302,8 +314,8 @@ export default function GalleryPage() {
   }
 
   return (
-    <div className="gallery-page">
-      <header className="border-b border-border bg-background/95 backdrop-blur">
+    <div className="gallery-page" style={{ "--gallery-header-height": `${headerHeight}px` }}>
+      <header ref={headerRef} className="border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-3 px-4 py-4 sm:flex-row sm:items-center md:px-6">
           <a href="/" className="inline-flex items-center">
             <img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-10 w-auto object-contain md:h-11" loading="eager" />
@@ -359,9 +371,8 @@ export default function GalleryPage() {
             {property && <label>Photo status
               <select value={photoStatus} onChange={(event) => { setPhotoStatus(event.target.value); setViewer(null); }}>
                 <option value="all">All photos</option>
-                <option value="priority">Priority</option>
+                <option value="flagged">Flagged</option>
                 <option value="resolved">Resolved</option>
-                <option value="standard">Other photos</option>
               </select>
             </label>}
             {property && <label>Find a photo
@@ -392,7 +403,7 @@ export default function GalleryPage() {
                     <button className="gallery-photo" type="button" onClick={() => setViewer({ propertyId, packageId: item.id, index: shownPhotos.findIndex((itemPhoto) => itemPhoto.id === photo.id) })} aria-label={`Open ${photoLabel(photo)}`}>
                       {photo.previewUrl ? <img src={photo.previewUrl} alt="" loading="lazy" /> : <span className="gallery-no-preview">Preview unavailable</span>}
                       <span className="gallery-photo-date">{photoDateLabel(photo.capturedAt || dateValue(item))}</span>
-                      {(photo.isResolved || photo.isFlagged) && <span className={`gallery-photo-status ${photo.isResolved ? "resolved" : "flagged"}`} title={photo.isResolved ? "Resolved" : "Flagged"}>{photo.isResolved ? <CheckCircle2 size={14} /> : <Flag size={14} />}<span>{photo.isResolved ? "Resolved" : "Flagged"}</span></span>}
+                      {galleryPhotoStatus(photo) && <span className={`gallery-photo-status ${galleryPhotoStatus(photo)}`} title={galleryPhotoStatus(photo) === "pending" ? "Pending review" : galleryPhotoStatus(photo) === "resolved" ? "Resolved" : "Flagged"}>{galleryPhotoStatus(photo) === "resolved" ? <CheckCircle2 size={14} /> : galleryPhotoStatus(photo) === "pending" ? <Clock size={14} /> : <Flag size={14} />}<span>{galleryPhotoStatus(photo) === "pending" ? "Pending" : galleryPhotoStatus(photo) === "resolved" ? "Resolved" : "Flagged"}</span></span>}
                       <span className="gallery-photo-caption">{photoLabel(photo)}</span>
                     </button>
                     <div className="gallery-photo-actions"><label><input type="checkbox" checked={(selectedIds[item.id] || []).includes(photo.id)} onChange={() => togglePhotoSelection(item.id, photo.id)} /> Select photo</label></div>

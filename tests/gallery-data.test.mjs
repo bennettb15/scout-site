@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { uniquePropertySessions, filterGalleryPhotos, selectedGalleryPhotos, photoDateLabel } from '../src/lib/galleryData.js';
+import { uniquePropertySessions, filterGalleryPhotos, galleryPhotoStatus, selectedGalleryPhotos, photoDateLabel } from '../src/lib/galleryData.js';
 
 test('gallery keeps only the newest report package for a property session', () => {
   const rows = [
@@ -17,8 +17,8 @@ test('gallery photo filters stay within the supplied session photos', () => {
     { id: 'b', displayName: 'South wall', isFlagged: false, isResolved: true },
     { id: 'c', displayName: 'North entry', isFlagged: false, isResolved: false },
   ];
-  assert.deepEqual(filterGalleryPhotos(photos, 'priority', 'north').map((photo) => photo.id), ['a']);
-  assert.deepEqual(filterGalleryPhotos(photos, 'standard', 'north').map((photo) => photo.id), ['c']);
+  assert.deepEqual(filterGalleryPhotos(photos, 'flagged', 'north').map((photo) => photo.id), ['a']);
+  assert.deepEqual(filterGalleryPhotos(photos, 'resolved').map((photo) => photo.id), ['b']);
 });
 
 
@@ -38,4 +38,11 @@ test('selected photos include multiple dates even when another filter is active'
 test('thumbnail date uses the requested short format in New York time', () => {
   assert.equal(photoDateLabel('2026-11-05T17:00:00Z'), '11-5-26');
   assert.equal(photoDateLabel('2026-11-05T01:00:00Z'), '11-4-26');
+});
+
+test('gallery status distinguishes flagged, pending review, and resolved photos', () => {
+  assert.equal(galleryPhotoStatus({ isFlagged: true }), 'flagged');
+  assert.equal(galleryPhotoStatus({ isFlagged: true, issueStatus: 'pending_review' }), 'pending');
+  assert.deepEqual(filterGalleryPhotos([{ id: 'pending', isFlagged: true, issueStatus: 'pending_review' }], 'flagged').map((photo) => photo.id), ['pending']);
+  assert.equal(galleryPhotoStatus({ isFlagged: true, isResolved: true }), 'resolved');
 });

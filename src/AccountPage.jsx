@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CircleUserRound, ClipboardList, FileText, ShieldCheck } from "lucide-react";
+import { CircleUserRound, ClipboardList, FileText, Images, ShieldCheck } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 import AccountMenu from "./components/AccountMenu";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
@@ -146,6 +146,7 @@ export default function AccountPage() {
                 <ClipboardList className="h-4 w-4" aria-hidden="true" />
                 Punch List
               </a>
+              <a href="/gallery" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground"><Images className="h-4 w-4" aria-hidden="true" />Gallery</a>
               {canOpenAdmin && (
                 <a href="/admin/portal-access" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground">
                   <ShieldCheck className="h-4 w-4" aria-hidden="true" />

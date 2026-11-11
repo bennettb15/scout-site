@@ -4,6 +4,7 @@ import {
   ClipboardList,
   FileText,
   Info,
+  Images,
   Mail,
   Plus,
   RefreshCw,
@@ -1041,6 +1042,7 @@ export default function PortalAccessAdminPage() {
                 <ClipboardList className="h-4 w-4" />
                 Punch List
               </a>
+              <a href="/gallery" className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground sm:h-10 sm:flex-none"><Images className="h-4 w-4" /> Gallery</a>
               {canManageCustomerLifecycle && (
                 <a href="/admin/customers" className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground/75 shadow-sm hover:text-foreground sm:h-10 sm:flex-none">
                   Customers
