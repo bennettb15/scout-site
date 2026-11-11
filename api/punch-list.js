@@ -4052,6 +4052,24 @@ function drawCoverCenteredText(doc, value, y, options = {}) {
     });
 }
 
+function drawCoverStatusBadges(doc, rows, selectedStatuses, y) {
+  const badges = [
+    { status: "active", label: "Open", width: 98, color: "#1b2745" },
+    { status: "pending_review", label: "Pending Review", width: 170, color: "#ea580c" },
+    { status: "resolved", label: "Resolved", width: 118, color: "#15803d" },
+  ].filter(({ status }) => selectedStatuses.includes(status));
+  const gap = 8;
+  const totalWidth = badges.reduce((sum, badge) => sum + badge.width, 0) + gap * Math.max(0, badges.length - 1);
+  let x = 306 - totalWidth / 2;
+  for (const badge of badges) {
+    const count = rows.filter((row) => row.status === badge.status).length;
+    doc.roundedRect(x, y, badge.width, 26, 8).fill(badge.color);
+    doc.font("Helvetica-Bold").fontSize(10).fillColor("#ffffff")
+      .text(`${badge.label}  ${count}`, x, y + 7, { width: badge.width, height: 12, align: "center", lineBreak: false });
+    x += badge.width + gap;
+  }
+}
+
 function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto, complete = false, selectedStatuses = ["active", "pending_review", "resolved"]) {
   const context = coverContext(rows, coverPhoto);
   const contextRow = { property: context.property, org: context.org, session: context.session };
@@ -4072,7 +4090,8 @@ function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto, complete = false
     .fillColor("#000000")
     .text(complete ? "Property Punchlist" : PDF_REPORT_TITLE, 72, 386, { width: 468, align: "center", height: 28 });
 
-  let y = 440;
+  if (complete) drawCoverStatusBadges(doc, rows, selectedStatuses, 420);
+  let y = complete ? 470 : 440;
   const photoDates = rows.flatMap((row) => row.reportPair ? [row.reportPair.original?.capturedAt, row.reportPair.current?.capturedAt, row.reportPair.completion?.capturedAt, row.reportPair.latestObservation?.capturedAt] : [row.capturedAt])
     .filter((value) => value && Number.isFinite(Date.parse(value))).sort((a, b) => Date.parse(a) - Date.parse(b));
   const coverRows = [
@@ -4080,12 +4099,7 @@ function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto, complete = false
     ["Property Address:", propertyAddress(contextRow)],
     ...(complete ? [["Photo Date Range:", [formatPdfDate(photoDates[0]), formatPdfDate(photoDates.at(-1))].filter(Boolean).join(" to ") || "Unknown"]] : [["Date of Service:", serviceDate], ["Time Window:", timeWindow]]),
     ["Organization:", context.org?.name || ""],
-    ...(complete ? [
-      ["Included Statuses:", selectedStatuses.map((status) => ({ active: "Open", pending_review: "Pending Review", resolved: "Resolved" })[status]).join(", ")],
-      ["Open Issues:", String(rows.filter((row) => row.status === "active").length)],
-      ["Pending Review:", String(rows.filter((row) => row.status === "pending_review").length)],
-      ["Resolved Issues:", String(rows.filter((row) => row.status === "resolved").length)],
-    ] : [["Open Issues:", String(rows.filter((row) => row.status !== "resolved").length)]]),
+    ...(!complete ? [["Open Issues:", String(rows.filter((row) => row.status !== "resolved").length)]] : []),
     ["Report Reference ID:", context.packageId],
     ["Report Date:", formatPdfDate(new Date())],
   ];
