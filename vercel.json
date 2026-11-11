@@ -53,6 +53,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/gallery",
+      "destination": "/index.html"
+    },
+    {
       "source": "/clients",
       "destination": "/index.html"
     },

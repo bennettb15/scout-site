@@ -4,6 +4,7 @@ const ScoutMarketingSite = lazy(() => import("./ScoutMarketingSite"));
 const ResetPasswordPage = lazy(() => import("./ResetPasswordPage"));
 const VerifiedEmailPage = lazy(() => import("./VerifiedEmailPage"));
 const ScoutReportsPortalPage = lazy(() => import("./ScoutReportsPortalPage"));
+const GalleryPage = lazy(() => import("./GalleryPage"));
 const ClientDetailsPage = lazy(() => import("./ClientDetailsPage"));
 const ScoutPunchListPage = lazy(() => import("./ScoutPunchListPage"));
 const PortalAccessAdminPage = lazy(() => import("./PortalAccessAdminPage"));
@@ -35,6 +36,8 @@ export default function App() {
     Page = SoftwareTermsPage;
   } else if (pathname === "/reports") {
     Page = ScoutReportsPortalPage;
+  } else if (pathname === "/gallery") {
+    Page = GalleryPage;
   } else if (pathname === "/clients") {
     Page = ClientDetailsPage;
   } else if (pathname === "/punch-list") {
