@@ -78,7 +78,7 @@ function DateField({ label, value, onChange, detail }) {
   );
 }
 
-export default function CustomerLifecycleAdminPage() {
+export default function CustomerLifecycleAdminPage({ hidden = false }) {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [email, setEmail] = useState("");
@@ -95,7 +95,6 @@ export default function CustomerLifecycleAdminPage() {
   const [confirmImmediateExpiration, setConfirmImmediateExpiration] = useState(false);
 
   useEffect(() => {
-    document.title = "Customers | SCOUT Admin";
     document.documentElement.style.setProperty("--brand", "#1C2742");
     if (!hasSupabaseConfig || !supabase) {
       setAuthLoading(false);
@@ -115,6 +114,10 @@ export default function CustomerLifecycleAdminPage() {
       subscription?.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!hidden) document.title = "Customers | SCOUT Admin";
+  }, [hidden]);
 
   const loadCustomers = useCallback(async (activeSession, preferredOrgId = "") => {
     if (!activeSession?.access_token) return;
@@ -232,7 +235,7 @@ export default function CustomerLifecycleAdminPage() {
   }
 
   return (
-    <div style={{ "--brand": "#1C2742" }} className="min-h-screen bg-slate-50 text-foreground">
+    <div hidden={hidden} style={{ "--brand": "#1C2742", display: hidden ? "none" : undefined }} className="min-h-screen bg-slate-50 text-foreground">
       <header className="border-b border-border bg-background">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6">
           <a href="/" className="inline-flex items-center">

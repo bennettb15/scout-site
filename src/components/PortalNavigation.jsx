@@ -1,3 +1,4 @@
+import { navigateAdminPage } from "../lib/adminNavigation";
 import { CircleUserRound, ClipboardList, FileText, Images, ShieldCheck } from "lucide-react";
 
 const BASE_LINK = "inline-flex h-10 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium shadow-sm transition-colors";
@@ -16,7 +17,7 @@ export default function PortalNavigation({ active, canOpenAdmin = false, classNa
   return (
     <nav aria-label="Portal navigation" className={`flex flex-wrap items-center gap-2 ${className}`}>
       {links.map(({ id, href, label, Icon }) => (
-        <a key={id} href={href} aria-current={active === id ? "page" : undefined}
+        <a key={id} href={href} onClick={id === "admin" ? (event) => navigateAdminPage(event, href) : undefined} aria-current={active === id ? "page" : undefined}
           className={`${BASE_LINK} ${active === id ? ACTIVE_LINK : INACTIVE_LINK}`}>
           <Icon className="h-4 w-4" />
           {label}

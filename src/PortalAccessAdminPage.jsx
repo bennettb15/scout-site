@@ -420,7 +420,7 @@ function PropertyScopeEditor({
   );
 }
 
-export default function PortalAccessAdminPage() {
+export default function PortalAccessAdminPage({ hidden = false }) {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [email, setEmail] = useState("");
@@ -453,10 +453,13 @@ export default function PortalAccessAdminPage() {
   const [reportEmailChangeId, setReportEmailChangeId] = useState("");
 
   useEffect(() => {
-    document.title = BRAND.siteTitle;
     document.documentElement.style.setProperty("--brand", BRAND.brandNavy);
     document.documentElement.style.setProperty("--brand-ink", "#23243A");
   }, []);
+
+  useEffect(() => {
+    if (!hidden) document.title = BRAND.siteTitle;
+  }, [hidden]);
 
   useEffect(() => {
     if (!hasSupabaseConfig || !supabase) {
@@ -1012,7 +1015,8 @@ export default function PortalAccessAdminPage() {
 
   return (
     <div
-      style={{ "--brand": BRAND.brandNavy, "--brand-ink": "#23243A" }}
+      hidden={hidden}
+      style={{ "--brand": BRAND.brandNavy, "--brand-ink": "#23243A", display: hidden ? "none" : undefined }}
       className="min-h-screen bg-slate-50 text-foreground"
     >
       <header className="border-b border-border bg-background/95 backdrop-blur">
