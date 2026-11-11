@@ -14,6 +14,7 @@ import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import AccountMenu from "./components/AccountMenu";
 import PortalNavigation from "./components/PortalNavigation";
+import AdminSectionNavigation from "./components/AdminSectionNavigation";
 import ReportBrandingPanel from "./components/ReportBrandingPanel";
 import {
   canEditPortalPropertyScope,
@@ -1024,7 +1025,7 @@ export default function PortalAccessAdminPage() {
               loading="eager"
             />
           </a>
-          {session && <PortalNavigation active="admin" canOpenAdmin={adminStatus === "authorized"} canManageCustomerLifecycle={canManageCustomerLifecycle} className="order-3 w-full sm:order-none sm:ml-auto sm:w-auto" />}
+          {session && <PortalNavigation active="admin" canOpenAdmin={adminStatus === "authorized"} className="order-3 w-full sm:order-none sm:ml-auto sm:w-auto" />}
           {session && (
             <AccountMenu onSignOut={handleSignOut} />
           )}
@@ -1032,6 +1033,7 @@ export default function PortalAccessAdminPage() {
       </header>
 
       <main className="mx-auto w-full min-w-0 max-w-6xl px-4 py-6 md:px-6 md:py-8">
+        {session && adminStatus === "authorized" && canManageCustomerLifecycle && <AdminSectionNavigation active="portal-access" />}
         <div className="mb-6 flex flex-col justify-between gap-3 md:flex-row md:items-end">
           <div>
             <div className="text-sm font-medium text-[var(--brand)]">

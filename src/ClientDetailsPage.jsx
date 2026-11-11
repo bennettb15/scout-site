@@ -209,7 +209,6 @@ export default function ClientDetailsPage() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(Boolean(hasSupabaseConfig && supabase));
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
-  const [canManageCustomerLifecycle, setCanManageCustomerLifecycle] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
@@ -245,7 +244,6 @@ export default function ClientDetailsPage() {
   useEffect(() => {
     if (!session?.access_token) {
       setCanOpenAdmin(false);
-      setCanManageCustomerLifecycle(false);
       return undefined;
     }
     let active = true;
@@ -253,15 +251,9 @@ export default function ClientDetailsPage() {
       headers: { Authorization: `Bearer ${session.access_token}` },
     }).then(async (response) => {
       const body = await response.json().catch(() => ({}));
-      if (active) {
-        setCanOpenAdmin(response.ok && body.isAdmin === true);
-        setCanManageCustomerLifecycle(response.ok && body.canManageCustomerLifecycle === true);
-      }
+      if (active) setCanOpenAdmin(response.ok && body.isAdmin === true);
     }).catch(() => {
-      if (active) {
-        setCanOpenAdmin(false);
-        setCanManageCustomerLifecycle(false);
-      }
+      if (active) setCanOpenAdmin(false);
     });
     return () => { active = false; };
   }, [session?.access_token]);
@@ -402,7 +394,7 @@ export default function ClientDetailsPage() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6">
           <a href="/"><img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-10 w-auto" /></a>
           <div className="flex flex-wrap items-center gap-2">
-            <PortalNavigation active="clients" canOpenAdmin={canOpenAdmin} canManageCustomerLifecycle={canManageCustomerLifecycle} />
+            <PortalNavigation active="clients" canOpenAdmin={canOpenAdmin} />
             {session && <AccountMenu onSignOut={handleSignOut} />}
           </div>
         </div>

@@ -5063,7 +5063,6 @@ export default function ScoutPunchListPage() {
   const [reportComplete, setReportComplete] = useState(false);
   const [reportPropertyId, setReportPropertyId] = useState("");
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
-  const [canManageCustomerLifecycle, setCanManageCustomerLifecycle] = useState(false);
   const sessionScopeRef = useRef("");
   const filterRequestRef = useRef(0);
   const rowsRequestRef = useRef(0);
@@ -5294,7 +5293,6 @@ export default function ScoutPunchListPage() {
       pendingManualRefreshRef.current = false;
       sessionScopeRef.current = "";
       setCanOpenAdmin(false);
-      setCanManageCustomerLifecycle(false);
       return;
     }
     const nextScope = sessionCacheScope(session);
@@ -5310,7 +5308,6 @@ export default function ScoutPunchListPage() {
     async function loadAdminStatus() {
       if (!session?.access_token) {
         setCanOpenAdmin(false);
-        setCanManageCustomerLifecycle(false);
         return;
       }
 
@@ -5321,15 +5318,9 @@ export default function ScoutPunchListPage() {
           },
         });
         const body = await response.json().catch(() => ({}));
-        if (active) {
-          setCanOpenAdmin(response.ok && body.isAdmin === true);
-          setCanManageCustomerLifecycle(response.ok && body.canManageCustomerLifecycle === true);
-        }
+        if (active) setCanOpenAdmin(response.ok && body.isAdmin === true);
       } catch {
-        if (active) {
-          setCanOpenAdmin(false);
-          setCanManageCustomerLifecycle(false);
-        }
+        if (active) setCanOpenAdmin(false);
       }
     }
 
@@ -6374,7 +6365,7 @@ export default function ScoutPunchListPage() {
             />
           </a>
           <div className="flex flex-wrap items-center gap-2">
-            <PortalNavigation active="punch-list" canOpenAdmin={canOpenAdmin} canManageCustomerLifecycle={canManageCustomerLifecycle} />
+            <PortalNavigation active="punch-list" canOpenAdmin={canOpenAdmin} />
             {session && <AccountMenu onSignOut={handleSignOut} />}
           </div>
         </div>

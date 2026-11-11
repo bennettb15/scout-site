@@ -57,7 +57,6 @@ export default function GalleryPage() {
   const [downloading, setDownloading] = useState(false);
   const [selectingDate, setSelectingDate] = useState("");
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
-  const [canManageCustomerLifecycle, setCanManageCustomerLifecycle] = useState(false);
   const [actionError, setActionError] = useState("");
   const [historyCapped, setHistoryCapped] = useState(false);
   const [visibleCount, setVisibleCount] = useState(INITIAL_SESSION_COUNT);
@@ -134,7 +133,6 @@ export default function GalleryPage() {
   useEffect(() => {
     if (!session?.access_token) {
       setCanOpenAdmin(false);
-      setCanManageCustomerLifecycle(false);
       return;
     }
     const controller = new AbortController();
@@ -142,12 +140,10 @@ export default function GalleryPage() {
       .then((body) => {
         if (controller.signal.aborted) return;
         setCanOpenAdmin(body.isAdmin === true);
-        setCanManageCustomerLifecycle(body.canManageCustomerLifecycle === true);
       })
       .catch(() => {
         if (controller.signal.aborted) return;
         setCanOpenAdmin(false);
-        setCanManageCustomerLifecycle(false);
       });
     return () => controller.abort();
   }, [session?.access_token]);
@@ -390,7 +386,7 @@ export default function GalleryPage() {
             <img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-10 w-auto object-contain md:h-11" loading="eager" />
           </a>
           <div className="flex flex-wrap items-center gap-2">
-            <PortalNavigation active="gallery" canOpenAdmin={canOpenAdmin} canManageCustomerLifecycle={canManageCustomerLifecycle} />
+            <PortalNavigation active="gallery" canOpenAdmin={canOpenAdmin} />
             {session && <AccountMenu onSignOut={() => supabase?.auth.signOut()} />}
           </div>
         </div>

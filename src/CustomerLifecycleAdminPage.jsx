@@ -4,6 +4,7 @@ import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import AccountMenu from "./components/AccountMenu";
 import PortalNavigation from "./components/PortalNavigation";
+import AdminSectionNavigation from "./components/AdminSectionNavigation";
 
 const EMPTY_DRAFT = {
   pilotSignedAt: "",
@@ -238,13 +239,14 @@ export default function CustomerLifecycleAdminPage() {
             <img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-10 w-auto object-contain md:h-11" />
           </a>
           <div className="flex flex-wrap items-center gap-2">
-            <PortalNavigation active="customers" canOpenAdmin={accessState === "authorized"} canManageCustomerLifecycle={accessState === "authorized"} />
+            <PortalNavigation active="admin" canOpenAdmin={accessState === "authorized"} />
             {session && <AccountMenu onSignOut={() => supabase?.auth.signOut()} />}
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-8">
+        {accessState === "authorized" && <AdminSectionNavigation active="customers" />}
         <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="text-sm font-medium text-[var(--brand)]">Private admin</div>

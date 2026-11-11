@@ -21,7 +21,6 @@ export default function AccountPage() {
   const [existingRequest, setExistingRequest] = useState(null);
   const [deletionEnabled, setDeletionEnabled] = useState(false);
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
-  const [canManageCustomerLifecycle, setCanManageCustomerLifecycle] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -68,7 +67,6 @@ export default function AccountPage() {
   useEffect(() => {
     if (!session?.access_token) {
       setCanOpenAdmin(false);
-      setCanManageCustomerLifecycle(false);
       return undefined;
     }
     let active = true;
@@ -76,15 +74,9 @@ export default function AccountPage() {
       headers: { Authorization: `Bearer ${session.access_token}` },
     }).then(async (response) => {
       const body = await response.json().catch(() => ({}));
-      if (active) {
-        setCanOpenAdmin(response.ok && body.isAdmin === true);
-        setCanManageCustomerLifecycle(response.ok && body.canManageCustomerLifecycle === true);
-      }
+      if (active) setCanOpenAdmin(response.ok && body.isAdmin === true);
     }).catch(() => {
-      if (active) {
-        setCanOpenAdmin(false);
-        setCanManageCustomerLifecycle(false);
-      }
+      if (active) setCanOpenAdmin(false);
     });
     return () => { active = false; };
   }, [session?.access_token]);
@@ -147,7 +139,7 @@ export default function AccountPage() {
           </a>
           {session && (
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <PortalNavigation active="account" canOpenAdmin={canOpenAdmin} canManageCustomerLifecycle={canManageCustomerLifecycle} />
+              <PortalNavigation active="account" canOpenAdmin={canOpenAdmin} />
               <AccountMenu onSignOut={handleSignOut} active />
             </div>
           )}
