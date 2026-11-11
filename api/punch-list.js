@@ -4052,22 +4052,24 @@ function drawCoverCenteredText(doc, value, y, options = {}) {
     });
 }
 
-function drawCoverStatusBadges(doc, rows, selectedStatuses, y) {
-  const badges = [
-    { status: "active", label: "Open", width: 98, color: "#1b2745" },
-    { status: "pending_review", label: "Pending Review", width: 170, color: "#ea580c" },
-    { status: "resolved", label: "Resolved", width: 118, color: "#15803d" },
-  ].filter(({ status }) => selectedStatuses.includes(status));
-  const gap = 8;
-  const totalWidth = badges.reduce((sum, badge) => sum + badge.width, 0) + gap * Math.max(0, badges.length - 1);
+function drawCoverStatusLine(doc, rows, selectedStatuses, y) {
+  const parts = [
+    { status: "active", label: "Open", color: "#dc2626" },
+    { status: "pending_review", label: "Pending Review", color: "#ea580c" },
+    { status: "resolved", label: "Resolved", color: "#15803d" },
+  ].filter(({ status }) => selectedStatuses.includes(status)).map((part) => ({
+    ...part,
+    text: `${part.label}: ${rows.filter((row) => row.status === part.status).length}`,
+  }));
+  doc.font("Helvetica-Bold").fontSize(12);
+  const gap = 22;
+  const widths = parts.map(({ text }) => doc.widthOfString(text));
+  const totalWidth = widths.reduce((sum, width) => sum + width, 0) + gap * Math.max(0, parts.length - 1);
   let x = 306 - totalWidth / 2;
-  for (const badge of badges) {
-    const count = rows.filter((row) => row.status === badge.status).length;
-    doc.roundedRect(x, y, badge.width, 26, 8).fill(badge.color);
-    doc.font("Helvetica-Bold").fontSize(10).fillColor("#ffffff")
-      .text(`${badge.label}  ${count}`, x, y + 7, { width: badge.width, height: 12, align: "center", lineBreak: false });
-    x += badge.width + gap;
-  }
+  parts.forEach((part, index) => {
+    doc.fillColor(part.color).text(part.text, x, y, { width: widths[index] + 1, height: 17, lineBreak: false });
+    x += widths[index] + gap;
+  });
 }
 
 function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto, complete = false, selectedStatuses = ["active", "pending_review", "resolved"]) {
@@ -4090,8 +4092,8 @@ function drawCoverPage(doc, rows, coverImageBuffer, coverPhoto, complete = false
     .fillColor("#000000")
     .text(complete ? "Property Punchlist" : PDF_REPORT_TITLE, 72, 386, { width: 468, align: "center", height: 28 });
 
-  if (complete) drawCoverStatusBadges(doc, rows, selectedStatuses, 420);
-  let y = complete ? 470 : 440;
+  if (complete) drawCoverStatusLine(doc, rows, selectedStatuses, 424);
+  let y = complete ? 460 : 440;
   const photoDates = rows.flatMap((row) => row.reportPair ? [row.reportPair.original?.capturedAt, row.reportPair.current?.capturedAt, row.reportPair.completion?.capturedAt, row.reportPair.latestObservation?.capturedAt] : [row.capturedAt])
     .filter((value) => value && Number.isFinite(Date.parse(value))).sort((a, b) => Date.parse(a) - Date.parse(b));
   const coverRows = [
