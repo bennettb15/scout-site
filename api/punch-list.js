@@ -1251,8 +1251,12 @@ export function publicObservationRow({
       workflowActivityRows,
     }),
     activity,
+    fieldResolutionActivityId:
+      status === "pending_review" && operationalState?.source === "field_resolution"
+        ? operationalState.activity?.id || null
+        : null,
     completionReview:
-      status === "pending_review" && completionState?.submission?.id
+      status === "pending_review" && operationalState?.source !== "field_resolution" && completionState?.submission?.id
         ? {
             activityId: completionState.submission.id,
             groupId: completionState.groupId || completionState.submission.id,
@@ -2234,12 +2238,13 @@ async function handleReviewCompletion(req, res, body = null) {
   }
 
   const submissionId = validateUuid(body.activityId || body.submissionId);
+  const fieldResolutionActivityId = validateUuid(body.fieldResolutionActivityId);
   const observationId = validateUuid(body.observationId);
   const shotId = validateUuid(body.shotId);
   const packageId = validateUuid(body.packageId);
   const action = keyValue(body.action);
   const reviewingPendingReviewState = keyValue(body.fromValue) === "pending_review";
-  if ((!submissionId && !observationId && !shotId) || !["approve", "reject"].includes(action)) {
+  if ((!fieldResolutionActivityId && !submissionId && !observationId && !shotId) || !["approve", "reject"].includes(action)) {
     return sendJson(res, 400, { error: "Valid completion review action is required." });
   }
 
@@ -2256,6 +2261,46 @@ async function handleReviewCompletion(req, res, body = null) {
 
     const service = createServiceClient();
     await ensureUserProfile(service, auth.user, auth.user.id);
+    if (fieldResolutionActivityId) {
+      const { data: submission, error: submissionError } = await service
+        .from("punchlist_activity")
+        .select(PUNCHLIST_ACTIVITY_SELECT)
+        .eq("id", fieldResolutionActivityId)
+        .eq("activity_type", "field_resolution_finalized")
+        .eq("to_value", "pending_review")
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (submissionError) throw submissionError;
+      if (!submission) return sendJson(res, 404, { error: "Field resolution not found." });
+      if (!(await canReviewPunchListCompletion(auth, service, submission.org_id, submission.property_id))) {
+        return sendJson(res, 403, { error: "Review access is required to review completion submissions." });
+      }
+      const { data: review, error: reviewError } = await service.rpc("review_field_resolution_submission", {
+        p_submission_activity_id: submission.id,
+        p_reviewer_id: auth.user.id,
+        p_action: action,
+        p_note: note,
+      });
+      if (reviewError) {
+        const staleReview = reviewError.code === "23514";
+        const missingSubmission = reviewError.code === "P0002";
+        return sendJson(res, missingSubmission ? 404 : staleReview ? 409 : 500, {
+          error: missingSubmission
+            ? "Field resolution not found. Refresh the item."
+            : staleReview
+              ? "This field resolution has changed or needs an uploaded completion photo for approval. Refresh the item before reviewing it."
+              : "Unable to review field resolution.",
+        });
+      }
+      return sendJson(res, 200, {
+        reviewed: true,
+        status: review?.status || (action === "approve" ? "resolved" : "active"),
+        observationId: submission.observation_id,
+        activity: publicActivityRow(review?.activity, {
+          actorEmail: normalizeAuditEmail(auth.user?.email) || SYSTEM_ACTOR_LABEL,
+        }),
+      });
+    }
     if (!submissionId) {
       const observation = await resolveReviewObservation(auth, service, {
         observationId,

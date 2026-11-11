@@ -5825,8 +5825,22 @@ export default function ScoutPunchListPage() {
     setCompletionReviewSavingKey(saveKey);
     setPunchListError("");
     try {
+      const fieldResolutionActivityId = row?.fieldResolutionActivityId;
       const submissionActivityId = row?.completionReview?.activityId;
-      const response = submissionActivityId
+      const response = fieldResolutionActivityId
+        ? await fetch("/api/punch-list?mode=completion-review", {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              fieldResolutionActivityId,
+              action: normalizedAction,
+              note,
+            }),
+          })
+        : submissionActivityId
         ? await fetch("/api/punch-list?mode=completion-review", {
             method: "PATCH",
             headers: {

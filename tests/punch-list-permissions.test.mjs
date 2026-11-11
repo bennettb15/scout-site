@@ -42,7 +42,7 @@ test("Manager can do punch list work as well as review, within assigned properti
   );
 });
 
-function pendingReviewRow({ canReviewCompletion }) {
+function pendingReviewRow({ canReviewCompletion, operationalState = null, completionState = null }) {
   return publicObservationRow({
     observation: {
       id: observationId,
@@ -62,8 +62,8 @@ function pendingReviewRow({ canReviewCompletion }) {
     canReviewCompletion,
     workflowState: {},
     statusOverride: "pending_review",
-    operationalState: null,
-    completionState: null,
+    operationalState,
+    completionState,
     completionPhoto: null,
     completionPhotos: [],
     completionPhotoIsPrimary: false,
@@ -100,6 +100,27 @@ test("Field does not receive or render review permission", () => {
   assert.equal(row.permissions.canEditWorkflow, true);
   assert.equal(row.permissions.canReviewCompletion, false);
   assert.equal(canReviewCompletionForPunchListRow(row), false);
+});
+
+test("Current field resolution takes review priority over an older portal submission", () => {
+  const fieldActivityId = "77777777-7777-4777-8777-777777777777";
+  const olderSubmissionId = "88888888-8888-4888-8888-888888888888";
+  const row = pendingReviewRow({
+    canReviewCompletion: true,
+    operationalState: {
+      source: "field_resolution",
+      status: "pending_review",
+      activity: { id: fieldActivityId },
+    },
+    completionState: {
+      submission: { id: olderSubmissionId },
+      groupId: olderSubmissionId,
+      submissions: [],
+    },
+  });
+  assert.equal(row.fieldResolutionActivityId, fieldActivityId);
+  assert.equal(row.completionReview, null);
+  assert.equal(canReviewCompletionForPunchListRow(row), true);
 });
 
 test("Submission review keeps observation and linked shot available for status sync", () => {
