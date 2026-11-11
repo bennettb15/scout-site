@@ -1,19 +1,25 @@
+import { Building2, ShieldCheck } from "lucide-react";
+
 const tabs = [
-  { id: "portal-access", href: "/admin/portal-access", label: "Portal Access" },
-  { id: "customers", href: "/admin/customers", label: "Customers" },
+  { id: "portal-access", href: "/admin/portal-access", label: "Portal Access", Icon: ShieldCheck },
+  { id: "customers", href: "/admin/customers", label: "Customers", Icon: Building2 },
 ];
 
 export default function AdminSectionNavigation({ active }) {
   return (
-    <nav aria-label="Admin sections" className="mb-6 flex flex-wrap gap-6 border-b border-slate-200">
-      {tabs.map((tab) => (
-        <a key={tab.id} href={tab.href} aria-current={active === tab.id ? "page" : undefined}
-          className={`inline-flex min-h-11 items-center border-b-2 px-1 pb-2 text-sm font-semibold transition-colors ${active === tab.id
-            ? "border-[#1c2742] text-[#1c2742]"
-            : "border-transparent text-foreground/60 hover:text-foreground"}`}>
-          {tab.label}
-        </a>
-      ))}
+    <nav aria-label="Admin sections" className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-[#cbd8e7] bg-[#eaf0f7] p-3 shadow-sm">
+      <span className="px-2 text-xs font-bold uppercase tracking-widest text-[#52647d]">Admin pages</span>
+      <div className="flex flex-wrap gap-2">
+        {tabs.map(({ id, href, label, Icon }) => (
+          <a key={id} href={href} aria-current={active === id ? "page" : undefined}
+            className={`inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 text-sm font-bold shadow-sm transition-colors ${active === id
+              ? "border-[#1c2742] bg-[#1c2742] text-white hover:bg-[#2b3b60]"
+              : "border-[#b9c9db] bg-white text-[#1c2742] hover:bg-[#f7f9fc]"}`}>
+            <Icon className="h-4 w-4" />
+            {label}
+          </a>
+        ))}
+      </div>
     </nav>
   );
 }
