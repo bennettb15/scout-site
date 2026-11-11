@@ -4,11 +4,29 @@ import {
   buildSnapshotPhotoMetadata,
   enrichPhotoRowWithSnapshotMetadata,
 } from "../api/_reportPortalShared.js";
-import { latestStatusOverride } from "../api-lib/punchListStatus.js";
+import { fieldResolutionStateFromActivity, latestStatusOverride } from "../api-lib/punchListStatus.js";
 
 const sessionId = "11111111-1111-4111-8111-111111111111";
 const issueId = "22222222-2222-4222-8222-222222222222";
 const shotId = "33333333-3333-4333-8333-333333333333";
+
+test("server field resolution outcome wins over the same session's pending snapshot", () => {
+  const activity = {
+    activity_type: "field_resolution_finalized",
+    from_value: sessionId,
+    to_value: "resolved",
+    created_at: "2026-11-11T14:00:00.000Z",
+  };
+  const operationalState = fieldResolutionStateFromActivity(activity);
+  assert.equal(operationalState.status, "resolved");
+  assert.equal(operationalState.source, "field_resolution");
+  assert.equal(latestStatusOverride({
+    operationalState,
+    shot: { session_id: sessionId, snapshot_issue_status: "pending_review" },
+    reportPackage: { session_completed_at: "2026-11-11T14:01:00.000Z" },
+  }), "resolved");
+  assert.equal(fieldResolutionStateFromActivity({ ...activity, to_value: "pending_review" }).status, "pending_review");
+});
 
 function metadataFor(rawSession) {
   return buildSnapshotPhotoMetadata(rawSession).byShotId.get(shotId);

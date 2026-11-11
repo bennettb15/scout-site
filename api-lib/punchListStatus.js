@@ -23,6 +23,13 @@ export function packageTimestamp(row) {
   return row?.session_completed_at || row?.completed_at || "";
 }
 
+export function fieldResolutionStateFromActivity(row) {
+  if (row?.activity_type !== "field_resolution_finalized") return null;
+  const status = normalizedExplicitStatus(row.to_value);
+  if (status !== "resolved" && status !== "pending_review") return null;
+  return { status, activity: row, source: "field_resolution", groupId: "" };
+}
+
 function shotReopenOperationalStatus(row) {
   if (!row?.snapshot_reopened_in_session) return "";
   return normalizedStatus(row.snapshot_issue_status || row.issue_status);
@@ -53,6 +60,12 @@ export function latestStatusOverride({ operationalState, shot, reportPackage }) 
   const scoutStatus = shotReopenOperationalStatus(shot) || shotPendingReviewOperationalStatus(shot);
   if (!scoutStatus) return activityStatus;
   if (!activityStatus) return scoutStatus;
+
+  // The server's decision for this capture supersedes its sealed field snapshot.
+  if (operationalState?.source === "field_resolution" &&
+      keyValue(operationalState.activity?.from_value) === keyValue(shot?.session_id)) {
+    return activityStatus;
+  }
 
   const packageTime = packageTimestamp(reportPackage) || shot?.updated_at || shot?.captured_at || shot?.created_at;
   const activityTime = operationalState?.activity?.created_at;

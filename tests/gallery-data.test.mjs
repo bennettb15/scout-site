@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { uniquePropertySessions, filterGalleryPhotos, galleryDayKey, galleryPhotoStatus, allDatePhotosSelected, selectedGalleryPhotos, updateDatePhotoSelection, photoDateLabel } from '../src/lib/galleryData.js';
+import { publicPhoto } from '../api/original-photos.js';
 
 test('gallery keeps only the newest report package for a property session', () => {
   const rows = [
@@ -45,6 +46,17 @@ test('gallery status distinguishes flagged, pending review, and resolved photos'
   assert.equal(galleryPhotoStatus({ isFlagged: true, issueStatus: 'pending_review' }), 'pending');
   assert.deepEqual(filterGalleryPhotos([{ id: 'pending', isFlagged: true, issueStatus: 'pending_review' }], 'flagged').map((photo) => photo.id), ['pending']);
   assert.equal(galleryPhotoStatus({ isFlagged: true, isResolved: true }), 'resolved');
+});
+
+test('gallery tags use the latest review outcome while retaining the field capture history', () => {
+  const capture = { id: 'photo', is_flagged: false, is_resolved_in_session: true, issue_status: 'pending_review' };
+  const pending = publicPhoto({ ...capture, current_issue_status: 'active' });
+  const approved = publicPhoto({ ...capture, current_issue_status: 'resolved', review_status: 'resolved' });
+  const rejected = publicPhoto({ ...capture, current_issue_status: 'active', review_status: 'active' });
+  assert.equal(galleryPhotoStatus(pending), 'pending');
+  assert.equal(galleryPhotoStatus(approved), 'resolved');
+  assert.equal(galleryPhotoStatus(rejected), 'flagged');
+  assert.equal(rejected.isResolvedInSession, true);
 });
 
 test('selecting a date spans sessions and preserves selections from other dates', () => {

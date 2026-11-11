@@ -25,7 +25,8 @@ import {
   sortPhotoRowsBySnapshot,
   stampedPhotoFilename,
 } from "./_reportPortalShared.js";
-import { latestStatusOverride, normalizedExplicitStatus, packageTimestamp } from "../api-lib/punchListStatus.js";
+import { fieldResolutionStateFromActivity, latestStatusOverride, normalizedExplicitStatus, packageTimestamp } from "../api-lib/punchListStatus.js";
+import { requiresFieldResolutionReview } from "../api-lib/resolutionReviewPolicy.js";
 import { mapWithConcurrency } from "../api-lib/mapWithConcurrency.js";
 import { loadActiveAttributionEmails } from "../api-lib/activeAttributionEmails.js";
 import { startPortalRequestTiming } from "../api-lib/portalRequestTiming.js";
@@ -104,6 +105,7 @@ const COMPLETION_ACTIVITY_TYPES = new Set([
   "completion_approved",
   "completion_rejected",
 ]);
+const FIELD_RESOLUTION_ACTIVITY_TYPE = "field_resolution_finalized";
 const MAX_TRADE_NAME_LENGTH = 60;
 const COMPLETION_PHOTO_PREFIX = "punchlist-completions";
 const COMPLETION_IMAGE_TYPES = new Set([
@@ -389,7 +391,22 @@ function applyScope(query, scope) {
 
 function toOrg(row) {
   if (!row) return null;
-  return { id: row.id, name: row.name };
+  return {
+    id: row.id,
+    name: row.name,
+    requireReviewForFieldResolutions: requiresFieldResolutionReview(row.require_review_for_field_resolutions),
+  };
+}
+
+async function loadOrgFilterRows(service) {
+  const query = (columns) => service.from("orgs").select(columns)
+    .is("deleted_at", null).order("name", { ascending: true });
+  const result = await query("id,name,require_review_for_field_resolutions");
+  if (!result.error) return result;
+  if (result.error.code === "42703" || result.error.code === "PGRST204") {
+    return query("id,name");
+  }
+  return result;
 }
 
 function toProperty(row) {
@@ -1050,6 +1067,8 @@ function completionStatusFromActivityType(activityType) {
 
 function operationalStateFromActivity(rows) {
   for (const row of rows || []) {
+    const fieldResolutionState = fieldResolutionStateFromActivity(row);
+    if (fieldResolutionState) return fieldResolutionState;
     const completionStatus = completionStatusFromActivityType(row?.activity_type);
     if (completionStatus) {
       return {
@@ -2973,6 +2992,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     }
     if (
       activityRow.activity_type !== "note_added" &&
+      activityRow.activity_type !== FIELD_RESOLUTION_ACTIVITY_TYPE &&
       !COMPLETION_ACTIVITY_TYPES.has(activityRow.activity_type) &&
       !workflowField
     ) {
@@ -4445,7 +4465,7 @@ async function handleFilters(req, res, timing) {
     const service = createServiceClient();
     const [portalAccess, { data: allOrgRows, error: orgError }, { data: allPropertyRows, error: propertyError }, tradeOptions, tradeOptionEditable] = await Promise.all([
       loadUserPortalPropertyAccess(service, auth.user),
-      service.from("orgs").select("id,name").is("deleted_at", null).order("name", { ascending: true }),
+      loadOrgFilterRows(service),
       service.from("properties")
         .select("id,org_id,name,address_line1,city,state,postal_code")
         .is("deleted_at", null)

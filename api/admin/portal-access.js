@@ -671,6 +671,7 @@ async function loadPortalAccess(context) {
         canManageBranding: brandingEnabledForOrg(row.id) &&
           (context.isPlatformAdmin || actorRole === "owner" ||
             (actorRole === "manager" && actorMembership?.access_scope === ORG_ACCESS_SCOPE)),
+        canManageResolutionReview: context.isPlatformAdmin || actorRole === "owner",
         properties,
       };
     }),

@@ -21,6 +21,38 @@ import {
   stampedPhotoFilename,
 } from "./_reportPortalShared.js";
 
+const REVIEW_ACTIVITY_TYPES = [
+  "field_resolution_finalized",
+  "completion_submitted",
+  "completion_approved",
+  "completion_rejected",
+];
+
+async function latestReviewStatusesForPhotos(service, reportPackage, photoRows) {
+  const shotIds = [...new Set(photoRows.map((row) => row.id).filter(Boolean))];
+  const statuses = new Map();
+  for (let index = 0; index < shotIds.length; index += 100) {
+    const { data, error } = await service.from("punchlist_activity")
+      .select("shot_id,activity_type,to_value,created_at")
+      .eq("org_id", reportPackage.org_id)
+      .eq("property_id", reportPackage.property_id)
+      .in("shot_id", shotIds.slice(index, index + 100))
+      .in("activity_type", REVIEW_ACTIVITY_TYPES)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    for (const row of data || []) {
+      if (statuses.has(row.shot_id)) continue;
+      const status = row.activity_type === "completion_approved" ? "resolved"
+        : row.activity_type === "completion_rejected" ? "active"
+          : row.activity_type === "completion_submitted" ? "pending_review"
+            : String(row.to_value || "").trim().toLowerCase();
+      if (["resolved", "active", "pending_review"].includes(status)) statuses.set(row.shot_id, status);
+    }
+  }
+  return statuses;
+}
+
 async function deliverableObjectExists(service, path) {
   const parts = String(path || "").split("/").filter(Boolean);
   const filename = parts.pop();
@@ -57,14 +89,16 @@ async function signedPreviewUrlForPhoto(service, row) {
   return data?.signedUrl || null;
 }
 
-function publicPhoto(row, previewUrl = null) {
+export function publicPhoto(row, previewUrl = null) {
   const flaggedReason = String(row.reason || "").trim() || null;
-  const normalizedIssueStatus = String(row.issue_status || "").trim().toLowerCase();
+  const reviewStatus = String(row.review_status || "").trim().toLowerCase();
+  const snapshotIssueStatus = String(row.issue_status || "").trim().toLowerCase();
   const isResolvedInSession =
     Boolean(row.is_resolved_in_session) ||
-    normalizedIssueStatus === "resolved" ||
-    normalizedIssueStatus === "closed";
-  const issueStatus = isResolvedInSession ? "resolved" : String(row.issue_status || "").trim() || null;
+    snapshotIssueStatus === "resolved" ||
+    snapshotIssueStatus === "closed";
+  const issueStatus = reviewStatus || snapshotIssueStatus || String(row.current_issue_status || "").trim().toLowerCase() || (isResolvedInSession ? "resolved" : null);
+  const isResolved = issueStatus === "resolved" || issueStatus === "closed";
   return {
     id: row.id,
     displayName: friendlyPhotoDisplayName(row),
@@ -72,8 +106,8 @@ function publicPhoto(row, previewUrl = null) {
     capturedAt: row.captured_at,
     byteSize: row.byte_size,
     mimeType: originalMimeType(row),
-    isFlagged: Boolean(row.is_flagged),
-    isResolved: isResolvedInSession,
+    isFlagged: Boolean(row.is_flagged || (issueStatus === "active" && isResolvedInSession)),
+    isResolved,
     isResolvedInSession,
     is_resolved_in_session: isResolvedInSession,
     issueStatus,
@@ -146,9 +180,12 @@ export default async function handler(req, res) {
       .filter(originalPathIsExpected)
       .map((row) => ({ ...row, property_id: row.property_id || reportPackage.property_id }));
     const snapshotMetadata = await loadSharedSnapshotPhotoMetadata(service, reportPackage);
-    const enrichedRows = sortPhotoRowsBySnapshot(
-      safeRows.map((row) => enrichPhotoRowWithSnapshotMetadata(row, snapshotMetadata))
-    );
+    const latestReviewStatuses = await latestReviewStatusesForPhotos(service, reportPackage, safeRows);
+    const enrichedRows = sortPhotoRowsBySnapshot(safeRows.map((row) => ({
+      ...enrichPhotoRowWithSnapshotMetadata(row, snapshotMetadata),
+      current_issue_status: row.issue_status,
+      review_status: latestReviewStatuses.get(row.id) || null,
+    })));
     const photos = await Promise.all(
       enrichedRows.map(async (row) => publicPhoto(row, await signedPreviewUrlForPhoto(service, row)))
     );

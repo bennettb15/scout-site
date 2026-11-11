@@ -636,6 +636,8 @@ function historyActivityAuditLabel(activity) {
       return `Approved by ${actor}`;
     case "completion_rejected":
       return `Rejected by ${actor}`;
+    case "field_resolution_finalized":
+      return "Recorded by Scout after upload";
     case "status_changed":
       return activity?.toValue === "active" && activity?.fromValue === "resolved"
         ? `Reopened by ${actor}`
@@ -997,6 +999,8 @@ function resolvedCompletionPhotos(row) {
 
 function historyActivityLabel(activity) {
   switch (activity?.activityType) {
+    case "field_resolution_finalized":
+      return "Field Resolution Processed";
     case "completion_submitted":
       return "Completion Submitted";
     case "completion_approved":
@@ -1025,6 +1029,7 @@ function formatHistoryValue(activity, value, tradeOptions = []) {
     case "completion_submitted":
     case "completion_approved":
     case "completion_rejected":
+    case "field_resolution_finalized":
       return statusLabel(value);
     case "priority_changed":
       return optionLabel(value, PRIORITY_LABELS);
@@ -1039,6 +1044,9 @@ function formatHistoryValue(activity, value, tradeOptions = []) {
 
 function historyActivityDetail(activity, tradeOptions = []) {
   if (activity?.activityType === "note_added") return "";
+  if (activity?.activityType === "field_resolution_finalized") {
+    return activity.toValue === "resolved" ? "Final resolution recorded" : "Awaiting review";
+  }
   if (activity?.activityType === "completion_submitted") return "Photo submitted for review";
   if (activity?.activityType === "completion_approved") return "Submission approved";
   if (activity?.activityType === "completion_rejected") return "Submission rejected";
@@ -4664,6 +4672,7 @@ export function PunchReportModal({
   tradeItems,
   selectedTrades,
   selectedStatuses = {},
+  statusOptions = REPORT_STATUS_OPTIONS,
   generating,
   onToggleTrade,
   onToggleStatus,
@@ -4722,7 +4731,7 @@ export function PunchReportModal({
               </label>
               <fieldset className="grid gap-2">
                 <legend className="mb-2 text-sm font-semibold text-foreground">Include statuses</legend>
-                {REPORT_STATUS_OPTIONS.map((option) => (
+                {statusOptions.map((option) => (
                   <label key={option.id} className="flex min-h-10 items-center gap-3 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground">
                     <input type="checkbox" checked={Boolean(selectedStatuses[option.id])} onChange={() => onToggleStatus(option.id)} disabled={generating} className="h-4 w-4 accent-[#1c2742]" />
                     {option.label}
@@ -4770,7 +4779,7 @@ export function PunchReportModal({
             type="button"
             className="punch-report-generate"
             onClick={onGenerate}
-            disabled={generating || (complete ? !propertyId || !REPORT_STATUS_OPTIONS.some((option) => selectedStatuses[option.id]) : selectedCount === 0)}
+            disabled={generating || (complete ? !propertyId || !statusOptions.some((option) => selectedStatuses[option.id]) : selectedCount === 0)}
             aria-busy={generating}
           >
             <Download className="h-4 w-4" />
@@ -5961,12 +5970,12 @@ export default function ScoutPunchListPage() {
   function handleCompleteReport() {
     setReportComplete(true);
     setReportPropertyId(selectedPropertyId && selectedPropertyId !== ALL ? selectedPropertyId : "");
-    setReportStatuses(defaultReportStatuses());
+    setReportStatuses({ ...defaultReportStatuses(), pending_review: showPendingReviewTab });
     setReportModalOpen(true);
   }
 
   function handleToggleReportStatus(statusId) {
-    if (reportGenerating || !REPORT_STATUS_OPTIONS.some((option) => option.id === statusId)) return;
+    if (reportGenerating || !availableReportStatusOptions.some((option) => option.id === statusId)) return;
     setReportStatuses((current) => ({ ...current, [statusId]: !current[statusId] }));
   }
 
@@ -5981,7 +5990,7 @@ export default function ScoutPunchListPage() {
 
   async function handleGenerateReport(complete = false, reportProperty = selectedPropertyId) {
     if (!session?.access_token || !selectedOrgId || (!complete && selectedReportTradeIds.length === 0)) return;
-    const selectedStatusIds = REPORT_STATUS_OPTIONS.filter((option) => reportStatuses[option.id]).map((option) => option.id);
+    const selectedStatusIds = availableReportStatusOptions.filter((option) => reportStatuses[option.id]).map((option) => option.id);
     if (complete && (!reportProperty || reportProperty === ALL || selectedStatusIds.length === 0)) return;
     setReportGenerating(true);
     setPunchListError("");
@@ -6196,7 +6205,19 @@ export default function ScoutPunchListPage() {
   const baseFilteredRows = useMemo(() => scopedRows.filter((row) =>
     row.status === (selectedTab === TAB_OPEN ? "active" : selectedTab)
   ), [scopedRows, selectedTab]);
-  const pendingReviewCount = scopedRows.filter((row) => row.status === "pending_review").length;
+  const pendingReviewCount = orgFilteredRows.filter((row) =>
+    row.status === "pending_review" &&
+    (displayedPropertyId === ALL || row.property?.id === displayedPropertyId)
+  ).length;
+  const requireReviewForFieldResolutions = orgOptions.find((option) => option.id === selectedOrgId)?.value?.requireReviewForFieldResolutions !== false;
+  const showPendingReviewTab = requireReviewForFieldResolutions || pendingReviewCount > 0;
+  const availableReportStatusOptions = showPendingReviewTab
+    ? REPORT_STATUS_OPTIONS
+    : REPORT_STATUS_OPTIONS.filter((option) => option.id !== TAB_PENDING);
+
+  useEffect(() => {
+    if (!showPendingReviewTab && selectedTab === TAB_PENDING) setSelectedTab(TAB_OPEN);
+  }, [selectedTab, showPendingReviewTab]);
 
   useEffect(() => {
     if (selectedTab !== TAB_OPEN && overdueOnly) setOverdueOnly(false);
@@ -6612,7 +6633,7 @@ export default function ScoutPunchListPage() {
                     Open
                     <span className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${selectedTab === TAB_OPEN ? "bg-white/20 text-white" : "bg-slate-200 text-foreground/75"}`}>{openCount}</span>
                   </button>
-                  <button
+                  {showPendingReviewTab && <button
                     type="button"
                     onClick={() => setSelectedTab(TAB_PENDING)}
                     aria-pressed={selectedTab === TAB_PENDING}
@@ -6625,7 +6646,7 @@ export default function ScoutPunchListPage() {
                     <Clock className="h-4 w-4" />
                     Pending Review
                     <span className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${selectedTab === TAB_PENDING ? "bg-white/20 text-white" : "bg-orange-600 text-white"}`}>{pendingCount}</span>
-                  </button>
+                  </button>}
                   <button
                     type="button"
                     onClick={() => setSelectedTab(TAB_RESOLVED)}
@@ -6665,7 +6686,7 @@ export default function ScoutPunchListPage() {
               />
             )}
 
-            {selectedTab === TAB_PENDING && !filtersLoading && !punchListLoading && !noPunchListSources && !noPunchListProperties && (
+            {showPendingReviewTab && selectedTab === TAB_PENDING && !filtersLoading && !punchListLoading && !noPunchListSources && !noPunchListProperties && (
               <div className="flex items-start gap-3 rounded-xl border border-orange-300 bg-orange-50 px-4 py-3 text-orange-900 shadow-sm" role="status">
                 <Clock className="mt-0.5 h-5 w-5 shrink-0 text-orange-700" />
                 <div>
@@ -6769,6 +6790,7 @@ export default function ScoutPunchListPage() {
         tradeItems={reportTradeItems}
         selectedTrades={reportSelectedTrades}
         selectedStatuses={reportStatuses}
+        statusOptions={availableReportStatusOptions}
         generating={reportGenerating}
         complete={reportComplete}
         propertyOptions={propertyOptions}
