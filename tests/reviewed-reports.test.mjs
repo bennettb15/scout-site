@@ -21,7 +21,7 @@ test("reviewed-report sources exclude reviewed copies, duplicate sessions, and i
     { id: "legacy-incomplete", snapshot_id: "snapshot-g", session_id: "visit-g", report_variant: null },
   ];
   const snapshots = ["a", "c", "d"].map((suffix) => ({
-    id: `snapshot-${suffix}`, field_resolution_submissions: [{ status: "pending_review" }],
+    id: `snapshot-${suffix}`, field_resolution_submissions: [{ status: "pending_review", activity_id: `submission-${suffix}` }],
   }));
   snapshots.push(
     { id: "snapshot-e", field_resolution_submissions: [{ status: "resolved" }] },
@@ -56,6 +56,8 @@ test("reviewed-report sources exclude reviewed copies, duplicate sessions, and i
   } };
   assert.deepEqual((await sourcePackages(service, orgId, propertyId)).map((row) => row.id),
     ["automatic", "other", "legacy-approved"]);
+  assert.deepEqual((await sourcePackages(service, orgId, propertyId))[0].pendingSubmissionIds,
+    ["submission-a"]);
   legacyFunctionAvailable = false;
   assert.deepEqual((await sourcePackages(service, orgId, propertyId)).map((row) => row.id), ["automatic", "other"]);
 });
@@ -90,7 +92,7 @@ function response() {
     json(body) { this.body = body; return this; } };
 }
 
-test("reviewed-report request status is limited to the requester and property reviewer", async () => {
+test("reviewed-report request status is available to property reviewers", async () => {
   const row = { id: requestId, requested_by: "owner", org_id: orgId, property_id: propertyId,
     source_package_id: "source", status: "ready", result_package_id: "result" };
   const service = { from(table) {
@@ -113,8 +115,17 @@ test("reviewed-report request status is limited to the requester and property re
     serviceClient: () => service,
     propertyAccess: async () => allowed,
   });
+  const shared = response();
+  await otherUser({ method: "GET", query: { requestId } }, shared);
+  assert.equal(shared.statusCode, 200);
+
+  const fieldUser = createReviewedReportsHandler({
+    authenticate: async () => ({ user: { id: "field" } }),
+    serviceClient: () => service,
+    propertyAccess: async () => ({ rows: [{ org_id: orgId, role: "field", access_scope: "org" }] }),
+  });
   const denied = response();
-  await otherUser({ method: "GET", query: { requestId } }, denied);
+  await fieldUser({ method: "GET", query: { requestId } }, denied);
   assert.equal(denied.statusCode, 404);
 });
 

@@ -6230,10 +6230,11 @@ export default function ScoutPunchListPage() {
   const baseFilteredRows = useMemo(() => scopedRows.filter((row) =>
     row.status === (selectedTab === TAB_OPEN ? "active" : selectedTab)
   ), [scopedRows, selectedTab]);
-  const pendingReviewCount = orgFilteredRows.filter((row) =>
+  const propertyPendingRows = orgFilteredRows.filter((row) =>
     row.status === "pending_review" &&
     (displayedPropertyId === ALL || row.property?.id === displayedPropertyId)
-  ).length;
+  );
+  const pendingReviewCount = propertyPendingRows.length;
   const requireReviewForFieldResolutions = orgOptions.find((option) => option.id === selectedOrgId)?.value?.requireReviewForFieldResolutions !== false;
   const showPendingReviewTab = requireReviewForFieldResolutions || pendingReviewCount > 0;
   const availableReportStatusOptions = showPendingReviewTab
@@ -6730,12 +6731,11 @@ export default function ScoutPunchListPage() {
               !filtersLoading && !punchListLoading &&
               !noPunchListSources && !noPunchListProperties && (
                 <ReviewedReportsControl
+                  key={`${selectedOrgId}:${displayedPropertyId}`}
                   orgId={selectedOrgId}
                   propertyId={displayedPropertyId}
-                  propertyName={propertyOptions.find((option) => option.id === displayedPropertyId)?.value?.name}
-                  pendingCount={pendingReviewCount}
+                  pendingRows={propertyPendingRows}
                   session={session}
-                  transitionOnly={!requireReviewForFieldResolutions}
                 />
               )}
 
