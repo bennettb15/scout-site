@@ -3776,6 +3776,14 @@ function drawIndexFlagIcon(doc, x, y, color = '#dc2626') {
   doc.restore();
 }
 
+function drawPendingReviewIcon(doc, x, y, color = '#6d28d9') {
+  doc.save();
+  doc.lineWidth(1.6).strokeColor(color);
+  doc.circle(x + 3, y + 2, 3).stroke();
+  doc.moveTo(x + 5.3, y + 4.3).lineTo(x + 8.5, y + 7.5).stroke();
+  doc.restore();
+}
+
 function drawPriorityCaptionLine(doc, row, x, y, width) {
   const priorityKey = normalizedPriority(row.priority);
   const priority = titleCaseWords(priorityKey);
@@ -3814,7 +3822,9 @@ function drawPriorityCaptionLine(doc, row, x, y, width) {
   currentX += priorityWidth;
   doc.text(separator, currentX, y, { width: separatorWidth + 1, height: 14, lineBreak: false });
   currentX += separatorWidth;
-  drawCaptionFlagIcon(doc, currentX, y, reportStatusColor(row.status));
+  if (row.status === 'resolved') drawCompleteCheckIcon(doc, currentX, y, reportStatusColor(row.status));
+  else if (row.status === 'pending_review') drawPendingReviewIcon(doc, currentX, y, reportStatusColor(row.status));
+  else drawCaptionFlagIcon(doc, currentX, y, reportStatusColor(row.status));
   currentX += flagWidth + gap;
   doc.font("Helvetica").fontSize(10).fillColor(reportStatusColor(row.status));
   reasonLines.forEach((line, index) => {
@@ -3950,6 +3960,7 @@ function drawIndexPage(doc, entries, pageIndex = 0) {
   const textWidth = 454;
   entries.forEach((entry) => {
     if (entry.row.status === 'resolved') drawCompleteCheckIcon(doc, 39, y, reportStatusColor(entry.row.status));
+    else if (entry.row.status === 'pending_review') drawPendingReviewIcon(doc, 40, y, reportStatusColor(entry.row.status));
     else drawIndexFlagIcon(doc, 40, y, reportStatusColor(entry.row.status));
     doc.font("Helvetica").fontSize(9.5).fillColor("#000000");
     const label = truncateTextToWidth(doc, indexEntryText(entry.row), textWidth);
@@ -4120,7 +4131,7 @@ function drawCoverCenteredText(doc, value, y, options = {}) {
 function drawCoverStatusLine(doc, rows, selectedStatuses, y) {
   const parts = [
     { status: "active", label: "Open", color: "#dc2626" },
-    { status: "pending_review", label: "Pending Review", color: "#ea580c" },
+    { status: "pending_review", label: "Pending Review", color: "#6d28d9" },
     { status: "resolved", label: "Resolved", color: "#15803d" },
   ].filter(({ status }) => selectedStatuses.includes(status)).map((part) => ({
     ...part,
@@ -4215,7 +4226,7 @@ export function completeReportPagePlans(doc, rows) {
 
 function completeStatus(row) {
   if (row.status === 'resolved') return { label: 'Resolved', ink: reportStatusColor(row.status), background: '#f0fdf4' };
-  if (row.status === 'pending_review') return { label: 'Pending Review', ink: reportStatusColor(row.status), background: '#fff7ed' };
+  if (row.status === 'pending_review') return { label: 'Pending Review', ink: reportStatusColor(row.status), background: '#f5f3ff' };
   return { label: 'Open', ink: reportStatusColor(row.status), background: '#fef2f2' };
 }
 
@@ -4228,6 +4239,7 @@ function drawCompleteItemHeader(doc, row, tradeOptions, continued = false) {
   const status = completeStatus(row);
   doc.roundedRect(42, 119, 136, 23, 6).fill(status.background);
   if (row.status === 'resolved') drawCompleteCheckIcon(doc, 53, 131, status.ink);
+  else if (row.status === 'pending_review') drawPendingReviewIcon(doc, 52, 127, status.ink);
   else drawCaptionFlagIcon(doc, 51, 126, status.ink);
   doc.font('Helvetica-Bold').fontSize(9).fillColor(status.ink).text(status.label.toUpperCase(), 68, 126, { width: 104, height: 12 });
   doc.font('Helvetica-Bold').fontSize(8).fillColor('#64748b').text('TRADE', 193, 117, { width: 215, height: 11 });
@@ -4269,7 +4281,7 @@ function drawCompletePhotoCaption(doc, row, source, x, original, frame) {
   const status = original ? 'active' : row.status;
   const color = reportStatusColor(status);
   const reason = singleLine(source?.reason, original ? singleLine(row.originalReason || row.reason) : '');
-  const label = latestObservation ? 'Latest photo' : currentFlagged ? 'Current' : status === 'resolved' ? 'Resolved' : status === 'pending_review' ? 'Pending Review' : 'Open';
+  const label = status === 'pending_review' ? 'Pending Review' : latestObservation ? 'Latest photo' : currentFlagged ? 'Current' : status === 'resolved' ? 'Resolved' : 'Open';
   const note = original ? (reason || 'Flagged') : [label, reason].filter(Boolean).join(' - ');
   const noteY = Math.min(528, frame.y + frame.height + 7);
   if (source) {
@@ -4277,10 +4289,12 @@ function drawCompletePhotoCaption(doc, row, source, x, original, frame) {
     doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#111827');
     lines.forEach((line, index) => {
       const textWidth = doc.widthOfString(line);
-      const iconWidth = index === 0 && !latestObservation ? 13 : 0;
+      const showStatusIcon = index === 0 && (!latestObservation || status === 'pending_review');
+      const iconWidth = showStatusIcon ? 13 : 0;
       const startX = x + Math.max(0, (255 - textWidth - iconWidth) / 2);
-      if (index === 0 && !latestObservation) {
+      if (showStatusIcon) {
         if (status === 'resolved') drawCompleteCheckIcon(doc, startX, noteY, color);
+        else if (status === 'pending_review') drawPendingReviewIcon(doc, startX, noteY, color);
         else drawCaptionFlagIcon(doc, startX, noteY, color);
       }
       doc.text(line, startX + iconWidth, noteY + index * 11.5, { width: 255 - (startX - x) - iconWidth, height: 12, lineBreak: false });

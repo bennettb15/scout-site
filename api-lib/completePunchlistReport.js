@@ -1,5 +1,5 @@
 const key = (value) => String(value || '').trim().toLowerCase();
-export const reportStatusColor = (status) => key(status) === 'resolved' ? '#15803d' : key(status) === 'pending_review' ? '#ea580c' : '#dc2626';
+export const reportStatusColor = (status) => key(status) === 'resolved' ? '#15803d' : key(status) === 'pending_review' ? '#6d28d9' : '#dc2626';
 const time = (value) => Date.parse(value || '') || 0;
 const oldestFirst = (a, b) => time(a.captured_at || a.created_at) - time(b.captured_at || b.created_at) || key(a.id).localeCompare(key(b.id));
 const newestActivityFirst = (a, b) => time(b.created_at) - time(a.created_at) || key(b.id).localeCompare(key(a.id));
