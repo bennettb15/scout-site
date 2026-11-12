@@ -106,7 +106,7 @@ export default function ReviewedReportsControl({ orgId, propertyId, pendingCount
     }
   }
 
-  if (loading || pendingCount > 0 || (!availability && !notice) ||
+  if (loading || pendingCount > 0 || (!availability && !notice && !error) ||
       (request?.status === "ready" && request.resultPackageId && !notice)) return null;
 
   return (
