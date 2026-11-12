@@ -159,6 +159,9 @@
   body {
     @apply bg-background text-foreground;
   }
+  button:not(:disabled):not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
 }
 
 @media (min-width: 1150px) {
