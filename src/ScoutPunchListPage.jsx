@@ -6619,8 +6619,10 @@ export default function ScoutPunchListPage() {
                 Signed in as{" "}
                 <span className="font-semibold text-foreground">
                   {session.user?.email || "authenticated user"}
+                </span>.{" "}
+                <span className="whitespace-nowrap">
+                  {compactCount(filteredRows.length, "visible issue")}.
                 </span>
-                . {compactCount(filteredRows.length, "visible issue")}.
               </div>
               <div className="punch-report-actions">
                 <button
