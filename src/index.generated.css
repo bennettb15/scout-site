@@ -1226,6 +1226,10 @@
     --tw-leading: calc(var(--spacing) * 7);
     line-height: calc(var(--spacing) * 7);
   }
+  .leading-\[1\.35\] {
+    --tw-leading: 1.35;
+    line-height: 1.35;
+  }
   .leading-none {
     --tw-leading: 1;
     line-height: 1;

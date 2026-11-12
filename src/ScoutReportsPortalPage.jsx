@@ -1733,7 +1733,7 @@ export default function ScoutReportsPortalPage() {
                                       </button>
                                       {photoStatus && (
                                         <span
-                                          className="absolute right-1.5 top-1.5 z-20 inline-flex max-w-[calc(100%-36px)] items-center gap-1 truncate rounded-md px-1.5 py-1 text-[10px] font-bold leading-none text-white shadow-md"
+                                          className="absolute right-1.5 top-1.5 z-20 inline-flex max-w-[calc(100%-36px)] min-w-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold leading-[1.35] text-white shadow-md"
                                           title={photoStatus === "pending" ? "Pending Review" : photoStatus === "resolved" ? "Resolved" : "Flagged"}
                                           style={{
                                             backgroundColor: photoStatus === "pending" ? "#6d28d9" : photoStatus === "resolved" ? "#177554" : "#b42332",
