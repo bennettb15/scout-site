@@ -38,7 +38,7 @@ export default function ReviewedReportsControl({ orgId, propertyId, pendingCount
       signal: controller.signal,
     }).then(readResponse).then((body) => {
       if (controller.signal.aborted) return;
-      setAvailability(body.available && body.unresolvedCount === 0);
+      setAvailability(body.available);
       setRequest(body.request);
     }).catch((cause) => {
       if (!controller.signal.aborted) {
@@ -106,7 +106,7 @@ export default function ReviewedReportsControl({ orgId, propertyId, pendingCount
     }
   }
 
-  if (loading || pendingCount > 0 || (!availability && !notice && !error) ||
+  if (loading || (!availability && !notice && !error) ||
       (request?.status === "ready" && request.resultPackageId && !notice)) return null;
 
   return (
@@ -129,11 +129,16 @@ export default function ReviewedReportsControl({ orgId, propertyId, pendingCount
                 {processing ? "In progress" : "Next step"}
               </span>
               <h2 className="mt-1 text-lg font-bold text-[var(--brand)]">
-                {processing ? "Updating property reports" : "Reviews complete — update property reports"}
+                {processing ? "Updating property reports" : pendingCount > 0
+                  ? "Reviews saved — update property reports"
+                  : "Reviews complete — update property reports"}
               </h2>
               <p className="mt-1 text-sm text-foreground/70">
                 Create three PDFs with the latest property data and review decisions. Previous copies stay in Reports.
               </p>
+              {pendingCount > 0 && <p className="mt-1 text-sm font-medium text-violet-800">
+                {pendingCount} item{pendingCount === 1 ? " remains" : "s remain"} Pending Review in the updated reports.
+              </p>}
               {processing && <p role="status" className="mt-1 text-sm text-foreground/65">{progressMessage(request)}</p>}
               {request?.status === "failed" && <p role="alert" className="mt-1 text-sm text-red-700">
                 {request.error || "The updated reports could not be generated."}
