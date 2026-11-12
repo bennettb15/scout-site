@@ -6725,8 +6725,9 @@ export default function ScoutPunchListPage() {
               </div>
             )}
 
-            {requireReviewForFieldResolutions && selectedTab === TAB_PENDING &&
-              displayedPropertyId !== ALL && !filtersLoading && !punchListLoading &&
+            {(requireReviewForFieldResolutions ? selectedTab === TAB_PENDING : true) &&
+              selectedPropertyId && selectedPropertyId !== ALL && displayedPropertyId !== ALL &&
+              !filtersLoading && !punchListLoading &&
               !noPunchListSources && !noPunchListProperties && (
                 <ReviewedReportsControl
                   orgId={selectedOrgId}
@@ -6734,6 +6735,7 @@ export default function ScoutPunchListPage() {
                   propertyName={propertyOptions.find((option) => option.id === displayedPropertyId)?.value?.name}
                   pendingCount={pendingReviewCount}
                   session={session}
+                  transitionOnly={!requireReviewForFieldResolutions}
                 />
               )}
 
