@@ -106,8 +106,8 @@ export default function ReviewedReportsControl({ orgId, propertyId, propertyName
   const allSourcesUpdated = sources.length > 0 && sources.every((source) =>
     source.latestRequest?.status === "ready" && source.latestRequest?.resultPackageId
   );
-  if (unavailable || (transitionOnly && (loading || (!error &&
-    (sources.length === 0 || (pendingCount === 0 && allSourcesUpdated)))))) return null;
+  if (unavailable || loading || (!error && sources.length === 0) ||
+    (transitionOnly && pendingCount === 0 && allSourcesUpdated)) return null;
 
   async function generate() {
     if (!sourceId || requesting || processing) return;
