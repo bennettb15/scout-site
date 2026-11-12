@@ -1582,7 +1582,7 @@ export default function ScoutReportsPortalPage() {
                                     type="button"
                                     onClick={() => handleDownload(file)}
                                     disabled={downloadId === file.id}
-                                    className="flex h-10 items-center justify-between gap-3 rounded-lg bg-[var(--brand)] px-3 text-left text-white shadow-sm transition hover:bg-[var(--brand)]/95 disabled:opacity-60"
+                                    className="flex h-10 cursor-pointer items-center justify-between gap-3 rounded-lg bg-[var(--brand)] px-3 text-left text-white shadow-sm transition hover:bg-[var(--brand)]/95 disabled:cursor-wait disabled:opacity-60"
                                     aria-label={`Download ${reportName}`}
                                   >
                                     <span

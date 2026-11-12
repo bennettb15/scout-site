@@ -1985,6 +1985,11 @@
       cursor: not-allowed;
     }
   }
+  .disabled\:cursor-wait {
+    &:disabled {
+      cursor: wait;
+    }
+  }
   .disabled\:opacity-45 {
     &:disabled {
       opacity: 45%;
