@@ -110,7 +110,7 @@ export default function ReviewedReportsControl({ orgId, propertyId, pendingCount
       (request?.status === "ready" && request.resultPackageId && !notice)) return null;
 
   return (
-    <section className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 shadow-sm" aria-label="Property report updates">
+    <section className="rounded-2xl border-2 border-blue-300 border-l-[6px] border-l-[var(--brand)] bg-white px-5 py-4 shadow-lg" aria-label="Property report updates">
       {notice && (
         <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-green-800" role="status">
           <Check className="h-4 w-4" /> Updated property reports are ready.
@@ -119,13 +119,20 @@ export default function ReviewedReportsControl({ orgId, propertyId, pendingCount
         </div>
       )}
       {availability && !(request?.status === "ready" && request.resultPackageId) && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
-            <FileText className="mt-0.5 h-5 w-5 shrink-0 text-[var(--brand)]" />
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-[var(--brand)]">
+              <FileText className="h-5 w-5" />
+            </span>
             <div>
-              <h2 className="font-semibold text-[var(--brand)]">Reviews complete</h2>
+              <span className="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-[var(--brand)]">
+                {processing ? "In progress" : "Next step"}
+              </span>
+              <h2 className="mt-1 text-lg font-bold text-[var(--brand)]">
+                {processing ? "Updating property reports" : "Reviews complete — update property reports"}
+              </h2>
               <p className="mt-1 text-sm text-foreground/70">
-                Create three updated PDFs using the latest completed property data. Previous copies stay in Reports.
+                Create three PDFs with the latest property data and review decisions. Previous copies stay in Reports.
               </p>
               {processing && <p role="status" className="mt-1 text-sm text-foreground/65">{progressMessage(request)}</p>}
               {request?.status === "failed" && <p role="alert" className="mt-1 text-sm text-red-700">
@@ -134,7 +141,7 @@ export default function ReviewedReportsControl({ orgId, propertyId, pendingCount
             </div>
           </div>
           <button type="button" onClick={generate} disabled={requesting || processing}
-            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-semibold text-[var(--brand)] shadow-sm hover:bg-blue-100 disabled:opacity-50">
+            className="inline-flex h-12 shrink-0 items-center gap-2 rounded-xl bg-[var(--brand)] px-5 text-sm font-bold text-white shadow-md hover:opacity-90 disabled:opacity-50">
             {processing || requesting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
             {processing ? "Generating…" : requesting ? "Requesting…" : "Update reports"}
           </button>
