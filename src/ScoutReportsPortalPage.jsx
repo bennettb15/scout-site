@@ -9,6 +9,7 @@ import {
   Flag,
   FileText,
   RefreshCw,
+  Search,
   X,
 } from "lucide-react";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
@@ -194,13 +195,17 @@ function photoFlaggedReason(photo) {
 
 function photoIsResolved(photo) {
   const status = String(photo?.issueStatus || photo?.issue_status || "").toLowerCase();
+  if (status === "pending_review" || status === "active") return false;
+  if (status === "resolved" || status === "closed") return true;
   return Boolean(
     photo?.isResolved ||
       photo?.isResolvedInSession ||
-      photo?.is_resolved_in_session ||
-      status === "resolved" ||
-      status === "closed"
+      photo?.is_resolved_in_session
   );
+}
+
+function photoIsPendingReview(photo) {
+  return String(photo?.issueStatus || photo?.issue_status || "").toLowerCase() === "pending_review";
 }
 
 function photoIsFlagged(photo) {
@@ -208,7 +213,7 @@ function photoIsFlagged(photo) {
 }
 
 function photoHasIssueState(photo) {
-  return photoIsFlagged(photo) || photoIsResolved(photo);
+  return photoIsFlagged(photo) || photoIsPendingReview(photo) || photoIsResolved(photo);
 }
 
 export default function ScoutReportsPortalPage() {
@@ -1636,6 +1641,7 @@ export default function ScoutReportsPortalPage() {
                               {visiblePhotos(reportPackage).map((photo) => {
                                 const selected = isPhotoSelected(reportPackage, photo);
                                 const photoLabel = compactPhotoLabel(photo);
+                                const pendingReview = photoIsPendingReview(photo);
                                 const resolved = photoIsResolved(photo);
                                 const flagged = photoIsFlagged(photo);
                                 return (
@@ -1717,7 +1723,29 @@ export default function ScoutReportsPortalPage() {
                                           }}
                                         />
                                       </button>
-                                      {resolved ? (
+                                      {pendingReview ? (
+                                        <span
+                                          className="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/95 shadow-md ring-1 ring-violet-100"
+                                          title="Pending Review"
+                                          aria-label="Pending Review"
+                                          style={{
+                                            alignItems: "center",
+                                            background: "rgba(255,255,255,0.96)",
+                                            borderRadius: "9999px",
+                                            boxShadow: "0 2px 8px rgba(15, 23, 42, 0.22)",
+                                            display: "inline-flex",
+                                            height: "22px",
+                                            justifyContent: "center",
+                                            position: "absolute",
+                                            right: "6px",
+                                            top: "6px",
+                                            width: "22px",
+                                            zIndex: 20,
+                                          }}
+                                        >
+                                          <Search className="h-3.5 w-3.5" strokeWidth={3} style={{ color: "#6d28d9" }} />
+                                        </span>
+                                      ) : resolved ? (
                                         <span
                                           className="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/95 shadow-md ring-1 ring-green-100"
                                           style={{
@@ -1874,6 +1902,7 @@ export default function ScoutReportsPortalPage() {
             photoIsFlagged(activePhotoViewer.photo)
           );
           const activePhotoResolved = photoIsResolved(activePhotoViewer.photo);
+          const activePhotoPendingReview = photoIsPendingReview(activePhotoViewer.photo);
           const activePhotoFlaggedReason = photoFlaggedReason(activePhotoViewer.photo);
           return (
             <div
@@ -1992,7 +2021,18 @@ export default function ScoutReportsPortalPage() {
                   <div className="truncate text-sm font-semibold text-slate-900">
                     {activePhotoLabel}
                   </div>
-                  {activePhotoResolved ? (
+                  {activePhotoPendingReview ? (
+                    <div className="mt-1.5 flex justify-center text-xs font-semibold text-violet-700">
+                      <span className="inline-flex max-w-full items-center justify-center gap-1">
+                        <Search className="h-3.5 w-3.5" strokeWidth={3} />
+                        <span className="truncate">
+                          {activePhotoFlaggedReason
+                            ? "Resolved in field · Pending Review: " + activePhotoFlaggedReason
+                            : "Resolved in field · Pending Review"}
+                        </span>
+                      </span>
+                    </div>
+                  ) : activePhotoResolved ? (
                     <div
                       className="mt-1.5 flex justify-center text-xs font-semibold"
                       style={{ color: "#15803d" }}
