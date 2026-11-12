@@ -110,7 +110,7 @@ export default function ReviewedReportsControl({ orgId, propertyId, pendingCount
       (request?.status === "ready" && request.resultPackageId && !notice)) return null;
 
   return (
-    <section className="rounded-2xl border-2 border-blue-300 border-l-[6px] border-l-[var(--brand)] bg-white px-5 py-4 shadow-lg" aria-label="Property report updates">
+    <section className="rounded-2xl border-2 border-teal-300 border-l-[6px] border-l-teal-700 bg-teal-50 px-5 py-4 shadow-lg" aria-label="Property report updates">
       {notice && (
         <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-green-800" role="status">
           <Check className="h-4 w-4" /> Updated property reports are ready.
@@ -121,11 +121,11 @@ export default function ReviewedReportsControl({ orgId, propertyId, pendingCount
       {availability && !(request?.status === "ready" && request.resultPackageId) && (
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-[var(--brand)]">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-200 text-teal-900">
               <FileText className="h-5 w-5" />
             </span>
             <div>
-              <span className="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-[var(--brand)]">
+              <span className="inline-block rounded-full bg-teal-200 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-teal-900">
                 {processing ? "In progress" : "Next step"}
               </span>
               <h2 className="mt-1 text-lg font-bold text-[var(--brand)]">
@@ -141,7 +141,7 @@ export default function ReviewedReportsControl({ orgId, propertyId, pendingCount
             </div>
           </div>
           <button type="button" onClick={generate} disabled={requesting || processing}
-            className="inline-flex h-12 shrink-0 items-center gap-2 rounded-xl bg-[var(--brand)] px-5 text-sm font-bold text-white shadow-md hover:opacity-90 disabled:opacity-50">
+            className="inline-flex h-12 shrink-0 items-center gap-2 rounded-xl bg-teal-700 px-5 text-sm font-bold text-white shadow-md hover:bg-teal-800 disabled:opacity-50">
             {processing || requesting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
             {processing ? "Generating…" : requesting ? "Requesting…" : "Update reports"}
           </button>
