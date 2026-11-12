@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Camera,
   Check,
+  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -1644,6 +1645,13 @@ export default function ScoutReportsPortalPage() {
                                 const pendingReview = photoIsPendingReview(photo);
                                 const resolved = photoIsResolved(photo);
                                 const flagged = photoIsFlagged(photo);
+                                const photoStatus = pendingReview
+                                  ? "pending"
+                                  : resolved
+                                    ? "resolved"
+                                    : flagged
+                                      ? "flagged"
+                                      : null;
                                 return (
                                   <div key={photo.id} className="min-w-0">
                                     <div
@@ -1723,80 +1731,18 @@ export default function ScoutReportsPortalPage() {
                                           }}
                                         />
                                       </button>
-                                      {pendingReview ? (
+                                      {photoStatus && (
                                         <span
-                                          className="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/95 shadow-md ring-1 ring-violet-100"
-                                          title="Pending Review"
-                                          aria-label="Pending Review"
+                                          className="absolute right-1.5 top-1.5 z-20 inline-flex max-w-[calc(100%-36px)] items-center gap-1 truncate rounded-md px-1.5 py-1 text-[10px] font-bold leading-none text-white shadow-md"
+                                          title={photoStatus === "pending" ? "Pending Review" : photoStatus === "resolved" ? "Resolved" : "Flagged"}
                                           style={{
-                                            alignItems: "center",
-                                            background: "rgba(255,255,255,0.96)",
-                                            borderRadius: "9999px",
-                                            boxShadow: "0 2px 8px rgba(15, 23, 42, 0.22)",
-                                            display: "inline-flex",
-                                            height: "22px",
-                                            justifyContent: "center",
-                                            position: "absolute",
-                                            right: "6px",
-                                            top: "6px",
-                                            width: "22px",
-                                            zIndex: 20,
+                                            backgroundColor: photoStatus === "pending" ? "#6d28d9" : photoStatus === "resolved" ? "#177554" : "#b42332",
                                           }}
                                         >
-                                          <Search className="h-3.5 w-3.5" strokeWidth={3} style={{ color: "#6d28d9" }} />
-                                        </span>
-                                      ) : resolved ? (
-                                        <span
-                                          className="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/95 shadow-md ring-1 ring-green-100"
-                                          style={{
-                                            alignItems: "center",
-                                            background: "rgba(255,255,255,0.96)",
-                                            borderRadius: "9999px",
-                                            boxShadow: "0 2px 8px rgba(15, 23, 42, 0.22)",
-                                            display: "inline-flex",
-                                            height: "22px",
-                                            justifyContent: "center",
-                                            position: "absolute",
-                                            right: "6px",
-                                            top: "6px",
-                                            width: "22px",
-                                            zIndex: 20,
-                                          }}
-                                        >
-                                          <Check
-                                            className="h-3.5 w-3.5"
-                                            strokeWidth={4}
-                                            style={{
-                                              color: "#16a34a",
-                                            }}
-                                          />
-                                        </span>
-                                      ) : flagged && (
-                                        <span
-                                          className="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/95 shadow-md ring-1 ring-red-100"
-                                          style={{
-                                            alignItems: "center",
-                                            background: "rgba(255,255,255,0.96)",
-                                            borderRadius: "9999px",
-                                            boxShadow: "0 2px 8px rgba(15, 23, 42, 0.22)",
-                                            display: "inline-flex",
-                                            height: "22px",
-                                            justifyContent: "center",
-                                            position: "absolute",
-                                            right: "6px",
-                                            top: "6px",
-                                            width: "22px",
-                                            zIndex: 20,
-                                          }}
-                                        >
-                                          <Flag
-                                            className="h-3.5 w-3.5"
-                                            style={{
-                                              color: "#dc2626",
-                                              fill: "#dc2626",
-                                              transform: "scale(0.82)",
-                                            }}
-                                          />
+                                          {photoStatus === "pending" ? <Search className="h-3 w-3 shrink-0" strokeWidth={2.5} />
+                                            : photoStatus === "resolved" ? <CheckCircle2 className="h-3 w-3 shrink-0" strokeWidth={2.5} />
+                                              : <Flag className="h-3 w-3 shrink-0" fill="currentColor" strokeWidth={2.5} />}
+                                          <span className="truncate">{photoStatus === "pending" ? "Pending Review" : photoStatus === "resolved" ? "Resolved" : "Flagged"}</span>
                                         </span>
                                       )}
                                     </div>

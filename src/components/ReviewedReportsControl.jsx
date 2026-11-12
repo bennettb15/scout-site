@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, FileText, RefreshCw } from "lucide-react";
 import { writePortalContext } from "../lib/portalContext";
+import { selectReviewReadySource } from "../lib/reviewedReportVisits";
 
 function visitLabel(source) {
   const date = new Date(source.sessionCompletedAt || source.completedAt || "");
@@ -23,40 +24,37 @@ function progressMessage(request) {
     case "validating": return "Checking the reviewed decisions…";
     case "preparing_photos": return "Preparing report photos…";
     case "rendering": return "Building the three PDFs…";
-    case "uploading": return "Saving the reviewed copies to Reports…";
-    default: return "Your reports are queued. You can leave this page and return later.";
+    case "uploading": return "Saving the updated copies to Reports…";
+    default: return "Reports are queued. You can leave this page and return later.";
   }
 }
 
-export default function ReviewedReportsControl({ orgId, propertyId, propertyName, pendingCount, session, transitionOnly = false }) {
+export default function ReviewedReportsControl({ orgId, propertyId, pendingRows, session }) {
   const [sources, setSources] = useState([]);
-  const [sourceId, setSourceId] = useState("");
   const [request, setRequest] = useState(null);
+  const [notice, setNotice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [requesting, setRequesting] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [error, setError] = useState("");
-  const selectedSource = sources.find((source) => source.id === sourceId) || null;
-  const processing = request && ["queued", "generating"].includes(request.status);
-  const activeRequestId = processing ? request.id : "";
-  const ready = request?.status === "ready" && request.resultPackageId;
-  const allSourcesUpdatedNow = sources.length > 0 && sources.every((source) => {
-    const latest = source.id === sourceId ? request : source.latestRequest;
-    return latest?.status === "ready" && latest?.resultPackageId;
-  });
-  const transitionFinished = transitionOnly && pendingCount === 0 && allSourcesUpdatedNow;
+  const [refreshKey, setRefreshKey] = useState(0);
+  const sourcesRef = useRef(sources);
+  sourcesRef.current = sources;
+  const selected = selectReviewReadySource(sources, pendingRows, request);
+  const processing = selected?.request && ["queued", "generating"].includes(selected.request.status);
+  const activeRequestId = request && ["queued", "generating"].includes(request.status) ? request.id : "";
 
   useEffect(() => {
     const controller = new AbortController();
     setSources([]);
-    setSourceId("");
     setRequest(null);
+    setNotice(null);
     setLoading(true);
     setUnavailable(false);
     setError("");
     const params = new URLSearchParams({ orgId, propertyId });
-    fetch(`/api/reviewed-reports?${params}`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
+    fetch("/api/reviewed-reports?" + params, {
+      headers: { Authorization: "Bearer " + session.access_token },
       signal: controller.signal,
     }).then(async (response) => {
       if (response.status === 403) {
@@ -68,15 +66,15 @@ export default function ReviewedReportsControl({ orgId, propertyId, propertyName
       if (controller.signal.aborted || !body) return;
       const nextSources = body.sources || [];
       setSources(nextSources);
-      setSourceId(nextSources[0]?.id || "");
-      setRequest(nextSources[0]?.latestRequest || null);
+      setRequest(nextSources.map((source) => source.latestRequest)
+        .find((item) => item && ["queued", "generating"].includes(item.status)) || null);
     }).catch((cause) => {
       if (!controller.signal.aborted) setError(cause.message || "Unable to load visits.");
     }).finally(() => {
       if (!controller.signal.aborted) setLoading(false);
     });
     return () => controller.abort();
-  }, [orgId, propertyId, session.access_token]);
+  }, [orgId, propertyId, refreshKey, session.access_token]);
 
   useEffect(() => {
     if (!activeRequestId) return;
@@ -84,18 +82,29 @@ export default function ReviewedReportsControl({ orgId, propertyId, propertyName
     let timer;
     async function poll() {
       try {
-        const response = await fetch(`/api/reviewed-reports?requestId=${encodeURIComponent(activeRequestId)}`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
+        const response = await fetch("/api/reviewed-reports?requestId=" + encodeURIComponent(activeRequestId), {
+          headers: { Authorization: "Bearer " + session.access_token },
           signal: controller.signal,
         });
         const body = await readResponse(response);
         if (controller.signal.aborted) return;
-        setRequest(body.request);
+        const nextRequest = body.request;
+        setRequest(nextRequest);
+        setSources((current) => current.map((source) =>
+          source.id === nextRequest?.sourcePackageId
+            ? { ...source, latestRequest: nextRequest }
+            : source
+        ));
         setError("");
-        if (["queued", "generating"].includes(body.request?.status)) timer = setTimeout(poll, 4000);
+        if (nextRequest?.status === "ready" && nextRequest.resultPackageId) {
+          const finishedSource = sourcesRef.current.find((source) => source.id === nextRequest.sourcePackageId);
+          setNotice({ label: finishedSource ? visitLabel(finishedSource) : "this visit" });
+        } else if (["queued", "generating"].includes(nextRequest?.status)) {
+          timer = setTimeout(poll, 4000);
+        }
       } catch (cause) {
         if (controller.signal.aborted) return;
-        setError(`${cause.message || "Unable to check progress."} Checking again shortly.`);
+        setError((cause.message || "Unable to check progress.") + " Checking again shortly.");
         timer = setTimeout(poll, 10000);
       }
     }
@@ -103,81 +112,79 @@ export default function ReviewedReportsControl({ orgId, propertyId, propertyName
     return () => { controller.abort(); clearTimeout(timer); };
   }, [activeRequestId, session.access_token]);
 
-  const allSourcesUpdated = sources.length > 0 && sources.every((source) =>
-    source.latestRequest?.status === "ready" && source.latestRequest?.resultPackageId
-  );
-  if (unavailable || loading || (!error && sources.length === 0 && pendingCount === 0) ||
-    (transitionOnly && pendingCount === 0 && allSourcesUpdated)) return null;
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 12000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   async function generate() {
-    if (!sourceId || requesting || processing) return;
+    if (!selected || requesting || processing) return;
     setRequesting(true);
     setError("");
     try {
       const response = await fetch("/api/reviewed-reports", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: "Bearer " + session.access_token,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ orgId, propertyId, sourcePackageId: sourceId }),
+        body: JSON.stringify({ orgId, propertyId, sourcePackageId: selected.source.id }),
       });
       const body = await readResponse(response);
       setRequest(body.request);
+      setSources((current) => current.map((source) =>
+        source.id === selected.source.id
+          ? { ...source, latestRequest: body.request }
+          : source
+      ));
     } catch (cause) {
-      setError(cause.message || "Unable to request reviewed reports.");
+      setError(cause.message || "Unable to request updated reports.");
     } finally {
       setRequesting(false);
     }
   }
 
+  if (unavailable || loading || (!selected && !notice && !error)) return null;
+
   return (
-    <section className="rounded-lg border border-blue-200 bg-blue-50 p-4 shadow-sm" aria-label="Reviewed reports">
-      <div className="flex items-start gap-3">
-        <FileText className="mt-0.5 h-5 w-5 shrink-0 text-[var(--brand)]" />
-        <div className="min-w-0 flex-1">
-          <h2 className="font-semibold text-[var(--brand)]">Reviewed reports</h2>
-          <p className="mt-1 text-sm text-foreground/70">
-            When you finish reviewing a visit, create updated copies of its three reports. The original reports stay in Reports.
-          </p>
-          {pendingCount > 0 && <p className="mt-2 text-sm text-violet-800">
-            {pendingCount} item{pendingCount === 1 ? "" : "s"} still pending for this property. Approve or reject all field resolutions from the selected visit before generating its reviewed copy.
-          </p>}
-          {sources.length === 0 && !error && <p className="mt-2 text-sm text-foreground/70">
-            These pending items are from older visits that do not yet support reviewed copies. You can still approve or reject them here and generate a current Punch List by Status above.
-          </p>}
-          <div className="mt-3 flex flex-wrap items-end gap-3">
-            <label className="grid min-w-52 flex-1 gap-1 text-sm font-semibold text-foreground">
-              Visit for {propertyName || "this property"}
-              <select value={sourceId} disabled={loading || requesting || processing || sources.length === 0}
-                onChange={(event) => {
-                  const nextId = event.target.value;
-                  setSourceId(nextId);
-                  setRequest(sources.find((source) => source.id === nextId)?.latestRequest || null);
-                  setError("");
-                }}
-                className="h-10 w-full min-w-0 rounded-lg border border-border bg-white px-3 text-sm font-medium text-foreground">
-                {sources.length === 0 && <option value="">No eligible visits</option>}
-                {sources.map((source) => <option key={source.id} value={source.id}>{visitLabel(source)}</option>)}
-              </select>
-            </label>
-            {!transitionFinished && <button type="button" onClick={generate} disabled={!selectedSource || loading || requesting || processing}
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-semibold text-[var(--brand)] shadow-sm hover:bg-blue-100 disabled:opacity-50">
-              {processing || requesting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-              {processing ? "Generating…" : requesting ? "Requesting…" : ready ? "Generate updated copies" : "Generate reviewed reports"}
-            </button>}
-            {ready && <a href="/reports" onClick={() => writePortalContext(session, { orgId, propertyId })}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm">
-              <Check className="h-4 w-4" /> View in Reports
-            </a>}
-          </div>
-          {processing && <p role="status" className="mt-2 text-sm text-foreground/65">
-            {progressMessage(request)}
-          </p>}
-          {request?.status === "failed" && <p role="alert" className="mt-2 text-sm text-red-700">{request.error || "The reviewed reports could not be generated."}</p>}
-          {error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}
+    <section className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 shadow-sm" aria-label="Visit report updates">
+      {notice && (
+        <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-green-800" role="status">
+          <Check className="h-4 w-4" />
+          Updated reports for {notice.label} are ready.
+          <a href="/reports" onClick={() => writePortalContext(session, { orgId, propertyId })}
+            className="underline underline-offset-2">View in Reports</a>
         </div>
-      </div>
+      )}
+      {selected && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <FileText className="mt-0.5 h-5 w-5 shrink-0 text-[var(--brand)]" />
+            <div>
+              <h2 className="font-semibold text-[var(--brand)]">Review complete · {visitLabel(selected.source)}</h2>
+              <p className="mt-1 text-sm text-foreground/70">
+                Update this visit's three reports. The original copies stay in Reports.
+              </p>
+              {processing && <p role="status" className="mt-1 text-sm text-foreground/65">
+                {progressMessage(selected.request)}
+              </p>}
+              {selected.request?.status === "failed" && <p role="alert" className="mt-1 text-sm text-red-700">
+                {selected.request.error || "The updated reports could not be generated."}
+              </p>}
+            </div>
+          </div>
+          <button type="button" onClick={generate} disabled={requesting || processing}
+            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-semibold text-[var(--brand)] shadow-sm hover:bg-blue-100 disabled:opacity-50">
+            {processing || requesting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+            {processing ? "Generating…" : requesting ? "Requesting…" : "Update reports"}
+          </button>
+        </div>
+      )}
+      {error && <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-red-700" role="alert">
+        {error}
+        {!selected && <button type="button" className="font-semibold underline" onClick={() => setRefreshKey((value) => value + 1)}>Retry</button>}
+      </div>}
     </section>
   );
 }

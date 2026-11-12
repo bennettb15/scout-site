@@ -47,6 +47,7 @@ export async function sourcePackages(service, orgId, propertyId) {
     .eq("property_id", propertyId)
     .in("id", snapshotIds);
   if (snapshotsError) throw snapshotsError;
+  const snapshotById = new Map((snapshots || []).map((row) => [row.id, row]));
   const reviewableSnapshotIds = new Set((snapshots || [])
     .filter((row) => Array.isArray(row.field_resolution_submissions) &&
       row.field_resolution_submissions.some((submission) => submission?.status === "pending_review"))
@@ -56,6 +57,7 @@ export async function sourcePackages(service, orgId, propertyId) {
     .map((row) => row.id));
   const legacyPackageIds = candidates.filter((row) => legacySnapshotIds.has(row.snapshot_id)).map((row) => row.id);
   const legacySources = new Set();
+  const legacyShotsByPackage = new Map();
   if (legacyPackageIds.length) {
     const { data: legacyOutcomes, error: legacyError } = await service.rpc("legacy_reviewed_report_outcomes", {
       p_org_id: orgId,
@@ -63,7 +65,14 @@ export async function sourcePackages(service, orgId, propertyId) {
       p_package_ids: legacyPackageIds,
     });
     if (legacyError && !["PGRST202", "42883"].includes(legacyError.code)) throw legacyError;
-    for (const row of legacyOutcomes || []) legacySources.add(row.package_id);
+    for (const row of legacyOutcomes || []) {
+      legacySources.add(row.package_id);
+      if (row.shot_id) {
+        const shots = legacyShotsByPackage.get(row.package_id) || [];
+        shots.push(row.shot_id);
+        legacyShotsByPackage.set(row.package_id, shots);
+      }
+    }
   }
   const reviewableCandidates = candidates.filter((row) =>
     reviewableSnapshotIds.has(row.snapshot_id) || legacySources.has(row.id));
@@ -89,7 +98,13 @@ export async function sourcePackages(service, orgId, propertyId) {
     if (!REQUIRED_REPORT_TYPES.every((type) => available.get(row.id)?.has(type))) return false;
     seenSessions.add(row.session_id);
     return true;
-  }).slice(0, 50);
+  }).slice(0, 50).map((row) => ({
+    ...row,
+    pendingSubmissionIds: (snapshotById.get(row.snapshot_id)?.field_resolution_submissions || [])
+      .filter((submission) => submission?.status === "pending_review" && submission?.activity_id)
+      .map((submission) => submission.activity_id),
+    legacyShotIds: legacyShotsByPackage.get(row.id) || [],
+  }));
 }
 
 async function activeRequest(service, orgId, propertyId, sourcePackageId) {
@@ -131,8 +146,7 @@ export function createReviewedReportsHandler({
         const { data: request, error } = await service.from("reviewed_report_requests")
           .select("*").eq("id", requestId).maybeSingle();
         if (error) throw error;
-        if (!request || request.requested_by !== auth.user.id ||
-            !portalAccessCanReviewCompletion(access, request.org_id, request.property_id)) {
+        if (!request || !portalAccessCanReviewCompletion(access, request.org_id, request.property_id)) {
           return sendJson(res, 404, { error: "Reviewed report request not found." });
         }
         const dispatchState = request.status === "queued" ? await dispatch(service, request.id) : null;
@@ -164,7 +178,6 @@ export function createReviewedReportsHandler({
         const { data: requests, error } = sourceIds.length
           ? await service.from("reviewed_report_requests")
             .select("*")
-            .eq("requested_by", auth.user.id)
             .eq("org_id", orgId)
             .eq("property_id", propertyId)
             .in("source_package_id", sourceIds)
@@ -181,6 +194,8 @@ export function createReviewedReportsHandler({
           sessionId: row.session_id,
           sessionCompletedAt: row.session_completed_at,
           completedAt: row.completed_at,
+          pendingSubmissionIds: row.pendingSubmissionIds || [],
+          legacyShotIds: row.legacyShotIds || [],
           latestRequest: latestBySource.get(row.id) || null,
         })) });
       }
