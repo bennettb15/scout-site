@@ -106,7 +106,7 @@ export default function ReviewedReportsControl({ orgId, propertyId, propertyName
   const allSourcesUpdated = sources.length > 0 && sources.every((source) =>
     source.latestRequest?.status === "ready" && source.latestRequest?.resultPackageId
   );
-  if (unavailable || loading || (!error && sources.length === 0) ||
+  if (unavailable || loading || (!error && sources.length === 0 && pendingCount === 0) ||
     (transitionOnly && pendingCount === 0 && allSourcesUpdated)) return null;
 
   async function generate() {
@@ -143,6 +143,9 @@ export default function ReviewedReportsControl({ orgId, propertyId, propertyName
           {pendingCount > 0 && <p className="mt-2 text-sm text-violet-800">
             {pendingCount} item{pendingCount === 1 ? "" : "s"} still pending for this property. Approve or reject all field resolutions from the selected visit before generating its reviewed copy.
           </p>}
+          {sources.length === 0 && !error && <p className="mt-2 text-sm text-foreground/70">
+            These pending items are from older visits that do not yet support reviewed copies. You can still approve or reject them here and generate a current Punch List by Status above.
+          </p>}
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <label className="grid min-w-52 flex-1 gap-1 text-sm font-semibold text-foreground">
               Visit for {propertyName || "this property"}
@@ -154,7 +157,7 @@ export default function ReviewedReportsControl({ orgId, propertyId, propertyName
                   setError("");
                 }}
                 className="h-10 w-full min-w-0 rounded-lg border border-border bg-white px-3 text-sm font-medium text-foreground">
-                {sources.length === 0 && <option value="">{loading ? "Loading visits…" : "No visits needing review"}</option>}
+                {sources.length === 0 && <option value="">No eligible visits</option>}
                 {sources.map((source) => <option key={source.id} value={source.id}>{visitLabel(source)}</option>)}
               </select>
             </label>
