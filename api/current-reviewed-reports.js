@@ -23,13 +23,18 @@ export function currentReportAvailability(state) {
     Number(state?.unresolved_count) === 0 && issues.length > 0 && outcomes.length > 0);
 }
 
-export function hasUnreportedReviewDecision(state, decisions, latestAutomaticAt, latestReviewedAt) {
-  const coveredAt = Math.max(
+export function hasUnreportedReviewDecision(state, decisions, latestAutomaticAt, reviewedRequests) {
+  const automaticAt = Math.max(
     Date.parse(state?.session_completed_at || "") || 0,
     Date.parse(latestAutomaticAt || "") || 0,
-    Date.parse(latestReviewedAt || "") || 0,
   );
-  return decisions.some((decision) => (Date.parse(decision.created_at || "") || 0) > coveredAt);
+  return decisions.some((decision) => {
+    const decisionAt = Date.parse(decision.created_at || "") || 0;
+    if (decisionAt <= automaticAt) return false;
+    return !reviewedRequests.some((request) =>
+      (Date.parse(request.completed_at || "") || 0) >= decisionAt &&
+      (request.review_outcomes || []).some((outcome) => outcome.decision_activity_id === decision.id));
+  });
 }
 
 export function createCurrentReviewedReportsHandler({
@@ -84,12 +89,12 @@ export function createCurrentReviewedReportsHandler({
             .select("id,created_at").eq("org_id", orgId).eq("property_id", propertyId)
             .in("id", decisionIds);
           if (decisionError) throw decisionError;
+          // Visit-scoped reviewed copies also cover their pinned review decisions.
           const { data: reviewed, error: reviewedError } = await service.from("reviewed_report_requests")
-            .select("completed_at").eq("org_id", orgId).eq("property_id", propertyId)
-            .eq("report_scope", "current_property").eq("status", "ready")
-            .order("completed_at", { ascending: false }).limit(1);
+            .select("completed_at,review_outcomes").eq("org_id", orgId).eq("property_id", propertyId)
+            .eq("status", "ready").order("completed_at", { ascending: false }).limit(50);
           if (reviewedError) throw reviewedError;
-          available = hasUnreportedReviewDecision(state, decisions || [], automatic?.completed_at, reviewed?.[0]?.completed_at);
+          available = hasUnreportedReviewDecision(state, decisions || [], automatic?.completed_at, reviewed || []);
         }
       }
       let latest = null;
