@@ -14,7 +14,7 @@ test('punch list PDF filenames omit date and time stamps', () => {
 });
 test('report flags match the portal status colors', () => {
   assert.equal(reportStatusColor('active'), '#dc2626');
-  assert.equal(reportStatusColor('pending_review'), '#ea580c');
+  assert.equal(reportStatusColor('pending_review'), '#6d28d9');
   assert.equal(reportStatusColor('resolved'), '#15803d');
 });
 test('complete punchlist keeps original and follow-up notes, including unchanged wording, with their own dates', () => {

@@ -131,7 +131,7 @@ export default function ReviewedReportsControl({ orgId, propertyId, propertyName
           <p className="mt-1 text-sm text-foreground/70">
             When you finish reviewing a visit, create updated copies of its three reports. The original reports stay in Reports.
           </p>
-          {pendingCount > 0 && <p className="mt-2 text-sm text-orange-800">
+          {pendingCount > 0 && <p className="mt-2 text-sm text-violet-800">
             {pendingCount} item{pendingCount === 1 ? "" : "s"} still pending for this property. Approve or reject all field resolutions from the selected visit before generating its reviewed copy.
           </p>}
           <div className="mt-3 flex flex-wrap items-end gap-3">

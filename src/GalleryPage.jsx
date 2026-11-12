@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Clock, Download, Flag } from "lucide-react";
+import { CheckCircle2, Download, Flag, Search } from "lucide-react";
 import AccountMenu from "./components/AccountMenu";
 import PortalNavigation from "./components/PortalNavigation";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
@@ -467,7 +467,7 @@ export default function GalleryPage() {
                     <button className="gallery-photo" type="button" onClick={() => setViewer({ propertyId, packageId: item.id, index: shownPhotos.findIndex((itemPhoto) => itemPhoto.id === photo.id) })} aria-label={`Open ${photoLabel(photo)}`}>
                       {photo.previewUrl ? <img src={photo.previewUrl} alt="" loading="lazy" /> : <span className="gallery-no-preview">Preview unavailable</span>}
                       <span className="gallery-photo-date">{photoDateLabel(photo.capturedAt || dateValue(item))}</span>
-                      {galleryPhotoStatus(photo) && <span className={`gallery-photo-status ${galleryPhotoStatus(photo)}`} title={galleryPhotoStatus(photo) === "pending" ? "Pending review" : galleryPhotoStatus(photo) === "resolved" ? "Resolved" : "Flagged"}>{galleryPhotoStatus(photo) === "resolved" ? <CheckCircle2 size={14} /> : galleryPhotoStatus(photo) === "pending" ? <Clock size={14} /> : <Flag size={14} />}<span>{galleryPhotoStatus(photo) === "pending" ? "Pending" : galleryPhotoStatus(photo) === "resolved" ? "Resolved" : "Flagged"}</span></span>}
+                      {galleryPhotoStatus(photo) && <span className={`gallery-photo-status ${galleryPhotoStatus(photo)}`} title={galleryPhotoStatus(photo) === "pending" ? "Pending review" : galleryPhotoStatus(photo) === "resolved" ? "Resolved" : "Flagged"}>{galleryPhotoStatus(photo) === "resolved" ? <CheckCircle2 size={14} /> : galleryPhotoStatus(photo) === "pending" ? <Search size={14} /> : <Flag size={14} />}<span>{galleryPhotoStatus(photo) === "pending" ? "Pending Review" : galleryPhotoStatus(photo) === "resolved" ? "Resolved" : "Flagged"}</span></span>}
                       <span className="gallery-photo-caption">{photoLabel(photo)}</span>
                     </button>
                     <div className="gallery-photo-actions"><label><input type="checkbox" checked={(selectedIds[item.id] || []).includes(photo.id)} onChange={() => togglePhotoSelection(item.id, photo.id)} /> Select photo</label></div>

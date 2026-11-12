@@ -14,6 +14,7 @@ import {
   Info,
   Pencil,
   RefreshCw,
+  Search,
   Trash2,
   X,
 } from "lucide-react";
@@ -709,7 +710,7 @@ function statusStyle(status) {
     return { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0", color: "#15803d" };
   }
   if (status === "pending_review") {
-    return { backgroundColor: "#fff7ed", borderColor: "#fdba74", color: "#ea580c" };
+    return { backgroundColor: "#f5f3ff", borderColor: "#c4b5fd", color: "#6d28d9" };
   }
   return { backgroundColor: "#fef2f2", borderColor: "#fecaca", color: "#b91c1c" };
 }
@@ -1578,7 +1579,7 @@ const PUNCH_LIST_STYLES = `
   }
 
   .punch-flag-line.is-pending {
-    color: rgb(234 88 12);
+    color: rgb(109 40 217);
   }
 
   .punch-flag-line span {
@@ -2656,6 +2657,10 @@ const PUNCH_LIST_STYLES = `
 
   .punch-lightbox-issue.is-resolved {
     color: rgb(21 128 61);
+  }
+
+  .punch-lightbox-issue.is-pending {
+    color: rgb(109 40 217);
   }
 
   .punch-lightbox-issue span {
@@ -4463,6 +4468,8 @@ function IssueRow({
           <div className={`punch-flag-line ${flagLineClass}`}>
             {resolved ? (
               <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={4} />
+            ) : pendingReview ? (
+              <Search className="h-3.5 w-3.5 shrink-0" />
             ) : (
               <Flag className="h-3.5 w-3.5 shrink-0 fill-current" />
             )}
@@ -4859,6 +4866,7 @@ function ImagePreviewModal({ target, onClose }) {
   if (!activePhoto) return null;
   const flagNote = photoFlagReason(activePhoto);
   const resolved = row.status === "resolved";
+  const pendingPhoto = row.status === "pending_review" && activePhoto.label === "Pending Review";
   const issueResolved = resolved && activePhoto.label === "Resolved";
   const issuePrefix = activePhoto.label ? `${activePhoto.label}: ` : "";
   const activePhotoMeta = [
@@ -4949,9 +4957,11 @@ function ImagePreviewModal({ target, onClose }) {
           </div>
         )}
         <div className="punch-lightbox-summary">
-          <div className={`punch-lightbox-issue ${issueResolved ? "is-resolved" : ""}`}>
+          <div className={`punch-lightbox-issue ${issueResolved ? "is-resolved" : pendingPhoto ? "is-pending" : ""}`}>
             {issueResolved ? (
               <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={4} />
+            ) : pendingPhoto ? (
+              <Search className="h-3.5 w-3.5 shrink-0" />
             ) : (
               <Flag className="h-3.5 w-3.5 shrink-0 fill-current" />
             )}
@@ -6654,13 +6664,13 @@ export default function ScoutPunchListPage() {
                     aria-pressed={selectedTab === TAB_PENDING}
                     className={`inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-semibold ${
                       selectedTab === TAB_PENDING
-                        ? "bg-orange-600 text-white shadow-sm"
-                        : "bg-white text-orange-700 hover:shadow-sm"
+                        ? "bg-violet-700 text-white shadow-sm"
+                        : "bg-white text-violet-700 hover:shadow-sm"
                     }`}
                   >
-                    <Clock className="h-4 w-4" />
+                    <Search className="h-4 w-4" />
                     Pending Review
-                    <span className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${selectedTab === TAB_PENDING ? "bg-white/20 text-white" : "bg-orange-600 text-white"}`}>{pendingCount}</span>
+                    <span className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${selectedTab === TAB_PENDING ? "bg-white/20 text-white" : "bg-violet-700 text-white"}`}>{pendingCount}</span>
                   </button>}
                   <button
                     type="button"
@@ -6702,8 +6712,8 @@ export default function ScoutPunchListPage() {
             )}
 
             {showPendingReviewTab && selectedTab === TAB_PENDING && !filtersLoading && !punchListLoading && !noPunchListSources && !noPunchListProperties && (
-              <div className="flex items-start gap-3 rounded-xl border border-orange-300 bg-orange-50 px-4 py-3 text-orange-900 shadow-sm" role="status">
-                <Clock className="mt-0.5 h-5 w-5 shrink-0 text-orange-700" />
+              <div className="flex items-start gap-3 rounded-xl border border-violet-300 bg-violet-50 px-4 py-3 text-violet-900 shadow-sm" role="status">
+                <Search className="mt-0.5 h-5 w-5 shrink-0 text-violet-700" />
                 <div>
                   <div className="font-semibold">Pending Review · {pendingReviewCount}</div>
                   <p className="mt-1 text-sm">{pendingReviewCount === 0
