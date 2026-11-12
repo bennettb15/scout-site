@@ -28,7 +28,7 @@ function progressMessage(request) {
   }
 }
 
-export default function ReviewedReportsControl({ orgId, propertyId, propertyName, pendingCount, session }) {
+export default function ReviewedReportsControl({ orgId, propertyId, propertyName, pendingCount, session, transitionOnly = false }) {
   const [sources, setSources] = useState([]);
   const [sourceId, setSourceId] = useState("");
   const [request, setRequest] = useState(null);
@@ -40,6 +40,11 @@ export default function ReviewedReportsControl({ orgId, propertyId, propertyName
   const processing = request && ["queued", "generating"].includes(request.status);
   const activeRequestId = processing ? request.id : "";
   const ready = request?.status === "ready" && request.resultPackageId;
+  const allSourcesUpdatedNow = sources.length > 0 && sources.every((source) => {
+    const latest = source.id === sourceId ? request : source.latestRequest;
+    return latest?.status === "ready" && latest?.resultPackageId;
+  });
+  const transitionFinished = transitionOnly && pendingCount === 0 && allSourcesUpdatedNow;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -98,7 +103,11 @@ export default function ReviewedReportsControl({ orgId, propertyId, propertyName
     return () => { controller.abort(); clearTimeout(timer); };
   }, [activeRequestId, session.access_token]);
 
-  if (unavailable) return null;
+  const allSourcesUpdated = sources.length > 0 && sources.every((source) =>
+    source.latestRequest?.status === "ready" && source.latestRequest?.resultPackageId
+  );
+  if (unavailable || (transitionOnly && (loading || (!error &&
+    (sources.length === 0 || (pendingCount === 0 && allSourcesUpdated)))))) return null;
 
   async function generate() {
     if (!sourceId || requesting || processing) return;
@@ -149,11 +158,11 @@ export default function ReviewedReportsControl({ orgId, propertyId, propertyName
                 {sources.map((source) => <option key={source.id} value={source.id}>{visitLabel(source)}</option>)}
               </select>
             </label>
-            <button type="button" onClick={generate} disabled={!selectedSource || loading || requesting || processing}
+            {!transitionFinished && <button type="button" onClick={generate} disabled={!selectedSource || loading || requesting || processing}
               className="inline-flex h-10 items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-sm font-semibold text-[var(--brand)] shadow-sm hover:bg-blue-100 disabled:opacity-50">
               {processing || requesting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
               {processing ? "Generating…" : requesting ? "Requesting…" : ready ? "Generate updated copies" : "Generate reviewed reports"}
-            </button>
+            </button>}
             {ready && <a href="/reports" onClick={() => writePortalContext(session, { orgId, propertyId })}
               className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-semibold text-white shadow-sm">
               <Check className="h-4 w-4" /> View in Reports
