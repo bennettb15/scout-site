@@ -6,9 +6,11 @@ const orgId = "11111111-1111-4111-8111-111111111111";
 const propertyId = "22222222-2222-4222-8222-222222222222";
 const sourceId = "33333333-3333-4333-8333-333333333333";
 const requestId = "44444444-4444-4444-8444-444444444444";
+const decisionId = "55555555-5555-4555-8555-555555555555";
 const state = { package_id: sourceId, state_hash: "fresh-hash", unresolved_count: 0,
+  session_completed_at: "2026-11-12T10:00:00Z",
   issue_states: [{ observation_id: "issue", status: "resolved" }],
-  review_outcomes: [{ observation_id: "issue", status: "resolved" }] };
+  review_outcomes: [{ observation_id: "issue", status: "resolved", decision_activity_id: decisionId }] };
 
 function response() {
   return { statusCode: 0, body: null, setHeader() {}, status(code) { this.statusCode = code; return this; },
@@ -18,6 +20,9 @@ function response() {
 function fixture() {
   let currentState = state;
   let request = null;
+  let latestReviewedAt = null;
+  let latestAutomaticAt = "2026-11-12T10:01:00Z";
+  let decisionAt = "2026-11-12T10:05:00Z";
   let inserted = null;
   let dispatched = 0;
   const service = {
@@ -29,9 +34,15 @@ function fixture() {
     from(table) {
       if (table === "properties") return { select() { return this; }, eq() { return this; },
         is() { return this; }, maybeSingle: async () => ({ data: { id: propertyId }, error: null }) };
+      if (table === "report_packages") return { select() { return this; }, eq() { return this; },
+        maybeSingle: async () => ({ data: { completed_at: latestAutomaticAt }, error: null }) };
+      if (table === "punchlist_activity") return { select() { return this; }, eq() { return this; },
+        in(column, values) { assert.equal(column, "id"); assert.deepEqual(values, [decisionId]);
+          return Promise.resolve({ data: [{ id: decisionId, created_at: decisionAt }], error: null }); } };
       assert.equal(table, "reviewed_report_requests");
-      return { select() { return this; }, eq() { return this; }, order() { return this; }, limit() { return this; },
-        then(resolve) { return Promise.resolve({ data: request ? [request] : [], error: null }).then(resolve); },
+      let readyOnly = false;
+      return { select() { return this; }, eq(column, value) { if (column === "status" && value === "ready") readyOnly = true; return this; }, order() { return this; }, limit() { return this; },
+        then(resolve) { return Promise.resolve({ data: readyOnly ? (latestReviewedAt ? [{ completed_at: latestReviewedAt }] : []) : (request ? [request] : []), error: null }).then(resolve); },
         insert(value) { inserted = value; return this; },
         single: async () => ({ data: { id: requestId, status: "queued", ...inserted }, error: null }),
       };
@@ -44,6 +55,8 @@ function fixture() {
     dispatch: async () => { dispatched += 1; return "starting"; },
   });
   return { handler, setState(value) { currentState = value; }, setRequest(value) { request = value; },
+    setDecisionAt(value) { decisionAt = value; }, setLatestReviewedAt(value) { latestReviewedAt = value; },
+    setLatestAutomaticAt(value) { latestAutomaticAt = value; },
     inserted: () => inserted, dispatched: () => dispatched };
 }
 
@@ -76,6 +89,20 @@ test("current reports use the latest property state and queue one package", asyn
 test("current reports cannot queue while property review is unresolved", async () => {
   const f = fixture();
   f.setState({ ...state, unresolved_count: 1 });
+  assert.equal((await call(f.handler, "GET")).body.available, false);
+  assert.equal((await call(f.handler, "POST")).statusCode, 400);
+  assert.equal(f.inserted(), null);
+});
+
+test("old decisions already covered by an automatic or reviewed report do not prompt another update", async () => {
+  const f = fixture();
+  f.setDecisionAt("2026-11-11T20:00:00Z");
+  assert.equal((await call(f.handler, "GET")).body.available, false);
+  f.setDecisionAt("2026-11-12T10:02:00Z");
+  f.setLatestAutomaticAt("2026-11-12T10:03:00Z");
+  assert.equal((await call(f.handler, "GET")).body.available, false);
+  f.setDecisionAt("2026-11-12T10:05:00Z");
+  f.setLatestReviewedAt("2026-11-12T10:06:00Z");
   assert.equal((await call(f.handler, "GET")).body.available, false);
   assert.equal((await call(f.handler, "POST")).statusCode, 400);
   assert.equal(f.inserted(), null);
