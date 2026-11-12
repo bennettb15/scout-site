@@ -6712,7 +6712,7 @@ export default function ScoutPunchListPage() {
               />
             )}
 
-            {showPendingReviewTab && selectedTab === TAB_PENDING && !filtersLoading && !punchListLoading && !noPunchListSources && !noPunchListProperties && (
+            {showPendingReviewTab && selectedTab === TAB_PENDING && pendingReviewCount > 0 && !filtersLoading && !punchListLoading && !noPunchListSources && !noPunchListProperties && (
               <div className="flex items-start gap-3 rounded-xl border border-violet-300 bg-violet-50 px-4 py-3 text-violet-900 shadow-sm" role="status">
                 <Search className="mt-0.5 h-5 w-5 shrink-0 text-violet-700" />
                 <div>
