@@ -246,6 +246,7 @@ export default function ScoutReportsPortalPage() {
   const [canOpenAdmin, setCanOpenAdmin] = useState(false);
   const reportsRequestIdRef = useRef(0);
   const reportsCacheRef = useRef(new Map());
+  const reportsPrefetchRef = useRef(new Map());
   const loadingReportsScopeKeyRef = useRef("");
   const orgsRequestIdRef = useRef(0);
   const reportsRetrySessionKeyRef = useRef("");
@@ -306,6 +307,30 @@ export default function ScoutReportsPortalPage() {
     return data.session || fallbackSession;
   }
 
+  function prefetchAllDates(activeSession, orgId) {
+    const scopeKey = `${orgId || "all"}:${DATE_FILTER_ALL}`;
+    if (reportsCacheRef.current.has(scopeKey) || reportsPrefetchRef.current.has(scopeKey)) return;
+    const params = new URLSearchParams({ history: DATE_FILTER_ALL });
+    if (orgId) params.set("orgId", orgId);
+    const request = fetch(`/api/report-packages?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${activeSession.access_token}` },
+    })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const body = await response.json().catch(() => ({}));
+        if (Array.isArray(body.packages) && reportsPrefetchRef.current.get(scopeKey) === request) {
+          reportsCacheRef.current.set(scopeKey, body.packages);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (reportsPrefetchRef.current.get(scopeKey) === request) {
+          reportsPrefetchRef.current.delete(scopeKey);
+        }
+      });
+    reportsPrefetchRef.current.set(scopeKey, request);
+  }
+
   async function loadReports(activeSession = session, options = {}) {
     if (!activeSession?.access_token) return;
     const orgId = Object.prototype.hasOwnProperty.call(options, "orgId")
@@ -318,7 +343,10 @@ export default function ScoutReportsPortalPage() {
 
     const requestId = reportsRequestIdRef.current + 1;
     reportsRequestIdRef.current = requestId;
-    if (force) reportsCacheRef.current.clear();
+    if (force) {
+      reportsCacheRef.current.clear();
+      reportsPrefetchRef.current.clear();
+    }
     const cached = !force ? reportsCacheRef.current.get(scopeKey) : null;
     if (cached) {
       loadingReportsScopeKeyRef.current = "";
@@ -327,6 +355,7 @@ export default function ScoutReportsPortalPage() {
       setReportsFetchStatus(FETCH_SUCCESS);
       setReportsLoading(false);
       setReportsError("");
+      if (history === DATE_FILTER_LATEST) prefetchAllDates(activeSession, orgId);
       return;
     }
 
@@ -335,9 +364,20 @@ export default function ScoutReportsPortalPage() {
     loadingReportsScopeKeyRef.current = scopeKey;
     setReportsLoading(true);
     setReportsFetchStatus(FETCH_LOADING);
-    setLoadedReportsScopeKey("");
     setReportsError("");
     try {
+      const pendingPrefetch = reportsPrefetchRef.current.get(scopeKey);
+      if (pendingPrefetch) {
+        await pendingPrefetch;
+        if (requestId !== reportsRequestIdRef.current) return;
+        const prefetched = reportsCacheRef.current.get(scopeKey);
+        if (prefetched) {
+          setPackages(prefetched);
+          setLoadedReportsScopeKey(scopeKey);
+          setReportsFetchStatus(FETCH_SUCCESS);
+          return;
+        }
+      }
       const params = new URLSearchParams({ history });
       if (orgId) params.set("orgId", orgId);
       const response = await fetch(`/api/report-packages?${params.toString()}`, {
@@ -356,6 +396,7 @@ export default function ScoutReportsPortalPage() {
       setPackages(body.packages);
       setLoadedReportsScopeKey(scopeKey);
       setReportsFetchStatus(FETCH_SUCCESS);
+      if (history === DATE_FILTER_LATEST) prefetchAllDates(activeSession, orgId);
     } catch (error) {
       if (requestId !== reportsRequestIdRef.current) return;
       if (
@@ -380,7 +421,10 @@ export default function ScoutReportsPortalPage() {
         }
       }
       setReportsError(error.message || "Unable to load reports.");
-      setPackages([]);
+      if (!loadedReportsScopeKey.startsWith(`${orgId || "all"}:`)) {
+        setPackages([]);
+        setLoadedReportsScopeKey("");
+      }
       setReportsFetchStatus(FETCH_ERROR);
     } finally {
       if (requestId === reportsRequestIdRef.current) {
@@ -425,6 +469,7 @@ export default function ScoutReportsPortalPage() {
     if (session?.access_token) {
       reportsRequestIdRef.current += 1;
       reportsCacheRef.current.clear();
+      reportsPrefetchRef.current.clear();
       loadingReportsScopeKeyRef.current = "";
       setLoadedReportsScopeKey("");
       setReportsFetchStatus(FETCH_IDLE);
@@ -438,6 +483,7 @@ export default function ScoutReportsPortalPage() {
     } else {
       reportsRequestIdRef.current += 1;
       reportsCacheRef.current.clear();
+      reportsPrefetchRef.current.clear();
       loadingReportsScopeKeyRef.current = "";
       setLoadedReportsScopeKey("");
       orgsRequestIdRef.current += 1;
@@ -1123,12 +1169,15 @@ export default function ScoutReportsPortalPage() {
     return new Set(Array.from(newestByProperty.values()).map((entry) => entry.id));
   }, [propertyFilteredPackages]);
 
+  const displayedDateFilter = loadedReportsScopeKey.endsWith(`:${DATE_FILTER_ALL}`)
+    ? DATE_FILTER_ALL
+    : DATE_FILTER_LATEST;
   const filteredPackages = useMemo(() => {
-    if (dateFilter === DATE_FILTER_ALL) return propertyFilteredPackages;
+    if (displayedDateFilter === DATE_FILTER_ALL) return propertyFilteredPackages;
     return propertyFilteredPackages.filter((reportPackage) =>
       latestPackageIdsForPropertyFilter.has(reportPackage.id)
     );
-  }, [dateFilter, latestPackageIdsForPropertyFilter, propertyFilteredPackages]);
+  }, [displayedDateFilter, latestPackageIdsForPropertyFilter, propertyFilteredPackages]);
 
   const orgSelectionSettled =
     orgOptions.length === 0 ||
@@ -1137,11 +1186,13 @@ export default function ScoutReportsPortalPage() {
     selectedPropertyId === ALL_PROPERTIES ||
     propertyOptions.some((property) => property.id === selectedPropertyId);
   const reportsViewSettled =
-    reportsFetchStatus === FETCH_SUCCESS &&
     orgsFetchStatus === FETCH_SUCCESS &&
-    loadedReportsScopeKey === `${selectedOrgId}:${dateFilter}` &&
+    loadedReportsScopeKey.startsWith(`${selectedOrgId}:`) &&
+    (reportsFetchStatus === FETCH_SUCCESS || reportsLoading || reportsFetchStatus === FETCH_ERROR) &&
     orgSelectionSettled &&
     propertySelectionSettled;
+  const switchingDates = reportsLoading && reportsViewSettled &&
+    loadedReportsScopeKey !== `${selectedOrgId}:${dateFilter}`;
   const hasActiveLoadError =
     reportsFetchStatus === FETCH_ERROR || orgsFetchStatus === FETCH_ERROR;
 
@@ -1151,10 +1202,11 @@ export default function ScoutReportsPortalPage() {
   }, [filteredPackages.length]);
 
   const sessionReportsStatusLabel = useMemo(() => {
+    if (switchingDates) return "Loading selected dates";
     if (reportsViewSettled) return packageCountLabel;
     if (hasActiveLoadError) return "Report packages unavailable";
     return "Loading ready packages";
-  }, [hasActiveLoadError, packageCountLabel, reportsViewSettled]);
+  }, [hasActiveLoadError, packageCountLabel, reportsViewSettled, switchingDates]);
 
   const newestPackageIds = useMemo(() => {
     const newestByProperty = new Map();
