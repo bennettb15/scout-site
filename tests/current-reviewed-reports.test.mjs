@@ -21,6 +21,7 @@ function fixture() {
   let currentState = state;
   let request = null;
   let latestReviewedAt = null;
+  let reviewedDecisionIds = [decisionId];
   let latestAutomaticAt = "2026-11-12T10:01:00Z";
   let decisionAt = "2026-11-12T10:05:00Z";
   let inserted = null;
@@ -42,7 +43,8 @@ function fixture() {
       assert.equal(table, "reviewed_report_requests");
       let readyOnly = false;
       return { select() { return this; }, eq(column, value) { if (column === "status" && value === "ready") readyOnly = true; return this; }, order() { return this; }, limit() { return this; },
-        then(resolve) { return Promise.resolve({ data: readyOnly ? (latestReviewedAt ? [{ completed_at: latestReviewedAt }] : []) : (request ? [request] : []), error: null }).then(resolve); },
+        then(resolve) { return Promise.resolve({ data: readyOnly ? (latestReviewedAt ? [{ completed_at: latestReviewedAt,
+          review_outcomes: reviewedDecisionIds.map((id) => ({ decision_activity_id: id })) }] : []) : (request ? [request] : []), error: null }).then(resolve); },
         insert(value) { inserted = value; return this; },
         single: async () => ({ data: { id: requestId, status: "queued", ...inserted }, error: null }),
       };
@@ -56,6 +58,7 @@ function fixture() {
   });
   return { handler, setState(value) { currentState = value; }, setRequest(value) { request = value; },
     setDecisionAt(value) { decisionAt = value; }, setLatestReviewedAt(value) { latestReviewedAt = value; },
+    setReviewedDecisionIds(value) { reviewedDecisionIds = value; },
     setLatestAutomaticAt(value) { latestAutomaticAt = value; },
     inserted: () => inserted, dispatched: () => dispatched };
 }
@@ -104,6 +107,9 @@ test("old decisions already covered by an automatic or reviewed report do not pr
   f.setDecisionAt("2026-11-12T10:05:00Z");
   f.setLatestReviewedAt("2026-11-12T10:06:00Z");
   assert.equal((await call(f.handler, "GET")).body.available, false);
+  f.setReviewedDecisionIds([]);
+  assert.equal((await call(f.handler, "GET")).body.available, true);
+  f.setReviewedDecisionIds([decisionId]);
   assert.equal((await call(f.handler, "POST")).statusCode, 400);
   assert.equal(f.inserted(), null);
 });
