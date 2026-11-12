@@ -89,9 +89,22 @@ test("current reports use the latest property state and queue one package", asyn
   assert.equal(f.dispatched(), 1);
 });
 
-test("current reports cannot queue while property review is unresolved", async () => {
+test("current reports can queue after a partial review", async () => {
   const f = fixture();
-  f.setState({ ...state, unresolved_count: 1 });
+  f.setState({ ...state, unresolved_count: 1, issue_states: [
+    { observation_id: "approved", status: "resolved" },
+    { observation_id: "waiting", status: "pending_review" },
+  ] });
+  assert.equal((await call(f.handler, "GET")).body.available, true);
+  assert.equal((await call(f.handler, "POST")).statusCode, 202);
+  assert.equal(f.inserted().report_scope, "current_property");
+  assert.equal(f.inserted().current_state_hash, "fresh-hash");
+});
+
+test("current reports do not queue before a review decision", async () => {
+  const f = fixture();
+  f.setState({ ...state, unresolved_count: 1, review_outcomes: [],
+    issue_states: [{ observation_id: "waiting", status: "pending_review" }] });
   assert.equal((await call(f.handler, "GET")).body.available, false);
   assert.equal((await call(f.handler, "POST")).statusCode, 400);
   assert.equal(f.inserted(), null);

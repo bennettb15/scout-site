@@ -20,7 +20,8 @@ export function currentReportAvailability(state) {
   const outcomes = Array.isArray(state?.review_outcomes) ? state.review_outcomes : [];
   const issues = Array.isArray(state?.issue_states) ? state.issue_states : [];
   return Boolean(state?.package_id && state?.state_hash &&
-    Number(state?.unresolved_count) === 0 && issues.length > 0 && outcomes.length > 0);
+    issues.length > 0 && outcomes.length > 0 &&
+    issues.every((issue) => ["active", "pending_review", "resolved"].includes(issue.status)));
 }
 
 export function hasUnreportedReviewDecision(state, decisions, latestAutomaticAt, reviewedRequests) {
@@ -117,7 +118,7 @@ export function createCurrentReviewedReportsHandler({
         });
       }
       if (!available) {
-        return sendJson(res, 400, { error: "Finish reviewing this property's pending items before updating its reports." });
+        return sendJson(res, 400, { error: "No new review decisions need a report update for this property." });
       }
       if (latest && ["queued", "generating", "ready"].includes(latest.status)) {
         if (latest.status === "queued") await dispatch(service, latest.id);
