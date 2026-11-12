@@ -24,10 +24,15 @@
     --color-emerald-200: oklch(90.5% 0.093 164.15);
     --color-emerald-700: oklch(50.8% 0.118 165.612);
     --color-emerald-800: oklch(43.2% 0.095 166.913);
+    --color-teal-50: oklch(98.4% 0.014 180.72);
+    --color-teal-200: oklch(91% 0.096 180.426);
+    --color-teal-300: oklch(85.5% 0.138 181.071);
+    --color-teal-700: oklch(51.1% 0.096 186.391);
+    --color-teal-800: oklch(43.7% 0.078 188.216);
+    --color-teal-900: oklch(38.6% 0.063 188.416);
     --color-blue-50: oklch(97% 0.014 254.604);
     --color-blue-100: oklch(93.2% 0.032 255.585);
     --color-blue-200: oklch(88.2% 0.059 254.128);
-    --color-blue-300: oklch(80.9% 0.105 251.813);
     --color-blue-700: oklch(48.8% 0.243 264.376);
     --color-blue-800: oklch(42.4% 0.199 265.638);
     --color-violet-50: oklch(96.9% 0.016 293.756);
@@ -891,9 +896,6 @@
   .border-blue-200 {
     border-color: var(--color-blue-200);
   }
-  .border-blue-300 {
-    border-color: var(--color-blue-300);
-  }
   .border-border {
     border-color: var(--border);
   }
@@ -912,6 +914,9 @@
   .border-slate-300 {
     border-color: var(--color-slate-300);
   }
+  .border-teal-300 {
+    border-color: var(--color-teal-300);
+  }
   .border-transparent {
     border-color: transparent;
   }
@@ -921,8 +926,8 @@
   .border-white {
     border-color: var(--color-white);
   }
-  .border-l-\[var\(--brand\)\] {
-    border-left-color: var(--brand);
+  .border-l-teal-700 {
+    border-left-color: var(--color-teal-700);
   }
   .bg-\[\#1c2742\] {
     background-color: #1c2742;
@@ -959,9 +964,6 @@
   }
   .bg-blue-50 {
     background-color: var(--color-blue-50);
-  }
-  .bg-blue-100 {
-    background-color: var(--color-blue-100);
   }
   .bg-card {
     background-color: var(--card);
@@ -1019,6 +1021,15 @@
     @supports (color: color-mix(in lab, red, red)) {
       background-color: color-mix(in oklab, var(--color-slate-950) 85%, transparent);
     }
+  }
+  .bg-teal-50 {
+    background-color: var(--color-teal-50);
+  }
+  .bg-teal-200 {
+    background-color: var(--color-teal-200);
+  }
+  .bg-teal-700 {
+    background-color: var(--color-teal-700);
   }
   .bg-transparent {
     background-color: transparent;
@@ -1430,6 +1441,9 @@
   .text-slate-900 {
     color: var(--color-slate-900);
   }
+  .text-teal-900 {
+    color: var(--color-teal-900);
+  }
   .text-transparent {
     color: transparent;
   }
@@ -1805,6 +1819,13 @@
       }
     }
   }
+  .hover\:bg-teal-800 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-teal-800);
+      }
+    }
+  }
   .hover\:text-\[var\(--brand\)\] {
     &:hover {
       @media (hover: hover) {
@@ -1858,13 +1879,6 @@
     &:hover {
       @media (hover: hover) {
         text-decoration-line: underline;
-      }
-    }
-  }
-  .hover\:opacity-90 {
-    &:hover {
-      @media (hover: hover) {
-        opacity: 90%;
       }
     }
   }
