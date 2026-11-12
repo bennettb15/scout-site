@@ -23,6 +23,15 @@ export function currentReportAvailability(state) {
     Number(state?.unresolved_count) === 0 && issues.length > 0 && outcomes.length > 0);
 }
 
+export function hasUnreportedReviewDecision(state, decisions, latestAutomaticAt, latestReviewedAt) {
+  const coveredAt = Math.max(
+    Date.parse(state?.session_completed_at || "") || 0,
+    Date.parse(latestAutomaticAt || "") || 0,
+    Date.parse(latestReviewedAt || "") || 0,
+  );
+  return decisions.some((decision) => (Date.parse(decision.created_at || "") || 0) > coveredAt);
+}
+
 export function createCurrentReviewedReportsHandler({
   authenticate = authenticateRequest,
   serviceClient = createServiceClient,
@@ -60,7 +69,29 @@ export function createCurrentReviewedReportsHandler({
         p_property_id: propertyId,
       });
       if (stateError) throw stateError;
-      const available = currentReportAvailability(state);
+      let available = currentReportAvailability(state);
+      if (available) {
+        const decisionIds = [...new Set(state.review_outcomes
+          .map((outcome) => outcome.decision_activity_id).filter(isUuid))];
+        if (decisionIds.length === 0) {
+          available = false;
+        } else {
+          const { data: automatic, error: automaticError } = await service.from("report_packages")
+            .select("completed_at").eq("id", state.package_id)
+            .eq("org_id", orgId).eq("property_id", propertyId).maybeSingle();
+          if (automaticError) throw automaticError;
+          const { data: decisions, error: decisionError } = await service.from("punchlist_activity")
+            .select("id,created_at").eq("org_id", orgId).eq("property_id", propertyId)
+            .in("id", decisionIds);
+          if (decisionError) throw decisionError;
+          const { data: reviewed, error: reviewedError } = await service.from("reviewed_report_requests")
+            .select("completed_at").eq("org_id", orgId).eq("property_id", propertyId)
+            .eq("report_scope", "current_property").eq("status", "ready")
+            .order("completed_at", { ascending: false }).limit(1);
+          if (reviewedError) throw reviewedError;
+          available = hasUnreportedReviewDecision(state, decisions || [], automatic?.completed_at, reviewed?.[0]?.completed_at);
+        }
+      }
       let latest = null;
       if (state?.package_id && state?.state_hash) {
         const { data: requests, error: requestError } = await service.from("reviewed_report_requests")
