@@ -6726,15 +6726,14 @@ export default function ScoutPunchListPage() {
               </div>
             )}
 
-            {(requireReviewForFieldResolutions ? selectedTab === TAB_PENDING : true) &&
-              selectedPropertyId && selectedPropertyId !== ALL && displayedPropertyId !== ALL &&
+            {selectedPropertyId && selectedPropertyId !== ALL && displayedPropertyId !== ALL &&
               !filtersLoading && !punchListLoading &&
               !noPunchListSources && !noPunchListProperties && (
                 <ReviewedReportsControl
                   key={`${selectedOrgId}:${displayedPropertyId}`}
                   orgId={selectedOrgId}
                   propertyId={displayedPropertyId}
-                  pendingRows={propertyPendingRows}
+                  pendingCount={pendingReviewCount}
                   session={session}
                 />
               )}
