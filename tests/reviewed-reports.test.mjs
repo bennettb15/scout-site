@@ -17,18 +17,35 @@ test("reviewed-report sources exclude reviewed copies, duplicate sessions, and i
     { id: "incomplete", snapshot_id: "snapshot-c", session_id: "visit-c", report_variant: null },
     { id: "other", snapshot_id: "snapshot-d", session_id: "visit-d", report_variant: null },
     { id: "no-review", snapshot_id: "snapshot-e", session_id: "visit-e", report_variant: null },
+    { id: "legacy-approved", snapshot_id: "snapshot-f", session_id: "visit-f", report_variant: null },
+    { id: "legacy-incomplete", snapshot_id: "snapshot-g", session_id: "visit-g", report_variant: null },
   ];
   const snapshots = ["a", "c", "d"].map((suffix) => ({
     id: `snapshot-${suffix}`, field_resolution_submissions: [{ status: "pending_review" }],
   }));
+  snapshots.push(
+    { id: "snapshot-e", field_resolution_submissions: [{ status: "resolved" }] },
+    { id: "snapshot-f", field_resolution_submissions: null },
+    { id: "snapshot-g", field_resolution_submissions: null },
+  );
   const files = [
     ...reportTypes.map((report_type) => ({ package_id: "automatic", report_type })),
     ...reportTypes.map((report_type) => ({ package_id: "older", report_type })),
     { package_id: "incomplete", report_type: "property_report" },
     ...reportTypes.map((report_type) => ({ package_id: "other", report_type })),
     ...reportTypes.map((report_type) => ({ package_id: "no-review", report_type })),
+    ...reportTypes.map((report_type) => ({ package_id: "legacy-approved", report_type })),
+    { package_id: "legacy-incomplete", report_type: "property_report" },
   ];
-  const service = { from(table) {
+  let legacyFunctionAvailable = true;
+  const service = { async rpc(name, args) {
+    assert.equal(name, "legacy_reviewed_report_outcomes");
+    assert.deepEqual(args, { p_org_id: orgId, p_property_id: propertyId,
+      p_package_ids: ["legacy-approved", "legacy-incomplete"] });
+    if (!legacyFunctionAvailable) return { data: null, error: { code: "PGRST202" } };
+    return { data: [{ package_id: "legacy-approved", status: "resolved" },
+      { package_id: "legacy-incomplete", status: null }], error: null };
+  }, from(table) {
     const query = {
       select() { return this; }, eq() { return this; }, is() { return this; }, order() { return this; }, limit() { return this; },
       in() { return this; },
@@ -37,6 +54,9 @@ test("reviewed-report sources exclude reviewed copies, duplicate sessions, and i
     };
     return query;
   } };
+  assert.deepEqual((await sourcePackages(service, orgId, propertyId)).map((row) => row.id),
+    ["automatic", "other", "legacy-approved"]);
+  legacyFunctionAvailable = false;
   assert.deepEqual((await sourcePackages(service, orgId, propertyId)).map((row) => row.id), ["automatic", "other"]);
 });
 

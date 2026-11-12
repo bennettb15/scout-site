@@ -51,7 +51,22 @@ export async function sourcePackages(service, orgId, propertyId) {
     .filter((row) => Array.isArray(row.field_resolution_submissions) &&
       row.field_resolution_submissions.some((submission) => submission?.status === "pending_review"))
     .map((row) => row.id));
-  const reviewableCandidates = candidates.filter((row) => reviewableSnapshotIds.has(row.snapshot_id));
+  const legacySnapshotIds = new Set((snapshots || [])
+    .filter((row) => row.field_resolution_submissions == null)
+    .map((row) => row.id));
+  const legacyPackageIds = candidates.filter((row) => legacySnapshotIds.has(row.snapshot_id)).map((row) => row.id);
+  const legacySources = new Set();
+  if (legacyPackageIds.length) {
+    const { data: legacyOutcomes, error: legacyError } = await service.rpc("legacy_reviewed_report_outcomes", {
+      p_org_id: orgId,
+      p_property_id: propertyId,
+      p_package_ids: legacyPackageIds,
+    });
+    if (legacyError && !["PGRST202", "42883"].includes(legacyError.code)) throw legacyError;
+    for (const row of legacyOutcomes || []) legacySources.add(row.package_id);
+  }
+  const reviewableCandidates = candidates.filter((row) =>
+    reviewableSnapshotIds.has(row.snapshot_id) || legacySources.has(row.id));
   if (!reviewableCandidates.length) return [];
   const { data: files, error: filesError } = await service.from("report_package_files")
     .select("package_id,report_type")
