@@ -7,6 +7,7 @@ import {
   contactDraftForProperty,
   formatClientPhone,
   saveClientContactChanges,
+  saveClientNameChange,
 } from "./lib/clientContactChanges";
 import AccountMenu from "./components/AccountMenu";
 import PortalNavigation from "./components/PortalNavigation";
@@ -18,7 +19,7 @@ function propertyAddress(property) {
   return [property.addressLine1, property.addressLine2, locality].filter(Boolean).join(", ");
 }
 
-function ClientRow({ property, session, draft, saving, onDraftChange }) {
+function ClientRow({ property, session, draft, saving, onDraftChange, onSaveName }) {
   const [showDestinations, setShowDestinations] = useState(false);
 
   function selectShortcutProperty() {
@@ -49,6 +50,10 @@ function ClientRow({ property, session, draft, saving, onDraftChange }) {
               maxLength={160}
               disabled={saving}
               onChange={(event) => onDraftChange(property, "clientName", event.target.value)}
+              onBlur={(event) => {
+                if (!event.relatedTarget?.closest?.("[data-client-save-all]")) onSaveName(property, event.target.value);
+              }}
+              onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
               placeholder="Add client name"
               className="h-9 w-full rounded border border-slate-200 bg-white px-2 outline-none hover:border-slate-400 focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
             />
@@ -149,7 +154,7 @@ function MobileContactField({ label, icon: Icon, propertyName, type, value, disp
   );
 }
 
-function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
+function MobileClientRow({ property, session, draft, saving, onDraftChange, onSaveName, nameSaveNotice }) {
   const [showDestinations, setShowDestinations] = useState(false);
   const [editingName, setEditingName] = useState(false);
 
@@ -189,7 +194,11 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
             maxLength={160}
             disabled={saving}
             onChange={(event) => onDraftChange(property, "clientName", event.target.value)}
-            onBlur={() => setEditingName(false)}
+            onBlur={(event) => {
+              setEditingName(false);
+              if (!event.relatedTarget?.closest?.("[data-client-save-all]")) onSaveName(property, event.target.value);
+            }}
+            onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
             className="h-9 min-w-0 flex-1 border-0 border-b border-[var(--brand)] bg-transparent px-0 text-base font-semibold text-foreground outline-none"
           />
         ) : property.canEdit ? (
@@ -200,6 +209,8 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
           </button>
         ) : <h2 className="min-w-0 break-words text-base font-semibold leading-tight text-foreground">{property.clientName || "No client name"}</h2>}
       </div>
+      {editingName && <p className="ml-6 text-xs text-foreground/55">Name saves when you finish editing.</p>}
+      {nameSaveNotice && <p role={nameSaveNotice.error ? "alert" : "status"} className={`ml-6 text-xs ${nameSaveNotice.error ? "text-red-700" : "text-green-700"}`}>{nameSaveNotice.message}</p>}
       <div className="grid grid-cols-2 gap-3">
         <div className="min-w-0">
           <MobileContactField
@@ -252,6 +263,7 @@ export default function ClientDetailsPage() {
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
   const [saveError, setSaveError] = useState("");
+  const [nameSaveNotice, setNameSaveNotice] = useState(null);
 
   useEffect(() => {
     document.title = "Client Details | SCOUT";
@@ -376,6 +388,36 @@ export default function ClientDetailsPage() {
     }));
     setSaveStatus("");
     setSaveError("");
+    if (field === "clientName") setNameSaveNotice(null);
+  }
+
+  async function handleSaveName(property, clientName) {
+    if (!session?.access_token || saving || clientName.trim() === (property.clientName || "")) return;
+    setSaving(true);
+    setSaveStatus("");
+    setSaveError("");
+    setNameSaveNotice({ id: property.id, message: "Saving name…", error: false });
+    try {
+      const updated = await saveClientNameChange({ property, clientName, accessToken: session.access_token });
+      setProperties((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setDrafts((current) => {
+        const existing = current[updated.id];
+        if (!existing) return current;
+        const next = { ...current };
+        const nextDraft = { ...existing, clientName: updated.clientName || "" };
+        if (changedClientProperties([updated], { [updated.id]: nextDraft }).length) next[updated.id] = nextDraft;
+        else delete next[updated.id];
+        return next;
+      });
+      setNameSaveNotice({ id: property.id, message: "Client name saved.", error: false });
+      setSaveStatus("Client name saved.");
+    } catch (error) {
+      const message = error.message || "Unable to save the client name.";
+      setSaveError(message);
+      setNameSaveNotice({ id: property.id, message, error: true });
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleSaveAll() {
@@ -383,6 +425,7 @@ export default function ClientDetailsPage() {
     setSaving(true);
     setSaveStatus("");
     setSaveError("");
+    setNameSaveNotice(null);
     try {
       const { saved, failed } = await saveClientContactChanges({
         properties,
@@ -415,6 +458,7 @@ export default function ClientDetailsPage() {
     setOrgId("");
     setSaveStatus("");
     setSaveError("");
+    setNameSaveNotice(null);
     await supabase.auth.signOut();
   }
 
@@ -440,6 +484,7 @@ export default function ClientDetailsPage() {
             <div className="flex flex-col items-end gap-1">
               <button
                 type="button"
+                data-client-save-all
                 onClick={handleSaveAll}
                 disabled={saving || changedProperties.length === 0}
                 style={{
@@ -495,6 +540,8 @@ export default function ClientDetailsPage() {
                   draft={contactDraftForProperty(property, drafts)}
                   saving={saving}
                   onDraftChange={handleDraftChange}
+                  onSaveName={handleSaveName}
+                  nameSaveNotice={nameSaveNotice?.id === property.id ? nameSaveNotice : null}
                 />
               ))}
             </div>
@@ -528,6 +575,7 @@ export default function ClientDetailsPage() {
                       draft={contactDraftForProperty(property, drafts)}
                       saving={saving}
                       onDraftChange={handleDraftChange}
+                      onSaveName={handleSaveName}
                     />
                   ))}
                 </tbody>

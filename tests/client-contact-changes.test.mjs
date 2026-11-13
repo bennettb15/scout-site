@@ -5,6 +5,7 @@ import {
   contactDraftForProperty,
   formatClientPhone,
   saveClientContactChanges,
+  saveClientNameChange,
 } from "../src/lib/clientContactChanges.js";
 
 const properties = [
@@ -48,4 +49,22 @@ test("one save action sends every edited property and keeps failures identifiabl
   assert.deepEqual(result.saved.map((property) => property.id), ["one"]);
   assert.deepEqual(result.failed.map((failure) => failure.property.id), ["two"]);
   assert.equal(result.failed[0].error, "Changed elsewhere.");
+});
+
+test("finishing a client-name edit saves that name with the property's current contact fields", async () => {
+  let sent;
+  const updated = { ...properties[0], clientName: "Alicia", revision: 3 };
+  const saved = await saveClientNameChange({
+    property: properties[0],
+    clientName: " Alicia ",
+    accessToken: "test-token",
+    request: async (_url, options) => {
+      sent = JSON.parse(options.body);
+      return { ok: true, json: async () => ({ property: updated }) };
+    },
+  });
+  assert.equal(sent.clientName, "Alicia");
+  assert.equal(sent.clientEmail, "one@example.com");
+  assert.equal(sent.clientPhone, "6145555555");
+  assert.equal(saved.clientName, "Alicia");
 });

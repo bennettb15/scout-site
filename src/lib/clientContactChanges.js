@@ -67,3 +67,25 @@ export async function saveClientContactChanges({ properties, drafts, accessToken
 
   return { saved, failed };
 }
+
+export async function saveClientNameChange({ property, clientName, accessToken, request = fetch }) {
+  const response = await request("/api/client-details", {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      propertyId: property.id,
+      revision: property.revision,
+      clientName: clientName.trim(),
+      clientEmail: property.clientEmail || "",
+      clientPhone: property.clientPhone || "",
+    }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.property) {
+    throw new Error(body.error || "Unable to save the client name.");
+  }
+  return body.property;
+}
