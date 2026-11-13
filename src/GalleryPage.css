@@ -20,3 +20,32 @@
 .gallery-controls label:last-child{width:100%;justify-self:stretch}
 .gallery-controls input[type=search]{height:24px;min-height:24px;max-height:24px;align-self:end;appearance:none;-webkit-appearance:none;border-radius:9px}
 @media(max-width:760px){.gallery-controls label:last-child{width:100%}.gallery-controls input[type=search]{height:44px;min-height:44px;max-height:44px}}
+
+/* Keep the main selectors visible while secondary filters collapse on phones. */
+.gallery-controls{grid-template-columns:1fr}
+.gallery-controls label:nth-child(n){grid-column:auto}
+.gallery-primary-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.gallery-desktop-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.gallery-mobile-filters{display:none}
+@media(max-width:760px){
+  .gallery-main{padding:20px 16px 70px}
+  .gallery-intro{margin-bottom:16px}
+  .gallery-intro h1{font-size:30px}
+  .gallery-intro>p:last-child{margin-top:8px;font-size:14px}
+  .gallery-controls{gap:10px;padding:12px;margin-bottom:14px}
+  .gallery-controls label{gap:5px}
+  .gallery-primary-filters{gap:10px}
+  .gallery-controls select{min-height:40px;padding:0 8px}
+  .gallery-desktop-filters{display:none}
+  .gallery-mobile-filters{display:block}
+  .gallery-mobile-filters summary{display:inline-flex;min-height:32px;align-items:center;gap:7px;cursor:pointer;list-style:none;color:#1c2742;font-size:13px;font-weight:750}
+  .gallery-mobile-filters summary::-webkit-details-marker{display:none}
+  .gallery-mobile-filter-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
+  .gallery-mobile-filter-fields label:last-child{grid-column:span 2}
+  .gallery-controls input[type=search]{height:40px;min-height:40px;max-height:40px}
+  .gallery-property-title{margin:18px 0 16px;padding-bottom:12px}
+  .gallery-property-title h2{font-size:22px}
+  .gallery-download-bar{top:calc(var(--gallery-header-height, 64px) + 4px);gap:0;margin:0 0 16px;padding:7px}
+  .gallery-download-bar>span{display:none}
+  .gallery-download-bar button{width:100%;min-height:38px}
+}

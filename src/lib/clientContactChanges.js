@@ -8,9 +8,11 @@ export function formatClientPhone(value) {
 }
 
 export function contactDraftForProperty(property, drafts) {
-  return drafts[property.id] || {
+  return {
+    clientName: property.clientName || "",
     clientEmail: property.clientEmail || "",
     clientPhone: formatClientPhone(property.clientPhone),
+    ...drafts[property.id],
   };
 }
 
@@ -18,7 +20,8 @@ export function changedClientProperties(properties, drafts) {
   return (properties || []).filter((property) => {
     if (!property.canEdit) return false;
     const draft = contactDraftForProperty(property, drafts);
-    return draft.clientEmail.trim() !== (property.clientEmail || "") ||
+    return draft.clientName.trim() !== (property.clientName || "") ||
+      draft.clientEmail.trim() !== (property.clientEmail || "") ||
       formatClientPhone(draft.clientPhone) !== formatClientPhone(property.clientPhone);
   });
 }
@@ -42,6 +45,7 @@ export async function saveClientContactChanges({ properties, drafts, accessToken
           body: JSON.stringify({
             propertyId: property.id,
             revision: property.revision,
+            clientName: draft.clientName.trim(),
             clientEmail: draft.clientEmail,
             clientPhone: formatClientPhone(draft.clientPhone),
           }),

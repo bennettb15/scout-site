@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Download, Flag, Search } from "lucide-react";
+import { CheckCircle2, Download, Flag, Search, SlidersHorizontal } from "lucide-react";
 import AccountMenu from "./components/AccountMenu";
 import PortalNavigation from "./components/PortalNavigation";
 import { hasSupabaseConfig, supabase } from "./lib/supabaseClient";
@@ -381,11 +381,11 @@ export default function GalleryPage() {
   return (
     <div className="gallery-page" style={{ "--gallery-header-height": `${headerHeight}px` }}>
       <header ref={headerRef} className="border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-3 px-4 py-4 sm:flex-row sm:items-center md:px-6">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:flex-wrap sm:gap-3 sm:py-4 lg:flex-nowrap md:px-6">
           <a href="/" className="inline-flex items-center">
-            <img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-10 w-auto object-contain md:h-11" loading="eager" />
+            <img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-7 w-auto object-contain max-[350px]:h-6 sm:h-10 md:h-11" loading="eager" />
           </a>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <PortalNavigation active="gallery" />
             {session && <AccountMenu onSignOut={() => supabase?.auth.signOut()} canOpenAdmin={canOpenAdmin} />}
           </div>
@@ -410,34 +410,61 @@ export default function GalleryPage() {
 
         {session && <>
           <section className="gallery-controls" aria-label="Gallery filters">
-            <label>Organization
-              <select value={orgId} onChange={(event) => handleOrgChange(event.target.value)} disabled={orgsLoading || !orgs.length}>
-                <option value="">Choose an organization</option>
-                {orgs.map((org) => <option key={org.id} value={org.id}>{org.name || "Organization"}</option>)}
-              </select>
-            </label>
-            <label>Property
-              <select value={propertyId} onChange={(event) => handlePropertyChange(event.target.value)} disabled={orgsLoading || !orgId || !properties.length}>
-                <option value="">Choose a property</option>
-                {properties.map((item) => <option key={item.id} value={item.id}>{propertyLabel(item)}</option>)}
-              </select>
-            </label>
-            {property && <label>Year
-              <select value={year} onChange={(event) => { setYear(event.target.value); setVisibleCount(INITIAL_SESSION_COUNT); setViewer(null); }}>
-                <option value="all">All dates</option>
-                {years.map((value) => <option key={value} value={value}>{value}</option>)}
-              </select>
-            </label>}
-            {property && <label>Photo status
-              <select value={photoStatus} onChange={(event) => { setPhotoStatus(event.target.value); setViewer(null); }}>
-                <option value="all">All photos</option>
-                <option value="flagged">Flagged</option>
-                <option value="resolved">Resolved</option>
-              </select>
-            </label>}
-            {property && <label>Find a photo
-              <input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setViewer(null); }} placeholder="Search photo names" />
-            </label>}
+            <div className="gallery-primary-filters">
+              <label>Organization
+                <select value={orgId} onChange={(event) => handleOrgChange(event.target.value)} disabled={orgsLoading || !orgs.length}>
+                  <option value="">Choose an organization</option>
+                  {orgs.map((org) => <option key={org.id} value={org.id}>{org.name || "Organization"}</option>)}
+                </select>
+              </label>
+              <label>Property
+                <select value={propertyId} onChange={(event) => handlePropertyChange(event.target.value)} disabled={orgsLoading || !orgId || !properties.length}>
+                  <option value="">Choose a property</option>
+                  {properties.map((item) => <option key={item.id} value={item.id}>{propertyLabel(item)}</option>)}
+                </select>
+              </label>
+            </div>
+            {property && <>
+              <div className="gallery-desktop-filters">
+                <label>Year
+                  <select value={year} onChange={(event) => { setYear(event.target.value); setVisibleCount(INITIAL_SESSION_COUNT); setViewer(null); }}>
+                    <option value="all">All dates</option>
+                    {years.map((value) => <option key={value} value={value}>{value}</option>)}
+                  </select>
+                </label>
+                <label>Photo status
+                  <select value={photoStatus} onChange={(event) => { setPhotoStatus(event.target.value); setViewer(null); }}>
+                    <option value="all">All photos</option>
+                    <option value="flagged">Flagged</option>
+                    <option value="resolved">Resolved</option>
+                  </select>
+                </label>
+                <label>Find a photo
+                  <input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setViewer(null); }} placeholder="Search photo names" />
+                </label>
+              </div>
+              <details className="gallery-mobile-filters">
+                <summary><SlidersHorizontal size={16} aria-hidden="true" /> Filters</summary>
+                <div className="gallery-mobile-filter-fields">
+                  <label>Year
+                    <select value={year} onChange={(event) => { setYear(event.target.value); setVisibleCount(INITIAL_SESSION_COUNT); setViewer(null); }}>
+                      <option value="all">All dates</option>
+                      {years.map((value) => <option key={value} value={value}>{value}</option>)}
+                    </select>
+                  </label>
+                  <label>Photo status
+                    <select value={photoStatus} onChange={(event) => { setPhotoStatus(event.target.value); setViewer(null); }}>
+                      <option value="all">All photos</option>
+                      <option value="flagged">Flagged</option>
+                      <option value="resolved">Resolved</option>
+                    </select>
+                  </label>
+                  <label>Find a photo
+                    <input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setViewer(null); }} placeholder="Search photo names" />
+                  </label>
+                </div>
+              </details>
+            </>}
           </section>
           {orgsLoading && <div className="gallery-panel">Loading properties…</div>}
           {orgsError && <div className="gallery-panel gallery-error" role="alert">{orgsError}</div>}

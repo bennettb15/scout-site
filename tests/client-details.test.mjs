@@ -38,14 +38,15 @@ test("only owners and managers can edit a granted client contact", () => {
 });
 
 test("contact changes allow clearing fields and reject invalid values", () => {
-  assert.deepEqual(validateClientContact({ clientEmail: " User@Example.com ", clientPhone: " (555) 123-4567 " }), {
-    clientEmail: "user@example.com", clientPhone: "(555) 123-4567",
+  assert.deepEqual(validateClientContact({ clientName: " Jane Doe ", clientEmail: " User@Example.com ", clientPhone: " (555) 123-4567 " }), {
+    clientName: "Jane Doe", clientEmail: "user@example.com", clientPhone: "(555) 123-4567",
   });
-  assert.deepEqual(validateClientContact({ clientEmail: "", clientPhone: "" }), {
-    clientEmail: null, clientPhone: null,
+  assert.deepEqual(validateClientContact({ clientName: "", clientEmail: "", clientPhone: "" }), {
+    clientName: null, clientEmail: null, clientPhone: null,
   });
-  assert.ok(validateClientContact({ clientEmail: "invalid", clientPhone: "" }).error);
-  assert.ok(validateClientContact({ clientEmail: "", clientPhone: "<script>" }).error);
+  assert.ok(validateClientContact({ clientName: "Jane", clientEmail: "invalid", clientPhone: "" }).error);
+  assert.ok(validateClientContact({ clientName: "Jane", clientEmail: "", clientPhone: "<script>" }).error);
+  assert.ok(validateClientContact({ clientName: "x".repeat(161), clientEmail: "", clientPhone: "" }).error);
 });
 
 test("public client details omit database audit fields", () => {

@@ -68,6 +68,7 @@ export default async function handler(req, res) {
     }
     const { data: updated, error: updateError } = await service.from("properties")
       .update({
+        client_name: contact.clientName,
         client_email: contact.clientEmail,
         client_phone: contact.clientPhone,
         revision: revision + 1,

@@ -40,7 +40,20 @@ function ClientRow({ property, session, draft, saving, onDraftChange }) {
             <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${showDestinations ? "rotate-180" : ""}`} />
           </button>
         </th>
-        <td className="border-r border-slate-200 px-3 py-2 text-sm text-foreground/75">{property.clientName || <span className="text-foreground/45">No name</span>}</td>
+        <td className="border-r border-slate-200 px-2 py-1.5 text-sm text-foreground/75">
+          {property.canEdit ? (
+            <input
+              type="text"
+              aria-label={`Client name for ${property.propertyName || "property"}`}
+              value={draft.clientName}
+              maxLength={160}
+              disabled={saving}
+              onChange={(event) => onDraftChange(property, "clientName", event.target.value)}
+              placeholder="Add client name"
+              className="h-9 w-full rounded border border-slate-200 bg-white px-2 outline-none hover:border-slate-400 focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60"
+            />
+          ) : <span className="px-2">{property.clientName || "—"}</span>}
+        </td>
         <td className="border-r border-slate-200 px-3 py-2 text-sm text-foreground/75" title={propertyAddress(property)}>
           <div className="truncate">{propertyAddress(property) || <span className="text-foreground/45">No address</span>}</div>
         </td>
@@ -138,6 +151,7 @@ function MobileContactField({ label, icon: Icon, propertyName, type, value, disp
 
 function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
   const [showDestinations, setShowDestinations] = useState(false);
+  const [editingName, setEditingName] = useState(false);
 
   function selectShortcutProperty() {
     writePortalContext(session, { orgId: property.orgId, propertyId: property.id });
@@ -164,11 +178,27 @@ function MobileClientRow({ property, session, draft, saving, onDraftChange }) {
       <p className="mt-1 break-words text-xs leading-snug text-foreground/55">
         {propertyAddress(property) || "No address on file"}
       </p>
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-2 flex min-h-9 items-center gap-2">
         <UserFilled className="h-4 w-4 shrink-0 text-foreground/45" aria-hidden="true" />
-        <h2 className="min-w-0 break-words text-base font-semibold leading-tight text-foreground">
-          {property.clientName || "No client name"}
-        </h2>
+        {property.canEdit && editingName ? (
+          <input
+            autoFocus
+            type="text"
+            aria-label={`Client name for ${property.propertyName || "property"}`}
+            value={draft.clientName}
+            maxLength={160}
+            disabled={saving}
+            onChange={(event) => onDraftChange(property, "clientName", event.target.value)}
+            onBlur={() => setEditingName(false)}
+            className="h-9 min-w-0 flex-1 border-0 border-b border-[var(--brand)] bg-transparent px-0 text-base font-semibold text-foreground outline-none"
+          />
+        ) : property.canEdit ? (
+          <button type="button" disabled={saving} onClick={() => setEditingName(true)} aria-label={`Edit client name for ${property.propertyName || "property"}`}
+            className="flex min-w-0 flex-1 items-center gap-2 text-left text-base font-semibold text-foreground disabled:opacity-60">
+            <span className="min-w-0 break-words">{draft.clientName || "Add client name"}</span>
+            <Pencil className="ml-auto h-3.5 w-3.5 shrink-0 text-foreground/35" aria-hidden="true" />
+          </button>
+        ) : <h2 className="min-w-0 break-words text-base font-semibold leading-tight text-foreground">{property.clientName || "No client name"}</h2>}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="min-w-0">
@@ -391,9 +421,9 @@ export default function ClientDetailsPage() {
   return (
     <div style={{ "--brand": BRAND_NAVY }} className="min-h-screen bg-slate-50 text-foreground">
       <header className="border-b border-border bg-background/95">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6">
-          <a href="/"><img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-10 w-auto" /></a>
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:flex-wrap sm:gap-3 sm:py-4 lg:flex-nowrap md:px-6">
+          <a href="/"><img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-7 w-auto max-[350px]:h-6 sm:h-10" /></a>
+          <div className="flex shrink-0 items-center gap-2">
             <PortalNavigation active="clients" />
             {session && <AccountMenu onSignOut={handleSignOut} canOpenAdmin={canOpenAdmin} />}
           </div>
@@ -503,7 +533,7 @@ export default function ClientDetailsPage() {
                 </tbody>
               </table>
             </div>
-            <p className="mt-2 text-xs text-foreground/50">Owners and managers can edit email or phone, then save changes above. Each row is one property record.</p>
+            <p className="mt-2 text-xs text-foreground/50">Owners and managers can edit client name, email, or phone, then save changes above. Each row is one property record.</p>
           </>
         )}
       </main>

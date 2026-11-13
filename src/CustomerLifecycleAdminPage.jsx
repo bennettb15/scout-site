@@ -237,11 +237,11 @@ export default function CustomerLifecycleAdminPage({ hidden = false }) {
   return (
     <div hidden={hidden} style={{ "--brand": "#1C2742", display: hidden ? "none" : undefined }} className="min-h-screen bg-slate-50 text-foreground">
       <header className="border-b border-border bg-background">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:flex-wrap sm:gap-3 sm:py-4 lg:flex-nowrap md:px-6">
           <a href="/" className="inline-flex items-center">
-            <img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-10 w-auto object-contain md:h-11" />
+            <img src="/Scout Only Logo Navy Dark NEW.png" alt="SCOUT" className="h-7 w-auto object-contain max-[350px]:h-6 sm:h-10 md:h-11" />
           </a>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <PortalNavigation active="admin" />
             {session && <AccountMenu onSignOut={() => supabase?.auth.signOut()} canOpenAdmin={accessState === "authorized"} adminActive />}
           </div>

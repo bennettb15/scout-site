@@ -133,12 +133,12 @@ export default function AccountPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:flex-wrap sm:gap-3 sm:py-4 lg:flex-nowrap md:px-6">
           <a href="/" aria-label="SCOUT home">
-            <img src={BRAND.logos.wordmarkOnly} alt="SCOUT" className="h-10 w-auto" />
+            <img src={BRAND.logos.wordmarkOnly} alt="SCOUT" className="h-7 w-auto max-[350px]:h-6 sm:h-10" />
           </a>
           {session && (
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex shrink-0 items-center justify-end gap-2">
               <PortalNavigation active="account" />
               <AccountMenu onSignOut={handleSignOut} active canOpenAdmin={canOpenAdmin} />
             </div>

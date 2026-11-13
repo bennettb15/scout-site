@@ -8,9 +8,9 @@ import {
 } from "../src/lib/clientContactChanges.js";
 
 const properties = [
-  { id: "one", propertyName: "First", clientEmail: "one@example.com", clientPhone: "6145555555", revision: 2, canEdit: true },
-  { id: "two", propertyName: "Second", clientEmail: "two@example.com", clientPhone: "7405550000", revision: 3, canEdit: true },
-  { id: "three", propertyName: "Read only", clientEmail: "three@example.com", clientPhone: "", revision: 1, canEdit: false },
+  { id: "one", propertyName: "First", clientName: "Alice", clientEmail: "one@example.com", clientPhone: "6145555555", revision: 2, canEdit: true },
+  { id: "two", propertyName: "Second", clientName: "Beth", clientEmail: "two@example.com", clientPhone: "7405550000", revision: 3, canEdit: true },
+  { id: "three", propertyName: "Read only", clientName: "Chris", clientEmail: "three@example.com", clientPhone: "", revision: 1, canEdit: false },
 ];
 
 test("standard US phone numbers display in the requested format without creating unsaved changes", () => {
@@ -20,11 +20,12 @@ test("standard US phone numbers display in the requested format without creating
   assert.equal(formatClientPhone("614-555-5555 ext"), "614-555-5555 ext");
   assert.equal(contactDraftForProperty(properties[0], {}).clientPhone, "(614)555-5555");
   assert.deepEqual(changedClientProperties(properties, { one: { clientEmail: "one@example.com", clientPhone: "(614)555-5555" } }), []);
+  assert.deepEqual(changedClientProperties(properties, { one: { clientName: "Alicia" } }).map((property) => property.id), ["one"]);
 });
 
 test("one save action sends every edited property and keeps failures identifiable", async () => {
   const drafts = {
-    one: { clientEmail: "new-one@example.com", clientPhone: "614 555 5555" },
+    one: { clientName: "Alicia", clientEmail: "new-one@example.com", clientPhone: "614 555 5555" },
     two: { clientEmail: "two@example.com", clientPhone: "7405551234" },
     three: { clientEmail: "changed@example.com", clientPhone: "" },
   };
@@ -41,6 +42,8 @@ test("one save action sends every edited property and keeps failures identifiabl
   const result = await saveClientContactChanges({ properties, drafts, accessToken: "test-token", request });
   assert.deepEqual(requests.map((requestBody) => requestBody.propertyId), ["one", "two"]);
   assert.equal(requests[0].clientPhone, "(614)555-5555");
+  assert.equal(requests[0].clientName, "Alicia");
+  assert.equal(requests[1].clientName, "Beth");
   assert.equal(requests[1].clientPhone, "(740)555-1234");
   assert.deepEqual(result.saved.map((property) => property.id), ["one"]);
   assert.deepEqual(result.failed.map((failure) => failure.property.id), ["two"]);

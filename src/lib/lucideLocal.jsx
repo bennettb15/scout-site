@@ -196,6 +196,13 @@ export const Search = createIcon(
     <path d="m20 20-3.5-3.5" />
   </>
 );
+export const SlidersHorizontal = createIcon(
+  <>
+    <path d="M4 7h9m4 0h3M4 17h3m4 0h9" />
+    <circle cx="15" cy="7" r="2" />
+    <circle cx="9" cy="17" r="2" />
+  </>
+);
 export const ShieldCheck = createIcon(
   <>
     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />

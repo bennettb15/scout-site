@@ -368,9 +368,6 @@
   .z-\[60\] {
     z-index: 60;
   }
-  .order-3 {
-    order: 3;
-  }
   .col-span-2 {
     grid-column: span 2 / span 2;
   }
@@ -574,6 +571,9 @@
   }
   .w-16 {
     width: calc(var(--spacing) * 16);
+  }
+  .w-48 {
+    width: calc(var(--spacing) * 48);
   }
   .w-56 {
     width: calc(var(--spacing) * 56);
@@ -2114,6 +2114,11 @@
       --tw-enter-translate-y: -100%;
     }
   }
+  .max-\[350px\]\:h-6 {
+    @media (width < 350px) {
+      height: calc(var(--spacing) * 6);
+    }
+  }
   .sm\:right-auto {
     @media (width >= 40rem) {
       right: auto;
@@ -2124,19 +2129,9 @@
       left: calc(var(--spacing) * 4);
     }
   }
-  .sm\:order-none {
-    @media (width >= 40rem) {
-      order: 0;
-    }
-  }
   .sm\:mb-5 {
     @media (width >= 40rem) {
       margin-bottom: calc(var(--spacing) * 5);
-    }
-  }
-  .sm\:ml-auto {
-    @media (width >= 40rem) {
-      margin-left: auto;
     }
   }
   .sm\:block {
@@ -2157,6 +2152,11 @@
   .sm\:h-9 {
     @media (width >= 40rem) {
       height: calc(var(--spacing) * 9);
+    }
+  }
+  .sm\:h-10 {
+    @media (width >= 40rem) {
+      height: calc(var(--spacing) * 10);
     }
   }
   .sm\:w-\[520px\] {
@@ -2204,11 +2204,6 @@
       flex-wrap: wrap;
     }
   }
-  .sm\:items-center {
-    @media (width >= 40rem) {
-      align-items: center;
-    }
-  }
   .sm\:items-end {
     @media (width >= 40rem) {
       align-items: flex-end;
@@ -2217,6 +2212,11 @@
   .sm\:justify-end {
     @media (width >= 40rem) {
       justify-content: flex-end;
+    }
+  }
+  .sm\:gap-3 {
+    @media (width >= 40rem) {
+      gap: calc(var(--spacing) * 3);
     }
   }
   .sm\:space-x-2 {
@@ -2251,6 +2251,11 @@
   .sm\:px-6 {
     @media (width >= 40rem) {
       padding-inline: calc(var(--spacing) * 6);
+    }
+  }
+  .sm\:py-4 {
+    @media (width >= 40rem) {
+      padding-block: calc(var(--spacing) * 4);
     }
   }
   .sm\:py-14 {
@@ -2397,6 +2402,11 @@
   .lg\:grid-cols-\[17rem_minmax\(0\,1fr\)\] {
     @media (width >= 64rem) {
       grid-template-columns: 17rem minmax(0,1fr);
+    }
+  }
+  .lg\:flex-nowrap {
+    @media (width >= 64rem) {
+      flex-wrap: nowrap;
     }
   }
   .xl\:hidden {

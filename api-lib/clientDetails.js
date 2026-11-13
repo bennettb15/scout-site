@@ -15,18 +15,22 @@ export function validateClientContact(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return { error: "A contact is required." };
   }
-  if (typeof body.clientEmail !== "string" || typeof body.clientPhone !== "string") {
-    return { error: "Email and phone must be text." };
+  if (typeof body.clientName !== "string" || typeof body.clientEmail !== "string" || typeof body.clientPhone !== "string") {
+    return { error: "Name, email, and phone must be text." };
   }
+  const clientName = body.clientName.trim();
   const clientEmail = body.clientEmail.trim().toLowerCase();
   const clientPhone = body.clientPhone.trim();
+  if (clientName.length > 160) {
+    return { error: "Client name must be 160 characters or fewer." };
+  }
   if (clientEmail.length > 254 || (clientEmail && !EMAIL_PATTERN.test(clientEmail))) {
     return { error: "Enter a valid email address." };
   }
   if (clientPhone.length > 40 || (clientPhone && !/^[+\d().\-\s xextEXT]+$/.test(clientPhone))) {
     return { error: "Enter a valid phone number." };
   }
-  return { clientEmail: clientEmail || null, clientPhone: clientPhone || null };
+  return { clientName: clientName || null, clientEmail: clientEmail || null, clientPhone: clientPhone || null };
 }
 
 export function publicClientProperty(row, canEdit) {

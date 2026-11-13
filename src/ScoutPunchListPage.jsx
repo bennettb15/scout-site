@@ -6350,16 +6350,16 @@ export default function ScoutPunchListPage() {
     >
       <style>{PUNCH_LIST_STYLES}</style>
       <header className="border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-3 px-4 py-4 sm:flex-row sm:items-center md:px-6">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:flex-wrap sm:gap-3 sm:py-4 lg:flex-nowrap md:px-6">
           <a href="/" className="inline-flex items-center">
             <img
               src={BRAND.logos.wordmarkOnly}
               alt="SCOUT"
-              className="h-10 w-auto object-contain md:h-11"
+              className="h-7 w-auto object-contain max-[350px]:h-6 sm:h-10 md:h-11"
               loading="eager"
             />
           </a>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <PortalNavigation active="punch-list" />
             {session && <AccountMenu onSignOut={handleSignOut} canOpenAdmin={canOpenAdmin} />}
           </div>
