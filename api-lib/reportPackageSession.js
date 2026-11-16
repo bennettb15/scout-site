@@ -70,3 +70,21 @@ export function reportPackageSessionTypeFromSources(...sources) {
 export function isPunchlistVisitSessionType(value) {
   return normalizeReportPackageSessionType(value) === PUNCHLIST_VISIT_SESSION_TYPE;
 }
+
+export function reportPackageFullDocumentationMode({
+  sessionType,
+  manifestMode,
+  snapshotMode,
+  shots = [],
+} = {}) {
+  if (normalizeReportPackageSessionType(sessionType) !== FULL_DOCUMENTATION_SESSION_TYPE) {
+    return null;
+  }
+  const explicitMode = String(manifestMode || snapshotMode || "").trim().toLowerCase();
+  if (explicitMode === "follow_up" || explicitMode === "complete_capture") {
+    return explicitMode;
+  }
+  return shots.some((shot) =>
+    shot?.is_guided === true && String(shot?.capture_kind || "").toLowerCase() === "retake"
+  ) ? "follow_up" : null;
+}

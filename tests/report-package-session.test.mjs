@@ -7,6 +7,7 @@ import {
   FULL_DOCUMENTATION_SESSION_TYPE,
   PUNCHLIST_VISIT_SESSION_TYPE,
   normalizeReportPackageSessionType,
+  reportPackageFullDocumentationMode,
   reportPackageSessionTypeFromSources,
 } from "../api-lib/reportPackageSession.js";
 import {
@@ -80,6 +81,28 @@ test("legacy fast-lane guided update is labeled Follow-Up", () => {
   const followUpPackage = reportPackage({ fullDocumentationMode: metadata.fullDocumentationMode });
   assert.equal(reportPackageTypeLabel(followUpPackage), "Follow-Up");
   assert.equal(shouldShowReportPackageTypeLabel(followUpPackage), true);
+});
+
+test("package mode uses the manifest and falls back to a legacy guided retake", () => {
+  const shots = [{ is_guided: true, capture_kind: "retake" }];
+  assert.equal(reportPackageFullDocumentationMode({
+    sessionType: FULL_DOCUMENTATION_SESSION_TYPE,
+    manifestMode: "follow_up",
+    shots,
+  }), "follow_up");
+  assert.equal(reportPackageFullDocumentationMode({
+    sessionType: FULL_DOCUMENTATION_SESSION_TYPE,
+    shots,
+  }), "follow_up");
+  assert.equal(reportPackageFullDocumentationMode({
+    sessionType: FULL_DOCUMENTATION_SESSION_TYPE,
+    manifestMode: "complete_capture",
+    shots,
+  }), "complete_capture");
+  assert.equal(reportPackageFullDocumentationMode({
+    sessionType: PUNCHLIST_VISIT_SESSION_TYPE,
+    shots,
+  }), null);
 });
 
 test("punchlist_visit packages show a generated Property Report", () => {
