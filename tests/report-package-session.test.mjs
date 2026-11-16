@@ -12,6 +12,7 @@ import {
 import {
   packageShowsPropertyReport,
   reportPackageTypeLabel,
+  shouldShowReportPackageTypeLabel,
   visibleReportFilesForPackage,
 } from "../src/lib/reportPackageDisplay.js";
 
@@ -68,6 +69,19 @@ test("snapshot metadata exposes punchlist_visit session type", () => {
   assert.equal(metadata.sessionType, PUNCHLIST_VISIT_SESSION_TYPE);
 });
 
+test("legacy fast-lane guided update is labeled Follow-Up", () => {
+  const metadata = buildSnapshotPhotoMetadata({
+    sessionType: "full_documentation",
+    appVersion: "fast-lane-report-handoff-edge",
+    shots: [{ shotID: "shot-1", isGuided: true, captureKind: "retake" }],
+  });
+  assert.equal(metadata.fullDocumentationMode, "follow_up");
+  assert.equal(metadata.isFullBaseline, false);
+  const followUpPackage = reportPackage({ fullDocumentationMode: metadata.fullDocumentationMode });
+  assert.equal(reportPackageTypeLabel(followUpPackage), "Follow-Up");
+  assert.equal(shouldShowReportPackageTypeLabel(followUpPackage), true);
+});
+
 test("punchlist_visit packages show a generated Property Report", () => {
   const punchlistPackage = reportPackage({ sessionType: PUNCHLIST_VISIT_SESSION_TYPE });
 
@@ -83,6 +97,7 @@ test("full_documentation packages still show normal reports", () => {
   const fullPackage = reportPackage();
 
   assert.equal(reportPackageTypeLabel(fullPackage), "Full Documentation");
+  assert.equal(shouldShowReportPackageTypeLabel(fullPackage), false);
   assert.equal(packageShowsPropertyReport(fullPackage), true);
   assert.deepEqual(
     visibleReportFilesForPackage(fullPackage).map((file) => file.reportType),

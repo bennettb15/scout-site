@@ -1526,9 +1526,9 @@ export default function ScoutReportsPortalPage() {
                           <span
                             className="inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-semibold shadow-sm"
                             style={{
-                              backgroundColor: "#FEF2F2",
-                              borderColor: "#DC2626",
-                              color: "#DC2626",
+                              backgroundColor: reportPackageTypeLabel(reportPackage) === "Punchlist" ? "#FEF2F2" : "#EFF6FF",
+                              borderColor: reportPackageTypeLabel(reportPackage) === "Punchlist" ? "#DC2626" : "#2563EB",
+                              color: reportPackageTypeLabel(reportPackage) === "Punchlist" ? "#DC2626" : "#2563EB",
                             }}
                           >
                             {reportPackageTypeLabel(reportPackage)}

@@ -13,13 +13,14 @@ export function reportPackageSessionType(reportPackage = {}) {
 }
 
 export function reportPackageTypeLabel(reportPackage = {}) {
-  return reportPackageSessionType(reportPackage) === PUNCHLIST_VISIT_SESSION_TYPE
-    ? "Punchlist"
-    : "Full Documentation";
+  if (reportPackageSessionType(reportPackage) === PUNCHLIST_VISIT_SESSION_TYPE) return "Punchlist";
+  if (reportPackage.fullDocumentationMode === "follow_up") return "Follow-Up";
+  return "Full Documentation";
 }
 
 export function shouldShowReportPackageTypeLabel(reportPackage = {}) {
-  return reportPackageSessionType(reportPackage) !== FULL_DOCUMENTATION_SESSION_TYPE;
+  return reportPackageSessionType(reportPackage) !== FULL_DOCUMENTATION_SESSION_TYPE ||
+    reportPackage.fullDocumentationMode === "follow_up";
 }
 
 export function visibleReportFilesForPackage(reportPackage = {}) {
