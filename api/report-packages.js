@@ -23,6 +23,7 @@ import {
   reportSessionActorId,
 } from "../api-lib/auditAttribution.js";
 import {
+  reportPackageFullDocumentationMode,
   reportPackageSessionTypeFromSources,
 } from "../api-lib/reportPackageSession.js";
 import { mapWithConcurrency } from "../api-lib/mapWithConcurrency.js";
@@ -421,7 +422,7 @@ export default async function handler(req, res) {
           .order("requested_at", { ascending: false }),
         service
           .from("shots")
-          .select("id,org_id,property_id,session_id,storage_path,captured_at,created_at,position")
+          .select("id,org_id,property_id,session_id,storage_path,captured_at,created_at,position,is_guided,capture_kind")
           .in("session_id", sessionIds)
           .eq("storage_bucket", ORIGINALS_BUCKET)
           .eq("upload_state", "uploaded")
@@ -451,12 +452,12 @@ export default async function handler(req, res) {
       if (metadata) snapshotMetadataByPackageId.set(packageRows[index].id, metadata);
     }
     const photoCountsByPackageId = new Map(packageRows.map((row) => [row.id, 0]));
+    const shotsByPackageId = new Map();
     const safeShotRows = (shotRows || []).filter(originalPathIsExpected);
     for (const packageRow of packageRows) {
-      photoCountsByPackageId.set(
-        packageRow.id,
-        safeShotRows.filter((shotRow) => shotBelongsToPackage(shotRow, packageRow)).length
-      );
+      const packageShots = safeShotRows.filter((shotRow) => shotBelongsToPackage(shotRow, packageRow));
+      shotsByPackageId.set(packageRow.id, packageShots);
+      photoCountsByPackageId.set(packageRow.id, packageShots.length);
     }
     const firstPhotoByPackageId = new Map();
     for (const packageRow of packageRows) {
@@ -526,11 +527,17 @@ export default async function handler(req, res) {
       const snapshotMetadata = snapshotMetadataByPackageId.get(row.id) || null;
       const sessionRow = sessionRows.find((item) => item.id === row.session_id) || null;
       const firstPhotoRow = firstPhotoByPackageId.get(row.id) || null;
+      const sessionType = reportPackageSessionTypeFromSources(row, sessionRow, snapshotMetadata);
       return {
         id: row.id,
         status: row.status,
-        sessionType: reportPackageSessionTypeFromSources(row, sessionRow, snapshotMetadata),
-        fullDocumentationMode: row.full_documentation_mode || snapshotMetadata?.fullDocumentationMode || null,
+        sessionType,
+        fullDocumentationMode: reportPackageFullDocumentationMode({
+          sessionType,
+          manifestMode: row.full_documentation_mode,
+          snapshotMode: snapshotMetadata?.fullDocumentationMode,
+          shots: shotsByPackageId.get(row.id),
+        }),
         org: orgsById.get(row.org_id) || null,
         property: propertiesById.get(row.property_id) || null,
         session: sessionsById.get(row.session_id) || null,
