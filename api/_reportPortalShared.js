@@ -513,6 +513,7 @@ export function buildSnapshotPhotoMetadata(rawSession) {
       captured_at: snapshotCapturedAt(shot),
       captured_by_email: actorEmailFromShotSnapshot(shot, capturedByEmail),
       captured_by_user_id: actorIdFromShotSnapshot(shot) || null,
+      is_guided: boolValue(shot?.isGuided ?? shot?.is_guided),
       is_flagged: boolValue(shot?.isFlagged || shot?.is_flagged || shot?.flagged),
       is_resolved_in_session:
         issueStatus === "resolved" ||
@@ -529,13 +530,21 @@ export function buildSnapshotPhotoMetadata(rawSession) {
   });
 
   const firstPhoto = rows[0] || null;
+  const sessionType = reportPackageSessionTypeFromSources(rawSession);
+  const explicitMode = (textValue(rawSession?.fullDocumentationMode || rawSession?.full_documentation_mode) || "").toLowerCase();
+  const legacyFollowUp = rawSession?.appVersion === "fast-lane-report-handoff-edge" &&
+    rows.some((shot) => shot.is_guided && String(shot.capture_kind || "").toLowerCase() === "retake");
+  const fullDocumentationMode = sessionType === "full_documentation"
+    ? (explicitMode === "follow_up" || (!explicitMode && legacyFollowUp) ? "follow_up" : "complete_capture")
+    : null;
   return {
     byShotId,
     byStoragePath,
     byFilename,
     rows,
-    sessionType: reportPackageSessionTypeFromSources(rawSession),
-    isFullBaseline: reportPackageSessionTypeFromSources(rawSession) === 'full_documentation' && Boolean(
+    sessionType,
+    fullDocumentationMode,
+    isFullBaseline: sessionType === 'full_documentation' && fullDocumentationMode !== 'follow_up' && Boolean(
       rawSession.sessionType === 'full_documentation' || rawSession.session_type === 'full_documentation' ||
       rawSession.guidedShots?.length || shots.some((shot) => shot.isGuided === true)
     ),

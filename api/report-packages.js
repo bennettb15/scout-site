@@ -30,7 +30,7 @@ import { loadActiveAttributionEmails } from "../api-lib/activeAttributionEmails.
 import { startPortalRequestTiming } from "../api-lib/portalRequestTiming.js";
 
 const REPORT_PACKAGE_BASE_SELECT =
-  "id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at,weather_summary,report_variant:manifest->>report_variant";
+  "id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at,weather_summary,report_variant:manifest->>report_variant,full_documentation_mode:manifest->>full_documentation_mode";
 const REPORT_OPTIONAL_AUDIT_COLUMNS = [
   "completed_by",
   "completed_by_user_id",
@@ -530,6 +530,7 @@ export default async function handler(req, res) {
         id: row.id,
         status: row.status,
         sessionType: reportPackageSessionTypeFromSources(row, sessionRow, snapshotMetadata),
+        fullDocumentationMode: row.full_documentation_mode || snapshotMetadata?.fullDocumentationMode || null,
         org: orgsById.get(row.org_id) || null,
         property: propertiesById.get(row.property_id) || null,
         session: sessionsById.get(row.session_id) || null,
