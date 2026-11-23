@@ -907,6 +907,43 @@ export async function publicHistoryPhotoForRow({
   };
 }
 
+export async function publicHistoryPhotosForRow({
+  row,
+  shot,
+  historyShotsByIssueId,
+  historyShotsByLocationKey,
+  candidateOrderByShotId,
+  packageBySession,
+  sessionById,
+  previewForShot,
+}) {
+  if (!row?.preview?.previewUrl || !shot) return [];
+  const candidates = rankedHistoryCandidates({
+    shot,
+    historyShotsByIssueId,
+    historyShotsByLocationKey,
+    candidateOrderByShotId,
+  });
+  const photos = await mapWithConcurrency(candidates, 8, async (priorShot) => {
+    const previewUrl = await previewForShot(priorShot);
+    if (!previewUrl || previewUrl === row.preview.previewUrl) return null;
+    const reportPackage = packageBySession.get(priorShot.session_id) || null;
+    const session = sessionById.get(priorShot.session_id) || null;
+    const capturedAt = priorShot.captured_at || priorShot.created_at || null;
+    return {
+      label: row.status === "resolved" || row.status === "pending_review" ? "Before" : "Previous",
+      shotId: priorShot.id,
+      packageId: reportPackage?.id || null,
+      capturedAt,
+      session,
+      sessionDate: priorSessionDate(reportPackage, session) || capturedAt,
+      isPriorSessionPhoto: true,
+      preview: publicPreview(priorShot, previewUrl, reportPackage),
+    };
+  });
+  return photos.filter(Boolean);
+}
+
 async function publicCoverPhoto({
   candidateShots,
   packageBySession,
@@ -2730,25 +2767,22 @@ export function completeReportPairForPortalRow(row, sources = {}, shots = []) {
   };
 }
 
-async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URLS, includeCoverPhoto = false, timing = null, complete = false } = {}) {
+async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URLS, includeCoverPhoto = false, timing = null, complete = false, historyShotId = null } = {}) {
   const loadRows = complete ? allRows : safeRows;
   const { client } = auth;
   const service = await maybeServiceClient();
   const queryClient = service || client;
+  const packagesQuery = applyScope(
+    queryClient
+      .from("report_packages")
+      .select("id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at")
+      .eq("status", "ready")
+      .is("deleted_at", null),
+    scope
+  ).order("session_completed_at", { ascending: false });
   const [portalAccess, packageRows, observations] = await Promise.all([
     service ? loadUserPortalPropertyAccess(service, auth.user) : null,
-    loadRows(
-      applyScope(
-        queryClient
-          .from("report_packages")
-          .select("id,org_id,property_id,session_id,snapshot_id,status,session_completed_at,completed_at")
-          .eq("status", "ready")
-          .is("deleted_at", null),
-        scope
-      )
-        .order("session_completed_at", { ascending: false })
-        .limit(100)
-    ),
+    historyShotId ? allRows(packagesQuery) : loadRows(packagesQuery.limit(100)),
     loadRows(
       applyScope(
         queryClient
@@ -2848,22 +2882,24 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     ...observationUpdates.map((row) => row.shot_id),
   ]);
 
+  const sessionShotQuery = (ids) => queryClient
+    .from("shots")
+    .select(shotSelect())
+    .in("session_id", ids)
+    .eq("storage_bucket", ORIGINALS_BUCKET)
+    .eq("upload_state", "uploaded")
+    .is("deleted_at", null)
+    .not("storage_path", "is", null)
+    .order("position", { ascending: true, nullsFirst: false })
+    .order("captured_at", { ascending: true });
   const [packageSessionShots, observationShots] = await Promise.all([
-    sessionIds.length
-      ? loadRows(
-          queryClient
-            .from("shots")
-            .select(shotSelect())
-            .in("session_id", sessionIds)
-            .eq("storage_bucket", ORIGINALS_BUCKET)
-            .eq("upload_state", "uploaded")
-            .is("deleted_at", null)
-            .not("storage_path", "is", null)
-            .order("position", { ascending: true, nullsFirst: false })
-            .order("captured_at", { ascending: true })
-            .limit(5000)
-        )
-      : [],
+    !sessionIds.length ? [] : historyShotId
+      ? mapWithConcurrency(
+          Array.from({ length: Math.ceil(sessionIds.length / 50) }, (_, index) => sessionIds.slice(index * 50, index * 50 + 50)),
+          4,
+          (ids) => allRows(sessionShotQuery(ids))
+        ).then((groups) => groups.flat())
+      : loadRows(sessionShotQuery(sessionIds).limit(5000)),
     shotIds.length
       ? loadRows(
           queryClient
@@ -3104,7 +3140,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     addHistoryShot(historyShotsByLocationKey, locationKey, shot);
   }
 
-  if (service && !includeCoverPhoto) {
+  if (service && !includeCoverPhoto && !historyShotId) {
     const prefetchShots = [];
     const prefetchedIds = new Set();
     const addPrefetchShot = (shot) => {
@@ -3175,6 +3211,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
         latestFlaggedShotByIssueId,
         latestFlaggedShotByLocationKey
       ) || observationShot;
+    if (historyShotId && shot?.id !== historyShotId) continue;
     const reportPackage = packageBySession.get(shot?.session_id || observation.session_id) || null;
     const statusOverride = latestStatusOverride({
       operationalState,
@@ -3213,7 +3250,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       reportPackage,
       previewUrl: await previewForShot(shot),
     });
-    const historyPhoto = await publicHistoryPhotoForRow({
+    const historyArgs = {
       row,
       shot,
       historyShotsByIssueId,
@@ -3222,9 +3259,12 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       packageBySession,
       sessionById,
       previewForShot,
-    });
-    if (historyPhoto) {
-      row.photoHistory = { prior: historyPhoto };
+    };
+    if (historyShotId) {
+      row.photoHistory = { photos: await publicHistoryPhotosForRow(historyArgs) };
+    } else {
+      const historyPhoto = await publicHistoryPhotoForRow(historyArgs);
+      if (historyPhoto) row.photoHistory = { prior: historyPhoto };
     }
     const completionHistoryPhotos = rawActivityRows
       .filter((activityRow) => activityRow.activity_type === "completion_submitted")
@@ -3251,7 +3291,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
     if (completionHistoryPhotos.length > 0) {
       row.photoHistory = {
         ...(row.photoHistory || {}),
-        photos: completionHistoryPhotos,
+        photos: [...(row.photoHistory?.photos || []), ...completionHistoryPhotos],
       };
     }
     addDedupKeys(dedupKeys, row);
@@ -3259,6 +3299,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
   }
 
   for (const shot of candidateShots) {
+    if (historyShotId && shot.id !== historyShotId) continue;
     const isFlagged = isFlaggedShot(shot);
     if (!isFlagged) continue;
     const candidate = {
@@ -3287,7 +3328,7 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
         shot.property_id || reportPackage?.property_id
       ),
     });
-    const historyPhoto = await publicHistoryPhotoForRow({
+    const historyArgs = {
       row,
       shot,
       historyShotsByIssueId,
@@ -3296,9 +3337,12 @@ async function loadPunchListRows(auth, scope, { maxPreviewUrls = MAX_PREVIEW_URL
       packageBySession,
       sessionById,
       previewForShot,
-    });
-    if (historyPhoto) {
-      row.photoHistory = { prior: historyPhoto };
+    };
+    if (historyShotId) {
+      row.photoHistory = { photos: await publicHistoryPhotosForRow(historyArgs) };
+    } else {
+      const historyPhoto = await publicHistoryPhotoForRow(historyArgs);
+      if (historyPhoto) row.photoHistory = { prior: historyPhoto };
     }
     addDedupKeys(dedupKeys, row);
     rows.push(row);
@@ -4593,7 +4637,8 @@ export default async function handler(req, res) {
     return handleDeleteNote(req, res);
   }
 
-  const mode = getQueryValue(req, "mode") === "filters" ? "filters" : "rows";
+  const requestedMode = getQueryValue(req, "mode");
+  const mode = requestedMode === "filters" || requestedMode === "photo-history" ? requestedMode : "rows";
   const timing = startPortalRequestTiming(res, "punch_list", mode);
   if (mode === "filters") {
     return handleFilters(req, res, timing);
@@ -4604,10 +4649,26 @@ export default async function handler(req, res) {
     timing.mark("auth");
     if (auth.error) return sendJson(res, 401, { error: auth.error });
 
-    const rows = await loadPunchListRows(auth, {
+    const scope = {
       orgId: scopeId(req, "orgId"),
       propertyId: scopeId(req, "propertyId"),
-    }, { timing });
+    };
+    if (mode === "photo-history") {
+      const shotId = validateUuid(getQueryValue(req, "shotId"));
+      if (!shotId || !validateUuid(scope.orgId) || !validateUuid(scope.propertyId)) {
+        return sendJson(res, 400, { error: "A valid photo and property are required." });
+      }
+      const rows = await loadPunchListRows(auth, scope, {
+        timing,
+        historyShotId: shotId,
+        maxPreviewUrls: Number.MAX_SAFE_INTEGER,
+      });
+      const row = rows.find((item) => item.shotId === shotId);
+      if (!row) return sendJson(res, 404, { error: "Photo history not found." });
+      return sendJson(res, 200, { photoHistory: row.photoHistory || { photos: [] } });
+    }
+
+    const rows = await loadPunchListRows(auth, scope, { timing });
 
     return sendJson(res, 200, { rows });
   } catch {

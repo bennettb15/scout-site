@@ -2795,6 +2795,13 @@ const PUNCH_LIST_STYLES = `
     object-fit: cover;
   }
 
+  .punch-lightbox-history-status {
+    background: rgb(15 23 42);
+    color: white;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
   .punch-lightbox-close {
     display: inline-flex;
     align-items: center;
@@ -3386,6 +3393,7 @@ function previewPhotosForRow(row) {
     for (const photo of pendingCompletionPhotos(row)) addPhoto({ ...photo, label: photo.label || "Pending Review" });
     addPhoto(scoutPhoto);
     for (const photo of scoutHistoryPhotos) addHistoryPhoto(photo);
+    for (const photo of previousCompletionPhotos) addHistoryPhoto(photo);
     return photos;
   }
 
@@ -3394,6 +3402,7 @@ function previewPhotosForRow(row) {
     for (const photo of resolutionPhotos) addPhoto({ ...photo, label: photo.label || "Resolved" });
     addPhoto(scoutPhoto ? { ...scoutPhoto, label: "Before" } : null);
     for (const photo of scoutHistoryPhotos) addHistoryPhoto(photo);
+    for (const photo of previousCompletionPhotos) addHistoryPhoto(photo);
     return photos;
   }
 
@@ -4817,19 +4826,60 @@ function previewTargetPhotos(target) {
   return photos.length > 0 ? photos : null;
 }
 
-function ImagePreviewModal({ target, onClose }) {
+function ImagePreviewModal({ target, session, onClose }) {
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [loadedHistory, setLoadedHistory] = useState(null);
+  const [historyError, setHistoryError] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(false);
   const row = previewTargetRow(target);
   const targetPhoto = previewTargetPhoto(target);
   const initialPhoto = previewTargetInitialPhoto(target);
   const targetPhotos = useMemo(() => previewTargetPhotos(target), [target]);
+  const historyRow = useMemo(
+    () => loadedHistory?.shotId === row?.shotId
+      ? { ...row, photoHistory: loadedHistory.photoHistory }
+      : row,
+    [row, loadedHistory]
+  );
   const photos = useMemo(
-    () => targetPhotos || (targetPhoto ? [targetPhoto] : previewPhotosForRow(row)),
-    [row, targetPhoto, targetPhotos]
+    () => targetPhotos || (targetPhoto ? [targetPhoto] : previewPhotosForRow(historyRow)),
+    [historyRow, targetPhoto, targetPhotos]
   );
   const activeIndex = Math.min(photoIndex, Math.max(photos.length - 1, 0));
   const activePhoto = photos[activeIndex] || null;
   const hasMultiplePhotos = photos.length > 1;
+
+  useEffect(() => {
+    setLoadedHistory(null);
+    setHistoryError("");
+    setHistoryLoading(false);
+    if (!row?.shotId || !row?.org?.id || !row?.property?.id || !session?.access_token || targetPhoto || targetPhotos) return undefined;
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      mode: "photo-history",
+      orgId: row.org.id,
+      propertyId: row.property.id,
+      shotId: row.shotId,
+    });
+    setHistoryLoading(true);
+    fetch(`/api/punch-list?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error || "Unable to load photo history.");
+        return body;
+      })
+      .then((body) => setLoadedHistory({ shotId: row.shotId, photoHistory: body.photoHistory }))
+      .catch((error) => {
+        if (error.name !== "AbortError") setHistoryError("Could not load the full photo history.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setHistoryLoading(false);
+      });
+    return () => controller.abort();
+  }, [row?.shotId, row?.org?.id, row?.property?.id, session?.access_token, targetPhoto, targetPhotos]);
 
   useEffect(() => {
     const initialIdentity = photoIdentity(initialPhoto);
@@ -4956,6 +5006,8 @@ function ImagePreviewModal({ target, onClose }) {
             ))}
           </div>
         )}
+        {historyLoading && <div className="punch-lightbox-history-status">Loading photo history…</div>}
+        {historyError && <div className="punch-lightbox-history-status" role="alert">{historyError}</div>}
         <div className="punch-lightbox-summary">
           <div className={`punch-lightbox-issue ${issueResolved ? "is-resolved" : pendingPhoto ? "is-pending" : ""}`}>
             {issueResolved ? (
@@ -6843,7 +6895,7 @@ export default function ScoutPunchListPage() {
         onGenerate={() => handleGenerateReport(reportComplete, reportComplete ? reportPropertyId : selectedPropertyId)}
         onClose={() => setReportModalOpen(false)}
       />
-      <ImagePreviewModal target={previewRow} onClose={() => setPreviewRow(null)} />
+      <ImagePreviewModal target={previewRow} session={session} onClose={() => setPreviewRow(null)} />
       <CompletionNoteModal
         row={completionPromptRow}
         completionDraft={completionPromptRow ? completionDrafts[completionPromptRow.id] || {} : {}}
