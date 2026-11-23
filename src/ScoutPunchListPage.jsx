@@ -4836,7 +4836,7 @@ function ImagePreviewModal({ target, session, onClose }) {
   const initialPhoto = previewTargetInitialPhoto(target);
   const targetPhotos = useMemo(() => previewTargetPhotos(target), [target]);
   const historyRow = useMemo(
-    () => loadedHistory?.shotId === row?.shotId
+    () => loadedHistory && row && loadedHistory.shotId === row.shotId
       ? { ...row, photoHistory: loadedHistory.photoHistory }
       : row,
     [row, loadedHistory]
