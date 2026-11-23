@@ -153,7 +153,7 @@ function RoleSelect({ row, disabled, onChange }) {
         value={row.role === "owner" ? "" : row.role || "viewer"}
         disabled={disabled}
         onChange={(event) => onChange(row, event.target.value)}
-              className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60 xl:h-10"
+              className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 disabled:opacity-60 md:h-10"
       >
         {row.role === "owner" && <option value="" disabled>Change Owner role</option>}
         {ROLE_CHANGE_OPTIONS.filter((option) => allowedRoles.has(option.value)).map(
@@ -212,7 +212,7 @@ function PropertyScopeSummary({
         <button
           type="button"
           onClick={onEdit}
-          className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground/75 shadow-sm hover:text-[var(--brand)] xl:h-8 xl:px-2.5"
+          className="inline-flex h-11 shrink-0 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground/75 shadow-sm hover:text-[var(--brand)] md:h-8 md:px-2.5"
         >
           Edit
         </button>
@@ -395,7 +395,7 @@ function PropertyScopeEditor({
               type="button"
               onClick={handleCancel}
               disabled={disabled}
-              className="inline-flex h-11 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground/60 shadow-sm disabled:opacity-45 xl:h-8 xl:px-2.5"
+              className="inline-flex h-11 items-center justify-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground/60 shadow-sm disabled:opacity-45 md:h-8 md:px-2.5"
             >
               Cancel
             </button>
@@ -403,7 +403,7 @@ function PropertyScopeEditor({
               type="button"
               onClick={handleSave}
               disabled={disabled || !draftCanSave}
-              className="inline-flex h-11 items-center justify-center rounded-lg bg-[var(--brand)] px-3 text-xs font-semibold text-white shadow-sm disabled:opacity-45 xl:h-8 xl:px-2.5"
+              className="inline-flex h-11 items-center justify-center rounded-lg bg-[var(--brand)] px-3 text-xs font-semibold text-white shadow-sm disabled:opacity-45 md:h-8 md:px-2.5"
               title={
                 zeroSelected
                   ? "At least one property is required"
@@ -1368,8 +1368,8 @@ export default function PortalAccessAdminPage({ hidden = false }) {
               </div>
 
               <div className="w-full min-w-0 max-w-full overflow-x-auto">
-                <table className="block w-full table-fixed text-left text-sm xl:table">
-                  <thead className="hidden border-b border-border bg-slate-50 text-xs uppercase text-foreground/55 xl:table-header-group">
+                <table className="block w-full table-fixed text-left text-sm md:table md:min-w-[1050px]">
+                  <thead className="hidden border-b border-border bg-slate-50 text-xs uppercase text-foreground/55 md:table-header-group">
                     <tr>
                       <th className="px-3 py-3 font-semibold" style={{ width: "22%" }}>Email</th>
                       <th className="px-3 py-3 font-semibold" style={{ width: "16%" }}>Status</th>
@@ -1380,7 +1380,7 @@ export default function PortalAccessAdminPage({ hidden = false }) {
                       <th className="px-3 py-3 text-right font-semibold" style={{ width: "12%" }}>Action</th>
                     </tr>
                   </thead>
-                  <tbody className="grid gap-3 bg-slate-50 p-3 xl:table-row-group xl:bg-transparent xl:p-0">
+                  <tbody className="grid gap-3 bg-slate-50 p-3 md:table-row-group md:bg-transparent md:p-0">
                     {unifiedAccessRows.map((row) => {
                       const canEditScope =
                         row.rowType === "active" && canEditPortalPropertyScope(row);
@@ -1388,21 +1388,21 @@ export default function PortalAccessAdminPage({ hidden = false }) {
 
                       return (
                         <Fragment key={`${row.rowType}:${row.id}`}>
-                          <tr className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-4 rounded-lg border border-border bg-background p-4 shadow-sm xl:table-row xl:rounded-none xl:border-x-0 xl:border-t-0 xl:p-0 xl:shadow-none">
-                            <td className="col-span-2 min-w-0 break-all font-medium text-foreground xl:table-cell xl:px-2.5 xl:py-3">
-                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Email</span>
+                          <tr className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-4 rounded-lg border border-border bg-background p-4 shadow-sm md:table-row md:rounded-none md:border-x-0 md:border-t-0 md:p-0 md:shadow-none">
+                            <td className="col-span-2 min-w-0 break-all font-medium text-foreground md:table-cell md:px-2.5 md:py-3">
+                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 md:hidden">Email</span>
                               {row.email || row.userId}
                             </td>
-                            <td className="col-span-2 min-w-0 xl:table-cell xl:px-2.5 xl:py-3">
-                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Status</span>
+                            <td className="col-span-2 min-w-0 md:table-cell md:px-2.5 md:py-3">
+                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 md:hidden">Status</span>
                               {row.rowType === "invite" ? (
                                 <InviteStatus row={row} />
                               ) : (
                                 <AccountStatus status={row.accountStatus} />
                               )}
                             </td>
-                            <td className="col-span-2 min-w-0 text-foreground/70 xl:table-cell xl:px-2.5 xl:py-3">
-                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Role</span>
+                            <td className="col-span-2 min-w-0 text-foreground/70 md:table-cell md:px-2.5 md:py-3">
+                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 md:hidden">Role</span>
                               {row.rowType === "invite" ? (
                                 <span className="font-medium text-foreground/75">
                                   {selectedAccessTypeLabel(row.role)}
@@ -1415,8 +1415,8 @@ export default function PortalAccessAdminPage({ hidden = false }) {
                                 />
                               )}
                             </td>
-                            <td className="col-span-2 min-w-0 text-foreground/70 xl:table-cell xl:px-2.5 xl:py-3">
-                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Properties</span>
+                            <td className="col-span-2 min-w-0 text-foreground/70 md:table-cell md:px-2.5 md:py-3">
+                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 md:hidden">Properties</span>
                               <PropertyScopeSummary
                                 role={row.role}
                                 accessScope={row.accessScope}
@@ -1431,8 +1431,8 @@ export default function PortalAccessAdminPage({ hidden = false }) {
                                 onEdit={() => setScopeEditRowId(row.id)}
                               />
                             </td>
-                            <td className="min-w-0 text-foreground/70 xl:table-cell xl:px-2.5 xl:py-3">
-                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Report Emails</span>
+                            <td className="min-w-0 text-foreground/70 md:table-cell md:px-2.5 md:py-3">
+                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 md:hidden">Report Emails</span>
                               {row.rowType === "invite" ? (
                                 <span className="text-xs text-foreground/45">
                                   After activation
@@ -1468,17 +1468,17 @@ export default function PortalAccessAdminPage({ hidden = false }) {
                                 </label>
                               )}
                             </td>
-                            <td className="min-w-0 text-foreground/70 xl:table-cell xl:px-2.5 xl:py-3">
-                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 xl:hidden">Created</span>
+                            <td className="min-w-0 text-foreground/70 md:table-cell md:px-2.5 md:py-3">
+                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground/45 md:hidden">Created</span>
                               {formatDate(row.createdAt)}
                             </td>
-                            <td className="col-span-2 min-w-0 border-t border-border pt-3 text-right xl:table-cell xl:border-0 xl:px-2.5 xl:py-3">
+                            <td className="col-span-2 min-w-0 border-t border-border pt-3 text-right md:table-cell md:border-0 md:px-2.5 md:py-3">
                               {row.rowType === "invite" ? (
                                 <button
                                   type="button"
                                   onClick={() => handleCancelInvite(row)}
                                   disabled={!row.canCancel || cancelInviteId === row.id}
-                                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-red-700 disabled:opacity-45 xl:h-9 xl:w-auto"
+                                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-red-700 disabled:opacity-45 md:h-9 md:w-auto"
                                   title={
                                     row.canCancel
                                       ? "Cancel pending invite"
@@ -1493,7 +1493,7 @@ export default function PortalAccessAdminPage({ hidden = false }) {
                                   type="button"
                                   onClick={() => handleRevoke(row)}
                                   disabled={!row.canRevoke || revokeId === row.id}
-                                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-red-700 disabled:opacity-45 xl:h-9 xl:w-auto"
+                                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground/75 shadow-sm hover:text-red-700 disabled:opacity-45 md:h-9 md:w-auto"
                                   title={
                                     row.canRevoke
                                       ? "Revoke access"
@@ -1507,8 +1507,8 @@ export default function PortalAccessAdminPage({ hidden = false }) {
                             </td>
                           </tr>
                           {isScopeEditing && (
-                            <tr className="block rounded-lg border border-border bg-background xl:table-row xl:rounded-none xl:border-x-0 xl:border-t-0 xl:bg-slate-50/70">
-                              <td colSpan={7} className="block min-w-0 p-4 xl:table-cell xl:px-5 xl:py-4">
+                            <tr className="block rounded-lg border border-border bg-background md:table-row md:rounded-none md:border-x-0 md:border-t-0 md:bg-slate-50/70">
+                              <td colSpan={7} className="block min-w-0 p-4 md:table-cell md:px-5 md:py-4">
                                 <PropertyScopeEditor
                                   key={`${row.id}:${row.role}:${row.accessScope}:${(row.propertyIds || []).join("|")}:${selectedOrgProperties.map((property) => property.id).join("|")}`}
                                   row={row}
@@ -1531,10 +1531,10 @@ export default function PortalAccessAdminPage({ hidden = false }) {
                       );
                     })}
                     {unifiedAccessRows.length === 0 && (
-                      <tr className="block rounded-lg border border-border bg-background xl:table-row xl:rounded-none xl:border-0">
+                      <tr className="block rounded-lg border border-border bg-background md:table-row md:rounded-none md:border-0">
                         <td
                           colSpan={7}
-                          className="block px-5 py-8 text-center text-sm text-foreground/60 xl:table-cell"
+                          className="block px-5 py-8 text-center text-sm text-foreground/60 md:table-cell"
                         >
                           No access rows or pending invites.
                         </td>
