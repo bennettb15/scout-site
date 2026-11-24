@@ -1228,9 +1228,11 @@ export function publicObservationRow({
     detailType: compactText(shot?.detail_type),
     angleIndex: shot?.angle_index ?? null,
     shotKey: compactText(shot?.shot_key),
-    capturedAt: useLatestShotDisplay
-      ? shot?.captured_at || shot?.created_at || update?.captured_at || observation.first_seen_at || observation.created_at
-      : update?.captured_at || shot?.captured_at || observation.first_seen_at || observation.created_at,
+    // Match the date to the photo shown on the card, including portal
+    // completion photos that temporarily replace the ScoutCapture thumbnail.
+    capturedAt: (completionPhotoIsPrimary && completionPhoto?.capturedAt) ||
+      shot?.captured_at || shot?.created_at || update?.captured_at ||
+      observation.first_seen_at || observation.created_at,
     updatedAt: update?.updated_at || observation.updated_at,
     resolvedAt:
       observation.resolved_at ||
