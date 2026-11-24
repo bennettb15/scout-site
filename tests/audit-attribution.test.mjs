@@ -285,6 +285,41 @@ test("Punch List rows with missing actor data still render notes, uploads, and h
   assert.equal(row.attribution.label, "Uploaded by System");
   assert.equal(row.activity.length, 2);
   assert.equal(row.completionReview.photos[0].submittedByEmail, "System");
+  assert.equal(row.capturedAt, uploadRow.created_at);
+});
+
+test("punch list card dates match the displayed replacement photo", () => {
+  const newCapture = "2026-11-24T16:35:52.361Z";
+  const oldCapture = "2026-11-22T04:44:00.000Z";
+  const row = publicObservationRow({
+    observation: {
+      id: "88888888-8888-4888-8888-888888888888",
+      org_id: orgId,
+      property_id: propertyA,
+      session_id: sessionId,
+      shot_id: shotId,
+      status: "pending_review",
+      created_at: oldCapture,
+    },
+    update: { captured_at: oldCapture, updated_at: oldCapture },
+    shot: {
+      id: shotId,
+      org_id: orgId,
+      property_id: propertyA,
+      session_id: sessionId,
+      captured_at: newCapture,
+      created_at: newCapture,
+      issue_status: "pending_review",
+    },
+    activity: [],
+    workflowActivityRows: [],
+    previewUrl: "https://example.com/new-photo.jpg",
+  });
+
+  assert.equal(row.capturedAt, newCapture);
+  assert.equal(row.shotId, shotId);
+  assert.equal(row.preview.previewUrl, "https://example.com/new-photo.jpg");
+  assert.equal(row.updatedAt, oldCapture);
 });
 
 test("property-scoped users do not gain unrelated actor data", () => {
