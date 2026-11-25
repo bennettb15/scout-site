@@ -21,6 +21,13 @@ export function shouldShowReportPackageTypeLabel() {
   return true;
 }
 
+export function filterReportPackagesByType(reportPackages = [], selectedType = "All") {
+  if (selectedType === "All") return reportPackages || [];
+  return (reportPackages || []).filter(
+    (reportPackage) => reportPackageTypeLabel(reportPackage) === selectedType
+  );
+}
+
 export function visibleReportFilesForPackage(reportPackage = {}) {
   const files = Array.isArray(reportPackage.files) ? reportPackage.files : [];
   return files;
