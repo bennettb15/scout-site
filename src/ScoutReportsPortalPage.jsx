@@ -9,7 +9,6 @@ import {
   Download,
   Flag,
   FileText,
-  ListFilter,
   RefreshCw,
   Search,
   X,
@@ -1378,34 +1377,18 @@ export default function ScoutReportsPortalPage() {
                       <option value={DATE_FILTER_ALL}>All Dates</option>
                     </select>
                   </label>
-                  <div className="grid gap-1 text-xs font-semibold text-foreground/60">
-                    <span>Type</span>
-                    <details className="relative" onKeyDown={(event) => {
-                      if (event.key === "Escape") event.currentTarget.removeAttribute("open");
-                    }}>
-                      <summary className="flex h-9 w-40 cursor-pointer list-none items-center gap-2 whitespace-nowrap rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 [&::-webkit-details-marker]:hidden">
-                        <ListFilter className="h-4 w-4 shrink-0" />
-                        {reportTypeFilter === "All" ? "Filter" : reportTypeFilter}
-                        <ChevronDown className="ml-auto h-4 w-4 shrink-0" />
-                      </summary>
-                      <div className="absolute left-0 top-full z-20 mt-1 w-40 rounded-lg border border-border bg-background p-1 shadow-lg">
-                        {REPORT_TYPE_FILTERS.map((type) => (
-                          <button
-                            key={type}
-                            type="button"
-                            onClick={(event) => {
-                              setReportTypeFilter(type);
-                              event.currentTarget.closest("details")?.removeAttribute("open");
-                            }}
-                            className="flex w-full items-center justify-between gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-sm font-medium text-foreground hover:bg-muted"
-                          >
-                            {type}
-                            {reportTypeFilter === type && <Check className="h-4 w-4 text-[var(--brand)]" />}
-                          </button>
-                        ))}
-                      </div>
-                    </details>
-                  </div>
+                  <label className="grid gap-1 text-xs font-semibold text-foreground/60">
+                    Filter
+                    <select
+                      value={reportTypeFilter}
+                      onChange={(event) => setReportTypeFilter(event.target.value)}
+                      className="h-9 w-40 whitespace-nowrap rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15"
+                    >
+                      {REPORT_TYPE_FILTERS.map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
               </div>
             )}

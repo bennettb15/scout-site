@@ -94,7 +94,6 @@ export const FileText = createIcon(
     <path d="M14 2v6h6M8 13h8M8 17h6" />
   </>
 );
-export const ListFilter = createIcon(<path d="M4 6h16M7 12h10M10 18h4" />);
 export const Flag = forwardRef(function Flag(
   { color = "currentColor", size = 24, className, children, ...props },
   ref
