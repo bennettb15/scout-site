@@ -9,6 +9,7 @@ import {
   Download,
   Flag,
   FileText,
+  ListFilter,
   RefreshCw,
   Search,
   X,
@@ -19,6 +20,7 @@ import PortalNavigation from "./components/PortalNavigation";
 import TenantComparisonControl from "./components/TenantComparisonControl";
 import { readPortalContext, writePortalContext } from "./lib/portalContext";
 import {
+  filterReportPackagesByType,
   reportPackageTypeLabel,
   shouldShowReportPackageTypeLabel,
   visibleReportFilesForPackage,
@@ -51,6 +53,7 @@ const REPORT_ORDER = {
 const ALL_PROPERTIES = "all";
 const DATE_FILTER_LATEST = "latest";
 const DATE_FILTER_ALL = "all";
+const REPORT_TYPE_FILTERS = ["All", "Full", "Punchlist", "Follow-Up"];
 const FETCH_IDLE = "idle";
 const FETCH_LOADING = "loading";
 const FETCH_SUCCESS = "success";
@@ -234,6 +237,7 @@ export default function ScoutReportsPortalPage() {
   const [selectedOrgId, setSelectedOrgId] = useState("");
   const [selectedPropertyId, setSelectedPropertyId] = useState(ALL_PROPERTIES);
   const [dateFilter, setDateFilter] = useState(DATE_FILTER_LATEST);
+  const [reportTypeFilter, setReportTypeFilter] = useState("All");
   const [downloadId, setDownloadId] = useState("");
   const [exportActionId, setExportActionId] = useState("");
   const [expandedPackageIds, setExpandedPackageIds] = useState({});
@@ -1172,12 +1176,16 @@ export default function ScoutReportsPortalPage() {
   const displayedDateFilter = loadedReportsScopeKey.endsWith(`:${DATE_FILTER_ALL}`)
     ? DATE_FILTER_ALL
     : DATE_FILTER_LATEST;
-  const filteredPackages = useMemo(() => {
+  const dateFilteredPackages = useMemo(() => {
     if (displayedDateFilter === DATE_FILTER_ALL) return propertyFilteredPackages;
     return propertyFilteredPackages.filter((reportPackage) =>
       latestPackageIdsForPropertyFilter.has(reportPackage.id)
     );
   }, [displayedDateFilter, latestPackageIdsForPropertyFilter, propertyFilteredPackages]);
+  const filteredPackages = useMemo(
+    () => filterReportPackagesByType(dateFilteredPackages, reportTypeFilter),
+    [dateFilteredPackages, reportTypeFilter]
+  );
 
   const orgSelectionSettled =
     orgOptions.length === 0 ||
@@ -1261,6 +1269,9 @@ export default function ScoutReportsPortalPage() {
     if (propertyFilteredPackages.length === 0 && selectedProperty) {
       return `No ready PDF packages are available for ${propertyLine(selectedProperty)}.`;
     }
+    if (filteredPackages.length === 0 && reportTypeFilter !== "All") {
+      return `No ${reportTypeFilter} reports match the selected property and date filters.`;
+    }
     if (dateFilter === DATE_FILTER_LATEST) {
       return "No packages match Latest Only for the selected property filter.";
     }
@@ -1268,8 +1279,10 @@ export default function ScoutReportsPortalPage() {
   }, [
     dateFilter,
     propertyFilteredPackages.length,
+    reportTypeFilter,
     selectedOrg,
     selectedProperty,
+    filteredPackages.length,
     visibleOrgPackages.length,
   ]);
 
@@ -1364,6 +1377,34 @@ export default function ScoutReportsPortalPage() {
                     <option value={DATE_FILTER_ALL}>All Dates</option>
                   </select>
                 </label>
+                <div className="grid gap-1 text-xs font-semibold text-foreground/60">
+                  <span>Type</span>
+                  <details className="relative" onKeyDown={(event) => {
+                    if (event.key === "Escape") event.currentTarget.removeAttribute("open");
+                  }}>
+                    <summary className="flex h-9 cursor-pointer list-none items-center gap-2 rounded-lg border border-input bg-background px-3 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/15 [&::-webkit-details-marker]:hidden">
+                      <ListFilter className="h-4 w-4" />
+                      {reportTypeFilter === "All" ? "Filter" : reportTypeFilter}
+                      <ChevronDown className="h-4 w-4" />
+                    </summary>
+                    <div className="absolute left-0 top-full z-20 mt-1 min-w-40 rounded-lg border border-border bg-background p-1 shadow-lg">
+                      {REPORT_TYPE_FILTERS.map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={(event) => {
+                            setReportTypeFilter(type);
+                            event.currentTarget.closest("details")?.removeAttribute("open");
+                          }}
+                          className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium text-foreground hover:bg-muted"
+                        >
+                          {type}
+                          {reportTypeFilter === type && <Check className="h-4 w-4 text-[var(--brand)]" />}
+                        </button>
+                      ))}
+                    </div>
+                  </details>
+                </div>
               </div>
             )}
           </div>
