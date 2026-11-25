@@ -119,8 +119,8 @@ test("punchlist_visit packages show a generated Property Report", () => {
 test("full_documentation packages still show normal reports", () => {
   const fullPackage = reportPackage();
 
-  assert.equal(reportPackageTypeLabel(fullPackage), "Full Documentation");
-  assert.equal(shouldShowReportPackageTypeLabel(fullPackage), false);
+  assert.equal(reportPackageTypeLabel(fullPackage), "Full");
+  assert.equal(shouldShowReportPackageTypeLabel(fullPackage), true);
   assert.equal(packageShowsPropertyReport(fullPackage), true);
   assert.deepEqual(
     visibleReportFilesForPackage(fullPackage).map((file) => file.reportType),
@@ -131,7 +131,8 @@ test("full_documentation packages still show normal reports", () => {
 test("legacy packages without sessionType remain full-documentation compatible", () => {
   const legacyPackage = reportPackage({ sessionType: undefined });
 
-  assert.equal(reportPackageTypeLabel(legacyPackage), "Full Documentation");
+  assert.equal(reportPackageTypeLabel(legacyPackage), "Full");
+  assert.equal(shouldShowReportPackageTypeLabel(legacyPackage), true);
   assert.equal(packageShowsPropertyReport(legacyPackage), true);
 });
 

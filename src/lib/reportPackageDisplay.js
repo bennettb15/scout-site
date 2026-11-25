@@ -1,5 +1,4 @@
 import {
-  FULL_DOCUMENTATION_SESSION_TYPE,
   PUNCHLIST_VISIT_SESSION_TYPE,
   normalizeReportPackageSessionType,
 } from "../../api-lib/reportPackageSession.js";
@@ -15,12 +14,11 @@ export function reportPackageSessionType(reportPackage = {}) {
 export function reportPackageTypeLabel(reportPackage = {}) {
   if (reportPackageSessionType(reportPackage) === PUNCHLIST_VISIT_SESSION_TYPE) return "Punchlist";
   if (reportPackage.fullDocumentationMode === "follow_up") return "Follow-Up";
-  return "Full Documentation";
+  return "Full";
 }
 
-export function shouldShowReportPackageTypeLabel(reportPackage = {}) {
-  return reportPackageSessionType(reportPackage) !== FULL_DOCUMENTATION_SESSION_TYPE ||
-    reportPackage.fullDocumentationMode === "follow_up";
+export function shouldShowReportPackageTypeLabel() {
+  return true;
 }
 
 export function visibleReportFilesForPackage(reportPackage = {}) {
