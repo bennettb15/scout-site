@@ -26,6 +26,7 @@ import {
   stampedPhotoFilename,
 } from "./_reportPortalShared.js";
 import { fieldResolutionStateFromActivity, latestStatusOverride, normalizedExplicitStatus, packageTimestamp } from "../api-lib/punchListStatus.js";
+import { shouldWriteWorkflowActivity } from "../api-lib/punchListWorkflow.js";
 import { requiresFieldResolutionReview } from "../api-lib/resolutionReviewPolicy.js";
 import { mapWithConcurrency } from "../api-lib/mapWithConcurrency.js";
 import { loadActiveAttributionEmails } from "../api-lib/activeAttributionEmails.js";
@@ -2582,7 +2583,9 @@ async function handleUpdateWorkflowField(req, res, body = null) {
     const currentValue = field === "status"
       ? operationalStatusFromActivity(activityRows) || workflowValueForField({ observation, workflowState }, field)
       : workflowValueForField({ observation, workflowState }, field);
-    if ((currentValue || null) === (nextValue || null) && !forceActivity) {
+    if (!shouldWriteWorkflowActivity({
+      field, currentValue, nextValue, displayedFromValue: body.fromValue, forceActivity,
+    })) {
       return sendJson(res, 200, {
         updated: true,
         unchanged: true,
