@@ -5644,7 +5644,7 @@ export default function ScoutPunchListPage() {
           field,
           value: nextPatch[field],
           forceActivity,
-          fromValue: options.fromValue || null,
+          fromValue: options.fromValue ?? previousPatch[field] ?? null,
           note: options.note || null,
         }),
       });
